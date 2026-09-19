@@ -704,6 +704,7 @@ export default function App() {
       if (k === 'v') setTool('select');
       if (k === 'r') selectTool('room');
       if (k === 'h') setTool('pan');
+      if (k === 'm') selectTool(tool === 'measure' ? 'select' : 'measure');
       if (k === 'e' && selected) rotate();
       const arrows: Record<string, [number, number]> = {
         ArrowLeft: [-1, 0],
@@ -1526,12 +1527,20 @@ export default function App() {
                 <span>Draw room</span>
               </button>
               <button
+                className={tool === 'measure' ? 'active' : ''}
+                title="Measure a distance (M)"
+                onClick={() => selectTool(tool === 'measure' ? 'select' : 'measure')}
+              >
+                <Ruler size={16} />
+                <span>Measure</span>
+              </button>
+              <button
                 className={tool === 'pan' ? 'active' : ''}
                 title="Pan (H) — or drag empty space"
+                aria-label="Pan"
                 onClick={() => selectTool('pan')}
               >
                 <Hand size={16} />
-                <span>Pan</span>
               </button>
             </div>
             <div className="view-tabs">
@@ -1923,6 +1932,9 @@ export default function App() {
                   </span>
                   <span>
                     <kbd>R</kbd>Draw room
+                  </span>
+                  <span>
+                    <kbd>M</kbd>Measure
                   </span>
                   <span>
                     <kbd>E</kbd>Turn 90°

@@ -637,6 +637,37 @@ kbd {
   stroke-width: 0.06;
   pointer-events: none;
 }
+.plan-empty {
+  position: absolute;
+  left: 50%;
+  top: 42%;
+  transform: translate(-50%, -50%);
+  width: min(360px, 80%);
+  background: #fffefae8;
+  backdrop-filter: blur(6px);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 20px 22px;
+  text-align: center;
+  box-shadow: 0 10px 40px #2a3f3014;
+}
+.plan-empty strong {
+  font:
+    20px Georgia,
+    serif;
+  color: #2e4539;
+}
+.plan-empty p {
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--muted);
+  margin: 8px 0 14px;
+}
+.plan-empty kbd {
+  background: #ffffff22;
+  color: #fff;
+  border-color: #ffffff44;
+}
 .selection-bar {
   position: absolute;
   transform: translate(-50%, calc(-100% - 12px));
@@ -1684,16 +1715,22 @@ kbd {
 }
 
 /* Narrower windows */
+@media (max-width: 1600px) {
+  .view-tabs button svg,
+  .drawing-tools button span + svg,
+  .drawing-tools button svg:not(:only-child) {
+    display: none;
+  }
+  .workspace-toolbar {
+    gap: 8px;
+  }
+}
 @media (max-width: 1320px) {
   .library-panel {
     width: 206px;
   }
   .inspector {
     width: 240px;
-  }
-  .view-tabs button svg,
-  .drawing-tools button svg {
-    display: none;
   }
   .header-actions .subtle-button span {
     display: none;

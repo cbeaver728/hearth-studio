@@ -37,7 +37,7 @@ interface Props {
 }
 type Corner = 'nw' | 'ne' | 'sw' | 'se';
 interface Gesture {
-  kind: 'draw' | 'move' | 'resize' | 'pan' | 'opening';
+  kind: 'draw' | 'move' | 'resize' | 'pan' | 'opening' | 'measure';
   opening?: string;
   x: number;
   z: number;
@@ -71,6 +71,14 @@ export default function Plan({
   const [slide, setSlide] = useState<{ id: string; offset: number } | null>(null);
   const [hover, setHover] = useState<{ x: number; z: number } | null>(null);
   const [panning, setPanning] = useState(false);
+  // The measuring tape: stays on screen until the next measurement or tool change.
+  const [tape, setTape] = useState<{
+    a: { x: number; z: number };
+    b: { x: number; z: number };
+  } | null>(null);
+  useEffect(() => {
+    if (tool !== 'measure') setTape(null);
+  }, [tool]);
   const gesture = useRef<Gesture | null>(null);
   const fitted = useRef(false);
 
@@ -252,6 +260,12 @@ export default function Plan({
       placeOpening(a, tool);
       return;
     }
+    if (tool === 'measure') {
+      const start = { x: snap(a.x, snapping), z: snap(a.z, snapping) };
+      setTape({ a: start, b: start });
+      gesture.current = { kind: 'measure', x: start.x, z: start.z };
+      return;
+    }
     if (tool === 'select') {
       if (item) {
         onSelect(item.id);
@@ -309,6 +323,14 @@ export default function Plan({
     if (!g) return;
     if (g.kind === 'pan') {
       setView((v) => ({ ...v, x: v.x + g.x - a.x, z: v.z + g.z - a.z }));
+      return;
+    }
+    if (g.kind === 'measure') {
+      let b = { x: snap(a.x, snapping), z: snap(a.z, snapping) };
+      // Shift keeps the tape straight across or up and down.
+      if (e.shiftKey)
+        b = Math.abs(b.x - g.x) > Math.abs(b.z - g.z) ? { x: b.x, z: g.z } : { x: g.x, z: b.z };
+      setTape({ a: { x: g.x, z: g.z }, b });
       return;
     }
     if (g.kind === 'opening') {
@@ -754,6 +776,40 @@ export default function Plan({
               </text>
             </g>
           ))}
+        {tape && (
+          <g className="no-export" pointerEvents="none">
+            <line
+              x1={tape.a.x}
+              y1={tape.a.z}
+              x2={tape.b.x}
+              y2={tape.b.z}
+              stroke="#c7834c"
+              strokeWidth=".05"
+              strokeDasharray=".2 .08"
+            />
+            {[tape.a, tape.b].map((pt, n) => (
+              <circle
+                key={n}
+                cx={pt.x}
+                cy={pt.z}
+                r=".1"
+                fill="#c7834c"
+                stroke="#fff"
+                strokeWidth=".03"
+              />
+            ))}
+            {Math.hypot(tape.b.x - tape.a.x, tape.b.z - tape.a.z) > 0.2 && (
+              <g
+                transform={`translate(${(tape.a.x + tape.b.x) / 2} ${(tape.a.z + tape.b.z) / 2}) scale(${Math.max(1, view.w / 22)}) translate(0 -.3)`}
+              >
+                <rect x="-1" y="-.28" width="2" height=".44" rx=".1" fill="#c7834c" />
+                <text y=".05" textAnchor="middle" fontSize=".28" fontWeight="700" fill="#fff">
+                  {formatLength(Math.hypot(tape.b.x - tape.a.x, tape.b.z - tape.a.z), u)}
+                </text>
+              </g>
+            )}
+          </g>
+        )}
         {sel && (
           <g key={`selection-${sel.id}`} className="no-export">
             <rect
@@ -828,6 +884,19 @@ export default function Plan({
           </button>
         </div>
       )}
+      {!roomsHere.length && tool === 'select' && (
+        <div className="plan-empty">
+          <strong>{floor === 0 ? 'Start with your first room' : 'This floor is empty'}</strong>
+          <p>
+            {floor === 0
+              ? 'Drag out the heart of the home first — the kitchen or living room — then build around it.'
+              : 'Draw rooms over the dashed outline of the floor below so the walls stack.'}
+          </p>
+          <button className="primary-button" onClick={() => onTool('room')}>
+            Draw a room <kbd>R</kbd>
+          </button>
+        </div>
+      )}
       <div className="panel-corner">
         <span className="live-dot" />
         2D FLOOR PLAN
@@ -866,11 +935,13 @@ export default function Plan({
           ? 'Click and drag to draw. Release to build.'
           : tool === 'window' || tool === 'door' || tool === 'arch'
             ? `Click a wall to add ${tool === 'arch' ? 'a wide opening between rooms' : `a ${tool}`} · Esc when done`
-            : tool === 'pan'
-              ? 'Drag the canvas to look around.'
-              : tool === 'select'
-                ? 'Drag to move · Corners resize · Rooms carry their furniture (hold Alt to move alone) · Scroll to zoom'
-                : `Click to place ${catalogEntry(tool)?.name.toLowerCase()} · Shift-click to place several`}
+            : tool === 'measure'
+              ? 'Drag to measure any distance · Shift keeps it straight'
+              : tool === 'pan'
+                ? 'Drag the canvas to look around.'
+                : tool === 'select'
+                  ? 'Drag to move · Corners resize · Rooms carry their furniture (hold Alt to move alone) · Scroll to zoom'
+                  : `Click to place ${catalogEntry(tool)?.name.toLowerCase()} · Shift-click to place several`}
       </div>
     </div>
   );
