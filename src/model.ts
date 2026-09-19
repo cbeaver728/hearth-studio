@@ -48,7 +48,10 @@ export interface Item {
   style?: StairStyle;
   /** Stairs only: whether they lead up or down from the floor they were laid on. */
   dir?: 'up' | 'down';
+  /** Rooms only: what the floor is made of (wood when unset). */
+  finish?: FloorFinish;
 }
+export type FloorFinish = 'wood' | 'tile' | 'carpet' | 'stone';
 export interface Opening {
   id: string;
   roomId: string;
@@ -377,9 +380,12 @@ export function sampleProject(): Project {
   };
   const living = add('room', 'Living room', -6, -4, 6, 5, '#e6ddca');
   const kitchen = add('room', 'Kitchen & dining', 0, -4, 4, 5, '#e9e2d5');
+  kitchen.finish = 'tile';
   const bath = add('room', 'Bathroom', 4, -4, 2, 3, '#dbe8e4');
+  bath.finish = 'tile';
   const entryRoom = add('room', 'Entry', 4, -1, 2, 2, '#eae0d1');
   const bed = add('room', 'Bedroom', -6, 1, 5, 4, '#e2dfea');
+  bed.finish = 'carpet';
   const study = add('room', 'Creative studio', -1, 1, 4, 4, '#e3e6d7');
   const hall = add('room', 'Front hall', 3, 1, 3, 4, '#eae0d1');
   const garage = add('garage', 'Garage', 6, -1, 4, 6);
@@ -425,9 +431,12 @@ export function sampleProject(): Project {
   };
   const landing = up('room', 'Landing', 3, -1, 3, 6, '#eae0d1');
   const suite = up('room', 'Primary suite', -6, -4, 5, 9, '#e2dfea');
+  suite.finish = 'carpet';
   const loft = up('room', 'Reading loft', -1, -4, 4, 5, '#e6ddca');
   const kids = up('room', "Kids' room", -1, 1, 4, 4, '#e3e6d7');
+  kids.finish = 'carpet';
   const upBath = up('room', 'Upstairs bath', 3, -4, 3, 3, '#dbe8e4');
+  upBath.finish = 'tile';
   up('bed', 'King bed', -4.5, -3.8, 2, 2.2);
   up('wardrobe', 'Wardrobe', -5.9, 1.5, 0.6, 1.8, undefined, 270);
   up('armchair', 'Chair', -2.2, 3.6, 0.9, 0.9, undefined, 270);
@@ -531,7 +540,8 @@ export function validateProject(raw: unknown): Project {
       !num(i.rotation, 0, 360) ||
       !color(i.color) ||
       (i.style !== undefined && !['straight', 'l', 'u', 'spiral'].includes(i.style)) ||
-      (i.dir !== undefined && !['up', 'down'].includes(i.dir))
+      (i.dir !== undefined && !['up', 'down'].includes(i.dir)) ||
+      (i.finish !== undefined && !['wood', 'tile', 'carpet', 'stone'].includes(i.finish))
     )
       throw new Error('Invalid shape in project.');
     ids.add(i.id);

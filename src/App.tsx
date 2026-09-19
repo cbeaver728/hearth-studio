@@ -84,6 +84,7 @@ import {
   stairNames,
   uid,
   validateProject,
+  type FloorFinish,
   type Item,
   type Kind,
   type Project,
@@ -301,21 +302,27 @@ function Thumbnail({ p, level = 0 }: { p: Project; level?: number }) {
   );
 }
 /** One-click names for a freshly drawn room, each with a fitting floor finish. */
-const ROOM_NAMES: [string, string][] = [
-  ['Living room', '#e6ddca'],
-  ['Kitchen', '#e9e2d5'],
-  ['Dining room', '#e6ddca'],
-  ['Primary bedroom', '#e2dfea'],
-  ['Bedroom', '#e2dfea'],
-  ['Bathroom', '#dbe8e4'],
-  ['Office', '#e3e6d7'],
-  ['Family room', '#e6ddca'],
-  ['Laundry', '#dbe8e4'],
-  ['Mudroom', '#d9d6cc'],
-  ['Pantry', '#e9e2d5'],
-  ['Closet', '#e2dfea'],
-  ['Hallway', '#eae0d1'],
-  ['Playroom', '#e3e6d7'],
+const ROOM_NAMES: [string, string, FloorFinish][] = [
+  ['Living room', '#e6ddca', 'wood'],
+  ['Kitchen', '#e9e2d5', 'tile'],
+  ['Dining room', '#e6ddca', 'wood'],
+  ['Primary bedroom', '#e2dfea', 'carpet'],
+  ['Bedroom', '#e2dfea', 'carpet'],
+  ['Bathroom', '#dbe8e4', 'tile'],
+  ['Office', '#e3e6d7', 'wood'],
+  ['Family room', '#e6ddca', 'wood'],
+  ['Laundry', '#dbe8e4', 'tile'],
+  ['Mudroom', '#d9d6cc', 'stone'],
+  ['Pantry', '#e9e2d5', 'tile'],
+  ['Closet', '#e2dfea', 'carpet'],
+  ['Hallway', '#eae0d1', 'wood'],
+  ['Playroom', '#e3e6d7', 'carpet'],
+];
+const FINISHES: [FloorFinish, string][] = [
+  ['wood', 'Wood'],
+  ['tile', 'Tile'],
+  ['carpet', 'Carpet'],
+  ['stone', 'Stone'],
 ];
 /** Two designs side by side: plans for each floor and the numbers that matter. */
 function Compare({
@@ -885,11 +892,15 @@ export default function App() {
         </label>
         {s.kind === 'room' && /^Room( copy)?$/.test(s.name) && (
           <div className="name-chips" aria-label="Quick room names">
-            {ROOM_NAMES.map(([name, color]) => (
+            {ROOM_NAMES.map(([name, color, finish]) => (
               <button
                 key={name}
                 onClick={() =>
-                  patchItem({ name, ...(s.color === catalogEntry('room')!.color ? { color } : {}) })
+                  patchItem({
+                    name,
+                    finish,
+                    ...(s.color === catalogEntry('room')!.color ? { color } : {}),
+                  })
                 }
               >
                 {name}
@@ -1032,8 +1043,25 @@ export default function App() {
             <span>{u === 'ft' ? 'square feet' : 'square meters'}</span>
           </div>
         )}
+        {s.kind === 'room' && (
+          <>
+            <div className="field-label">Flooring</div>
+            <div className="segmented wide" role="group" aria-label="Flooring">
+              {FINISHES.map(([f, label]) => (
+                <button
+                  key={f}
+                  className={(s.finish || 'wood') === f ? 'active' : ''}
+                  aria-pressed={(s.finish || 'wood') === f}
+                  onClick={() => patchItem({ finish: f })}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
         <label className="field">
-          {isRoom(s) ? 'Floor finish' : 'Color'}
+          {isRoom(s) ? 'Floor color' : 'Color'}
           <div className="swatches">
             {(isRoom(s)
               ? ['#e6ddca', '#d9c3a0', '#b89572', '#8d6e52', '#e2dfea', '#dbe8e4', '#d5d9d7']

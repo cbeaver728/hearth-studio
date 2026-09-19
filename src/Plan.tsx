@@ -582,6 +582,23 @@ export default function Plan({
             <rect width="1" height="1" fill="url(#small-grid)" />
             <path d="M 1 0 L 0 0 0 1" fill="none" stroke="#dce3d8" strokeWidth="0.025" />
           </pattern>
+          <pattern id="tile" width="0.4" height="0.4" patternUnits="userSpaceOnUse">
+            <path
+              d="M.4 0H0V.4"
+              fill="none"
+              stroke="#6f7a74"
+              strokeOpacity=".22"
+              strokeWidth=".015"
+            />
+          </pattern>
+          <pattern id="stone" width="1.2" height="0.8" patternUnits="userSpaceOnUse">
+            <path
+              d="M0 0H1.2M0 .4H1.2M.6 0V.4M0 .4V.8M1.2 .4V.8"
+              stroke="#6f6a60"
+              strokeOpacity=".2"
+              strokeWidth=".02"
+            />
+          </pattern>
           <pattern id="deck" width="0.3" height="0.3" patternUnits="userSpaceOnUse">
             <path d="M0 0H.3" stroke="#796448" strokeOpacity=".25" strokeWidth=".025" />
           </pattern>
@@ -984,6 +1001,9 @@ function Shape({ item: i, floor }: { item: Item; floor: number }) {
           strokeWidth={isRoom(i) ? 0.16 : i.kind === 'pool' ? 0.16 : 0.035}
         />
         {i.kind === 'deck' && <rect x={i.x} y={i.z} width={i.w} height={i.d} fill="url(#deck)" />}
+        {(i.finish === 'tile' || i.finish === 'stone') && (
+          <rect x={i.x} y={i.z} width={i.w} height={i.d} fill={`url(#${i.finish})`} />
+        )}
         {i.kind === 'pool' && (
           <rect
             x={i.x + 0.18}

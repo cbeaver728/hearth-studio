@@ -23,6 +23,7 @@ import {
   isOutside,
   isRoom,
   stairLevels,
+  type FloorFinish,
   type Item,
   type Project,
 } from './model';
@@ -76,29 +77,66 @@ interface Walker {
   fall: number;
 }
 
-let plankTexture: T.CanvasTexture | null = null;
-function planks() {
-  if (plankTexture) return plankTexture;
+// Grayscale floor patterns, tinted by each room's color. Each covers 1.6 m of floor.
+const floorTextures = new Map<FloorFinish, T.CanvasTexture>();
+function floorTexture(finish: FloorFinish) {
+  const hit = floorTextures.get(finish);
+  if (hit) return hit;
   const c = document.createElement('canvas');
   c.width = c.height = 256;
   const g = c.getContext('2d')!;
   g.fillStyle = '#fff';
   g.fillRect(0, 0, 256, 256);
-  for (let row = 0; row < 8; row++) {
-    const y = row * 32;
-    g.fillStyle = `rgba(120,95,60,${0.03 + ((row * 37) % 5) * 0.012})`;
-    g.fillRect(0, y, 256, 32);
-    g.fillStyle = 'rgba(90,70,45,0.28)';
-    g.fillRect(0, y, 256, 1.5);
-    const off = (row * 97) % 256;
-    g.fillRect(off, y, 1.5, 32);
-    g.fillRect((off + 128) % 256, y, 1.5, 32);
+  if (finish === 'wood') {
+    for (let row = 0; row < 8; row++) {
+      const y = row * 32;
+      g.fillStyle = `rgba(120,95,60,${0.03 + ((row * 37) % 5) * 0.012})`;
+      g.fillRect(0, y, 256, 32);
+      g.fillStyle = 'rgba(90,70,45,0.28)';
+      g.fillRect(0, y, 256, 1.5);
+      const off = (row * 97) % 256;
+      g.fillRect(off, y, 1.5, 32);
+      g.fillRect((off + 128) % 256, y, 1.5, 32);
+    }
+  } else if (finish === 'tile') {
+    // 40 cm tiles with grout lines.
+    for (let n = 0; n < 4; n++)
+      for (let m = 0; m < 4; m++) {
+        g.fillStyle = `rgba(0,0,0,${0.02 + ((n * 3 + m * 5) % 4) * 0.01})`;
+        g.fillRect(n * 64, m * 64, 64, 64);
+      }
+    g.fillStyle = 'rgba(80,80,80,0.35)';
+    for (let n = 0; n < 4; n++) {
+      g.fillRect(n * 64, 0, 2, 256);
+      g.fillRect(0, n * 64, 256, 2);
+    }
+  } else if (finish === 'carpet') {
+    // A soft, even speckle.
+    for (let n = 0; n < 5000; n++) {
+      const x = (n * 73) % 256,
+        y = (n * 151 + ((n * n) % 97)) % 256;
+      g.fillStyle = `rgba(0,0,0,${0.02 + (n % 5) * 0.012})`;
+      g.fillRect(x, y, 2, 2);
+    }
+  } else {
+    // Large stone slabs, offset like a running bond.
+    for (let row = 0; row < 3; row++) {
+      const y = Math.round(row * 85.3);
+      const off = row % 2 ? 64 : 0;
+      g.fillStyle = `rgba(60,55,50,${0.03 + row * 0.02})`;
+      g.fillRect(0, y, 256, 86);
+      g.fillStyle = 'rgba(70,65,60,0.35)';
+      g.fillRect(0, y, 256, 2);
+      g.fillRect(off, y, 2, 86);
+      g.fillRect(off + 128, y, 2, 86);
+    }
   }
-  plankTexture = new T.CanvasTexture(c);
-  plankTexture.wrapS = plankTexture.wrapT = T.RepeatWrapping;
-  plankTexture.colorSpace = T.SRGBColorSpace;
-  plankTexture.anisotropy = 4;
-  return plankTexture;
+  const t = new T.CanvasTexture(c);
+  t.wrapS = t.wrapT = T.RepeatWrapping;
+  t.colorSpace = T.SRGBColorSpace;
+  t.anisotropy = 4;
+  floorTextures.set(finish, t);
+  return t;
 }
 
 /** Builds every mesh for the current project and view. */
@@ -241,7 +279,6 @@ function buildContent(p: Project, mode: SceneMode, floor: number, evening: boole
     }
 
   // Floors, with openings where stairs arrive.
-  const plank = planks();
   for (const level of shown) {
     const y = level * FLOOR_H,
       holes = stairHoles(p, level);
@@ -270,7 +307,11 @@ function buildContent(p: Project, mode: SceneMode, floor: number, evening: boole
           new T.Mesh(
             top,
             r.kind === 'room'
-              ? new T.MeshStandardMaterial({ color: r.color, map: plank, roughness: 0.7 })
+              ? new T.MeshStandardMaterial({
+                  color: r.color,
+                  map: floorTexture(r.finish || 'wood'),
+                  roughness: r.finish === 'tile' ? 0.35 : r.finish === 'carpet' ? 0.95 : 0.7,
+                })
               : mat(r.color),
           ),
           false,
