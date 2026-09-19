@@ -399,6 +399,9 @@ kbd {
   background: #e0eeee;
   color: #5d8f92;
 }
+.stair-dir {
+  margin-bottom: 8px;
+}
 .hint-text {
   font-size: 12px;
   line-height: 1.5;
@@ -550,6 +553,9 @@ kbd {
 .undo-group {
   display: flex;
   gap: 2px;
+  padding-right: 6px;
+  margin-right: 2px;
+  border-right: 1px solid var(--line);
 }
 .canvases {
   display: flex;
@@ -1527,6 +1533,26 @@ kbd {
 .walk-map canvas {
   width: 170px;
   height: 170px;
+  pointer-events: auto;
+  cursor: crosshair;
+}
+.walk-room {
+  position: absolute;
+  top: 66px;
+  left: 50%;
+  transform: translateX(-50%);
+  font:
+    22px Georgia,
+    serif;
+  color: #fff;
+  text-shadow: 0 1px 12px #0008;
+  pointer-events: none;
+  animation: fade-in 0.5s ease-out;
+}
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
 }
 .walk-map span {
   font-size: 12px;

@@ -1,31 +1,35 @@
 # Validation and product review
 
-The app was reviewed with an emphasis on first-time use, recovery from mistakes, local project safety, and a clear transition between drawing and exploring.
-
 ## Automated checks
 
-- TypeScript compilation and production Vite build.
-- Nine model tests: JSON round trip, invalid geometry, dangling openings, duplicate IDs, dependent-opening deletion, shared-wall deduplication, partial shared walls, separate levels, oversized-window clamping, and grid snapping (some scenarios share a test).
-- Eight browser tests: rendering and image export; draw/move/resize/undo/redo/reload; floor copying and basements; portable file round trip; bad file recovery; minimum window layout; opening placement and keyboard editing; dialog focus management.
-- Electron smoke test against the production app: renderer launch, native save/open IPC, exported file integrity, walkthrough entry/exit, and renderer error collection. Dialogs are stubbed to a temporary directory for repeatability; operating-system dialog appearance is not automated.
-- npm dependency audit.
+- TypeScript compilation and production Vite build, plus the single-file build.
+- Unit tests (`npm test`):
+  - Project integrity: JSON round trip, invalid geometry, dangling openings, duplicate IDs, dependent-opening deletion, shared walls, separate levels, oversized-window clamping, grid snapping.
+  - Stairs: every style climbs one full floor in 15 treads; local/plan coordinates map both ways at every rotation; turning a run reverses it; down-stairs join the right floors; floor openings are cut from slabs.
+  - Walkthrough physics: walking up the sample stairs to the next floor and back down; climbing every stair style by following its plan arrow; rails keep you out of the opening.
+  - Floors: adding an upper floor lays stairs inside a room plus a landing; basements get stairs leading down; deleting a middle floor closes the gap; older projects without stair styles still open.
+- Browser tests (`npm run test:e2e:edge` or `npm run test:e2e`): rendering and image export; walkthrough entry and exit; draw/move/resize/undo/redo/reload; floor copying and basements with stairs; file export/import and bad-file recovery; minimum window size; wall openings, resize, keyboard movement; dialog focus; placing, restyling, turning, and redirecting stairs, including adding the missing floor.
+- Electron smoke test against the production app.
 
-The production Electron application and an earlier packaged executable passed the desktop smoke test. Windows Device Guard blocked launching the final repackaged, unsigned executable, so final native-binary verification is limited by that OS policy. No security policy was changed. The local browser edition uses the same final production frontend and is provided as the usable alternative on this host.
+## Review notes (September 2026)
 
-## Visual and interaction review
+Reviewed hands-on in the browser with the Sunday House and new projects.
 
-- Reviewed editor, dollhouse, and exterior screenshots. Warm neutral colors and a green accent keep the editor calm while amber highlights explain selection and resizing.
-- Increased contrast for labels and helper text after the first visual pass.
-- Moved room labels above furniture symbols and added a light outline so names remain readable.
-- Grouped actions into Build, Furnish, and Outside. Context-sensitive hints explain whether to drag a room or click a wall.
-- Kept selected shapes after undo/redo when they still exist.
-- Made Escape and Back to edit return from walkthroughs to the split editor.
-- Added keyboard-accessible plan shapes, arrow-key movement, visible focus styles, and modal focus trapping/restoration.
-- Checked 1050 × 720 and 1500 × 980 desktop layouts, plus native Windows rendering with display scaling. Side panels scroll independently in short windows.
-- Opening a saved file creates a copy. Invalid imports preserve the current project. Malformed existing local storage is not silently overwritten.
+Fixed:
 
-## Known practical limits
+- **Opening the app.** The unsigned `.exe` is blocked by Device Guard on this PC, and the browser edition needed a command window and Node. The app now also ships as one self-contained HTML file that opens by double-click.
+- **Stairs couldn't turn, only came in one shape, and didn't connect anything.** Stairs now turn, come in four styles, lead up or down, cut an opening with rails in the floor above, show UP/DN on the plan, and carry you between floors in the walkthrough. New floors come with stairs and a landing.
+- **Rotating furniture only swapped width and depth**, so a bed's headboard never moved. Pieces now face the way they're turned, in 2D and 3D, and turn about their center.
+- **Moving a room left its furniture behind.** Rooms now carry their contents.
+- **The walkthrough ran inside the small split panel**, under a large instruction card, and often started inside a wall or furniture. It is now full-window, starts at the front door, has a fading hint, a mini-map, room names, floor buttons, and on-screen controls.
+- **The 3D view created a new WebGL renderer on every edit** and could run out of contexts during long sessions. It now keeps one renderer.
+- **Most text was 8–10 px** and a large marketing banner took space from the canvas. Text is larger and the canvas taller.
+- **No way to delete a floor, rename a floor, or delete a project.** Added.
+- **Only one resize handle; mouse-wheel zoom centered on the middle.** Four corner handles; zoom follows the cursor; drag empty space to pan.
+- **Doors and windows could only be moved with a slider.** They can be dragged along the wall.
+- **Walls were one color inside and out.** Interior paint is separate, doors have casings and open leaves.
+- Upper floors roofed only when nothing sat above any part of the level; lower wings now get their own flat roofs.
 
-See the README for the deliberately simplified geometry and floor-navigation model. This version is suited to personal concept exploration. It has not undergone user studies, screen-reader certification, large-project performance certification, or architectural accuracy review. Windows executables are unsigned and do not include an update service.
+## Known limits
 
-The native/browser UI smoke tests and production build are reproducible using the scripts in `package.json`. To test a packaged executable, run `node tests/desktop-smoke.cjs "release/win-unpacked/Hearth Studio.exe"` on Windows.
+Rooms are rectangles and roofs are simplified. Stairs are generated to fit their footprint rather than to building code. The walkthrough uses simple collision (a 0.24 m body against boxes), so you can clip corners slightly. The Windows executable is unsigned.

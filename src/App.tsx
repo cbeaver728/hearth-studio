@@ -61,6 +61,7 @@ import {
   blankProject,
   catalog,
   catalogEntry,
+  contentsOf,
   deleteFloor,
   floorName,
   formatLength,
@@ -105,6 +106,7 @@ const icons: Record<Kind, typeof Home> = {
   wardrobe: Shirt,
   desk: Lamp,
   table: Table2,
+  coffee: RectangleHorizontal,
   counter: Columns3,
   kitchen: CookingPot,
   fridge: Refrigerator,
@@ -308,6 +310,12 @@ export default function App() {
   const [floorType, setFloorType] = useState<'upper' | 'basement'>('upper');
   const [copyFloor, setCopyFloor] = useState(false);
   const [floorStairs, setFloorStairs] = useState<StairStyle | null>('straight');
+  const [stairDir, setStairDir] = useState<'up' | 'down'>('up');
+  // New stairs default toward a floor that exists: up if there's one above, otherwise down.
+  useEffect(() => {
+    setStairDir(hasFloor(project, floor + 1) || !hasFloor(project, floor - 1) ? 'up' : 'down');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [floor, project.floors.length]);
   const input = useRef<HTMLInputElement>(null);
   const notify = useCallback((s: string) => setNotice(s), []);
   const walking = sceneMode === 'walk';
@@ -620,6 +628,27 @@ export default function App() {
       if (k === 'r') selectTool('room');
       if (k === 'h') setTool('pan');
       if (k === 'e' && selected) rotate();
+      const arrows: Record<string, [number, number]> = {
+        ArrowLeft: [-1, 0],
+        ArrowRight: [1, 0],
+        ArrowUp: [0, -1],
+        ArrowDown: [0, 1],
+      };
+      if (arrows[e.key] && selectedItem) {
+        e.preventDefault();
+        const step = e.shiftKey ? 1 : 0.25,
+          [dx, dz] = arrows[e.key];
+        const moving = new Set([
+          selectedItem.id,
+          ...(isRoom(selectedItem) ? contentsOf(project, selectedItem).map((i) => i.id) : []),
+        ]);
+        commit({
+          ...project,
+          items: project.items.map((i) =>
+            moving.has(i.id) ? { ...i, x: i.x + dx * step, z: i.z + dz * step } : i,
+          ),
+        });
+      }
     };
     window.addEventListener('keydown', key);
     return () => window.removeEventListener('keydown', key);
@@ -1140,6 +1169,26 @@ export default function App() {
           </span>
         </div>
         <div className="header-actions">
+          <div className="undo-group">
+            <button
+              className="icon-button"
+              aria-label="Undo"
+              title="Undo (Ctrl+Z)"
+              disabled={!history.past.length}
+              onClick={undo}
+            >
+              <Undo2 size={18} />
+            </button>
+            <button
+              className="icon-button"
+              aria-label="Redo"
+              title="Redo (Ctrl+Shift+Z)"
+              disabled={!history.future.length}
+              onClick={redo}
+            >
+              <Redo2 size={18} />
+            </button>
+          </div>
           <button className="subtle-button" onClick={() => setModal('projects')}>
             <FolderOpen size={16} />
             My projects
@@ -1232,10 +1281,31 @@ export default function App() {
                 </div>
                 <div className="catalog-block">
                   <div className="section-heading">STAIRS</div>
+                  <div
+                    className="segmented wide stair-dir"
+                    role="group"
+                    aria-label="New stairs lead"
+                  >
+                    {(['up', 'down'] as const).map((d) => (
+                      <button
+                        key={d}
+                        className={stairDir === d ? 'active' : ''}
+                        aria-pressed={stairDir === d}
+                        onClick={() => setStairDir(d)}
+                      >
+                        {d === 'up' ? <ArrowUpFromLine size={14} /> : <ArrowDownToLine size={14} />}
+                        {d === 'up' ? 'Up' : 'Down'}
+                      </button>
+                    ))}
+                  </div>
                   {catalogTiles(catalog.filter((c) => c.kind === 'stairs'))}
                   <p className="hint-text">
-                    Click the plan to place. Stairs go up when there's a floor above, otherwise down
-                    — change it on the right.
+                    Pick a style, then click the plan. From {floorName(project, floor)} these lead{' '}
+                    {stairDir} to{' '}
+                    {hasFloor(project, floor + (stairDir === 'up' ? 1 : -1))
+                      ? floorName(project, floor + (stairDir === 'up' ? 1 : -1))
+                      : `a new ${stairDir === 'up' ? 'floor' : 'basement'}`}
+                    .
                   </p>
                 </div>
               </>
@@ -1359,26 +1429,6 @@ export default function App() {
                 <option value="m">Meters</option>
               </select>
             </div>
-            <div className="undo-group">
-              <button
-                className="icon-button"
-                aria-label="Undo"
-                title="Undo (Ctrl+Z)"
-                disabled={!history.past.length}
-                onClick={undo}
-              >
-                <Undo2 size={18} />
-              </button>
-              <button
-                className="icon-button"
-                aria-label="Redo"
-                title="Redo (Ctrl+Shift+Z)"
-                disabled={!history.future.length}
-                onClick={redo}
-              >
-                <Redo2 size={18} />
-              </button>
-            </div>
           </div>
           <div className={`canvases view-${mode}`}>
             {mode !== '3d' && !walking && (
@@ -1395,6 +1445,7 @@ export default function App() {
                 onRotate={rotate}
                 onDuplicate={duplicate}
                 onDelete={remove}
+                stairDir={stairDir}
               />
             )}
             {mode !== 'plan' && (

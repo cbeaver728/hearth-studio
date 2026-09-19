@@ -338,6 +338,32 @@ function buildContent(p: Project, mode: SceneMode, floor: number, evening: boole
       piece(o.start - 0.06, o.start, 0, 2.2, trim, thick + 0.04);
       piece(o.end, o.end + 0.06, 0, 2.2, trim, thick + 0.04);
       if (height > 2.2) piece(o.start - 0.06, o.end + 0.06, 2.2, 2.28, trim, thick + 0.04);
+      const width = o.end - o.start;
+      if (height < 2.2 || width > 1.8) continue;
+      // An open door leaf, swung into a room (the one on the negative side when both are rooms).
+      const dir = sideA ? -1 : 1;
+      const leaf = mat(tone(interior, -14));
+      const t = 0.04;
+      if (wall.axis === 'x')
+        box(
+          o.start + t / 2 + 0.01,
+          y + 1.05,
+          wall.line + dir * (thick / 2 + width / 2),
+          t,
+          2.1,
+          width,
+          leaf,
+        );
+      else
+        box(
+          wall.line + dir * (thick / 2 + width / 2),
+          y + 1.05,
+          o.start + t / 2 + 0.01,
+          width,
+          2.1,
+          t,
+          leaf,
+        );
     }
     if (mode === 'dollhouse' && wall.floor === floor)
       piece(wall.start, wall.end, height, height + 0.02, '#f5f0e5', thick + 0.005);
@@ -596,6 +622,16 @@ export default function Scene({ project: p, floor, mode, onMode, onNotice, onLev
   const [evening, setEvening] = useState(false);
   const [hint, setHint] = useState(true);
   const [walkLevel, setWalkLevel] = useState(floor);
+  // Until you orbit, the camera re-frames the house when the panel changes size.
+  const framing = useRef({ touched: false, frame: () => {} });
+  const [roomName, setRoomName] = useState('');
+  const mapFrame = useRef<{
+    minX: number;
+    minZ: number;
+    scale: number;
+    ox: number;
+    oz: number;
+  } | null>(null);
 
   // One renderer for the lifetime of the view.
   useEffect(() => {
@@ -618,6 +654,7 @@ export default function Scene({ project: p, floor, mode, onMode, onNotice, onLev
     camera.rotation.order = 'YXZ';
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
+    controls.addEventListener('start', () => (framing.current.touched = true));
     controls.minDistance = 3;
     controls.maxDistance = 110;
     controls.maxPolarAngle = Math.PI / 2 - 0.035;
@@ -658,6 +695,7 @@ export default function Scene({ project: p, floor, mode, onMode, onNotice, onLev
       renderer.setSize(w, h);
       camera.aspect = w / h;
       camera.updateProjectionMatrix();
+      if (!framing.current.touched && live.current.mode !== 'walk') framing.current.frame();
     });
     resize.observe(node);
 
@@ -765,6 +803,18 @@ export default function Scene({ project: p, floor, mode, onMode, onNotice, onLev
           live.current.onLevel?.(level);
         }
         if (++tickCount % 3 === 0) drawMap();
+        if (tickCount % 12 === 0) {
+          const here = live.current.p.items.find(
+            (i) =>
+              isRoom(i) &&
+              i.floor === w.level &&
+              w.x > i.x &&
+              w.x < i.x + i.w &&
+              w.z > i.z &&
+              w.z < i.z + i.d,
+          );
+          setRoomName(here ? here.name : w.level === 0 && w.feet < 0.5 ? 'Outside' : '');
+        }
       } else controls.update();
       renderer.render(scene, camera);
     };
@@ -803,6 +853,7 @@ export default function Scene({ project: p, floor, mode, onMode, onNotice, onLev
     const scale = Math.min(size / (maxX - minX), size / (maxZ - minZ));
     const ox = (size - (maxX - minX) * scale) / 2,
       oz = (size - (maxZ - minZ) * scale) / 2;
+    mapFrame.current = { minX, minZ, scale, ox, oz };
     const X = (x: number) => ox + (x - minX) * scale,
       Z = (z: number) => oz + (z - minZ) * scale;
     for (const r of rooms) {
@@ -930,6 +981,12 @@ export default function Scene({ project: p, floor, mode, onMode, onNotice, onLev
     e.bounds = built.bounds;
     e.scene.add(built.group);
     e.world = mode === 'walk' ? buildWalkWorld(p) : null;
+    // A wider lens indoors keeps rooms from feeling cramped.
+    const fov = mode === 'walk' ? 68 : 45;
+    if (e.camera.fov !== fov) {
+      e.camera.fov = fov;
+      e.camera.updateProjectionMatrix();
+    }
     const sky = evening ? '#8a8f94' : mode === 'walk' ? '#dfe9ee' : '#e4eae3';
     e.scene.background = new T.Color(sky);
     e.scene.fog = new T.Fog(sky, 60, 160);
@@ -951,14 +1008,19 @@ export default function Scene({ project: p, floor, mode, onMode, onNotice, onLev
     }
     const c = e.bounds.getCenter(new T.Vector3()),
       size = e.bounds.getSize(new T.Vector3());
-    const span = Math.max(size.x, size.z, 12);
+    // Back off far enough for the house to fit the narrower of the two view angles.
+    const span = Math.max(size.x, size.z, 10);
+    const distance = (span * 1.7) / Math.min(1, e.camera.aspect);
     const targetY = mode === 'exterior' ? 1.4 : floor * FLOOR_H;
+    const dir = new T.Vector3(0.62, 0.62, 0.78).normalize();
     e.controls.target.set(c.x, targetY, c.z);
-    e.camera.position.set(c.x + span * 1.05, targetY + span * 1.15, c.z + span * 1.3);
+    e.camera.position.copy(e.controls.target).addScaledVector(dir, distance);
+    framing.current.touched = false;
     e.camera.rotation.order = 'YXZ';
     e.controls.enabled = true;
     e.controls.update();
   };
+  framing.current.frame = frameCamera;
   useEffect(() => {
     const e = engine.current;
     if (!e) return;
@@ -1132,8 +1194,33 @@ export default function Scene({ project: p, floor, mode, onMode, onNotice, onLev
               </span>
             </div>
           )}
-          <div className="walk-map">
-            <canvas ref={map} width={170} height={170} aria-label="Map of this floor" />
+          {roomName && (
+            <div className="walk-room" key={roomName}>
+              {roomName}
+            </div>
+          )}
+          <div className="walk-map" title="Click the map to jump there">
+            <canvas
+              ref={map}
+              width={170}
+              height={170}
+              aria-label="Map of this floor. Click to jump there."
+              onPointerDown={(e) => {
+                const f = mapFrame.current,
+                  world = engine.current?.world;
+                if (!f || !world) return;
+                const r = e.currentTarget.getBoundingClientRect();
+                const k = e.currentTarget.width / r.width;
+                const x = ((e.clientX - r.left) * k - f.ox) / f.scale + f.minX,
+                  z = ((e.clientY - r.top) * k - f.oz) / f.scale + f.minZ;
+                const w = walker.current;
+                const feet = world.support(x, z, w.level * FLOOR_H + 0.1);
+                if (Math.abs(feet - w.level * FLOOR_H) < 0.3 && world.free(x, z, feet)) {
+                  Object.assign(w, { x, z, feet, fall: 0 });
+                  setHint(false);
+                }
+              }}
+            />
             <span>{floorName(p, walkLevel)}</span>
           </div>
           <div className="walk-pad" aria-label="Movement controls">

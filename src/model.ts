@@ -24,7 +24,8 @@ export type Kind =
   | 'shower'
   | 'toilet'
   | 'vanity'
-  | 'plant';
+  | 'plant'
+  | 'coffee';
 export type StairStyle = 'straight' | 'l' | 'u' | 'spiral';
 export type Side = 'north' | 'south' | 'east' | 'west';
 /** Floor-to-floor height in meters. */
@@ -167,6 +168,7 @@ export const catalog: CatalogEntry[] = [
     'Furnish',
     'Living',
   ),
+  entry('coffee', 'coffee', 'Coffee table', 'Feet up', 1.2, 0.6, '#b8976f', 'Furnish', 'Living'),
   entry('rug', 'rug', 'Rug', 'Soften the floor', 2.4, 1.7, '#c9b8a0', 'Furnish', 'Living'),
   entry('media', 'media', 'TV & console', 'Movie night', 1.8, 0.45, '#6d625a', 'Furnish', 'Living'),
   entry(
@@ -386,7 +388,7 @@ export function sampleProject(): Project {
   add('tree', 'Garden tree', 10, -5, 2.5, 2.5);
   add('rug', 'Wool rug', -4.6, -2.9, 3.2, 2.6);
   add('sofa', 'Linen sofa', -4.4, -1.2, 2.8, 1, undefined, 180);
-  add('table', 'Coffee table', -3.9, -2.4, 1.8, 0.6, '#b8976f');
+  add('coffee', 'Coffee table', -3.8, -2.45, 1.6, 0.7);
   add('fireplace', 'Fireplace', -3.8, -3.95, 1.6, 0.55);
   add('armchair', 'Reading chair', -1.2, -2.6, 0.9, 0.9, undefined, 90);
   add('kitchen', 'Kitchen counter', 0.1, -3.92, 2.9, 0.65);

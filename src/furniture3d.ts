@@ -93,6 +93,13 @@ export function furniture(item: Item, y: number, mat: Mat): T.Group | null {
           }
         }
       break;
+    case 'coffee':
+      b(0, W, 0.38, 0.44, 0, D, c);
+      b(0.06, W - 0.06, 0.1, 0.13, 0.06, D - 0.06, tone(c, -15));
+      for (const u of [0.06, W - 0.06])
+        for (const v of [0.06, D - 0.06])
+          b(u - 0.03, u + 0.03, 0, 0.38, v - 0.03, v + 0.03, tone(c, -30));
+      break;
     case 'desk':
       b(0, W, 0.72, 0.76, 0, D, c);
       b(0, 0.05, 0, 0.72, 0, D, c);

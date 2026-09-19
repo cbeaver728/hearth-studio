@@ -32,10 +32,13 @@ interface Props {
   onRotate: () => void;
   onDuplicate: () => void;
   onDelete: () => void;
+  /** Which way newly laid stairs lead from this floor. */
+  stairDir: 'up' | 'down';
 }
 type Corner = 'nw' | 'ne' | 'sw' | 'se';
 interface Gesture {
-  kind: 'draw' | 'move' | 'resize' | 'pan';
+  kind: 'draw' | 'move' | 'resize' | 'pan' | 'opening';
+  opening?: string;
   x: number;
   z: number;
   item?: Item;
@@ -59,11 +62,13 @@ export default function Plan({
   onRotate,
   onDuplicate,
   onDelete,
+  stairDir,
 }: Props) {
   const svg = useRef<SVGSVGElement>(null);
   const wrap = useRef<HTMLDivElement>(null);
   const [view, setView] = useState({ x: -14, z: -12, w: 29, h: 27 });
   const [draft, setDraft] = useState<Item[] | null>(null);
+  const [slide, setSlide] = useState<{ id: string; offset: number } | null>(null);
   const [hover, setHover] = useState<{ x: number; z: number } | null>(null);
   const [panning, setPanning] = useState(false);
   const gesture = useRef<Gesture | null>(null);
@@ -222,13 +227,12 @@ export default function Plan({
     i.z = snap(a.z - i.d / 2, snapping);
     i = wallSnap(i);
     if (i.kind === 'stairs') {
-      // Point stairs at a real floor: up if there's a level above, otherwise down.
-      i.dir = hasFloor(p, floor + 1) || !hasFloor(p, floor - 1) ? 'up' : 'down';
+      i.dir = stairDir;
       const to = floor + (i.dir === 'up' ? 1 : -1);
       onNotice(
         hasFloor(p, to)
-          ? `Stairs ${i.dir} to ${p.floors.find((f) => f.level === to)!.name}. Rotate with the ↻ button or the E key.`
-          : 'Stairs placed. Add a floor above to connect them — use the panel on the right.',
+          ? `Stairs ${i.dir} to ${p.floors.find((f) => f.level === to)!.name}. Press E to turn them.`
+          : `Stairs placed. There's no floor ${i.dir === 'up' ? 'above' : 'below'} yet — add one from the panel on the right.`,
       );
     }
     onChange({ ...p, items: [...p.items, i] });
@@ -243,6 +247,18 @@ export default function Plan({
     if (!g) return;
     if (g.kind === 'pan') {
       setView((v) => ({ ...v, x: v.x + g.x - a.x, z: v.z + g.z - a.z }));
+      return;
+    }
+    if (g.kind === 'opening') {
+      const o = p.openings.find((op) => op.id === g.opening)!;
+      const r = g.item!;
+      const h = o.side === 'north' || o.side === 'south';
+      const along = h ? snap(a.x - r.x, snapping) : snap(a.z - r.z, snapping);
+      const len = h ? r.w : r.d;
+      setSlide({
+        id: o.id,
+        offset: Math.round(Math.max(0.1, Math.min(0.9, along / len)) * 1000) / 1000,
+      });
       return;
     }
     const src = g.item!;
@@ -288,6 +304,15 @@ export default function Plan({
     if (!g) return;
     gesture.current = null;
     setPanning(false);
+    if (g.kind === 'opening') {
+      if (slide)
+        onChange({
+          ...p,
+          openings: p.openings.map((o) => (o.id === slide.id ? { ...o, offset: slide.offset } : o)),
+        });
+      setSlide(null);
+      return;
+    }
     if (draft && g.kind !== 'pan') {
       if (g.kind === 'draw') {
         const d = draft[0];
@@ -331,17 +356,19 @@ export default function Plan({
     return () => el.removeEventListener('wheel', wheel);
   }, []);
   const fit = () => {
-    const items = p.items.filter((i) => onLevel(i, floor) || (floor === 0 && isOutside(i)));
+    // Frame the house on this floor; fall back to the yard or the whole project.
+    const indoor = p.items.filter((i) => onLevel(i, floor) && !isOutside(i));
+    const items = indoor.length ? indoor : p.items.filter((i) => floor === 0 || !isOutside(i));
     const el = wrap.current?.getBoundingClientRect();
     const ratio = el && el.width ? el.height / el.width : 0.9;
     if (!items.length) {
       setView({ x: -12, z: -12 * ratio, w: 24, h: 24 * ratio });
       return;
     }
-    const minX = Math.min(...items.map((i) => i.x)) - 2,
-      minZ = Math.min(...items.map((i) => i.z)) - 2,
-      maxX = Math.max(...items.map((i) => i.x + i.w)) + 2,
-      maxZ = Math.max(...items.map((i) => i.z + i.d)) + 2;
+    const minX = Math.min(...items.map((i) => i.x)) - 1.5,
+      minZ = Math.min(...items.map((i) => i.z)) - 2.5,
+      maxX = Math.max(...items.map((i) => i.x + i.w)) + 1.5,
+      maxZ = Math.max(...items.map((i) => i.z + i.d)) + 3;
     const w = Math.max(maxX - minX, (maxZ - minZ) / ratio, 10),
       h = w * ratio;
     setView({ x: (minX + maxX) / 2 - w / 2, z: (minZ + maxZ) / 2 - h / 2, w, h });
@@ -513,7 +540,8 @@ export default function Plan({
             />
           </g>
         )}
-        {p.openings.map((o) => {
+        {p.openings.map((op) => {
+          const o = slide?.id === op.id ? { ...op, offset: slide.offset } : op;
           const r = items.find((i) => i.id === o.roomId);
           if (!r || !isRoom(r)) return null;
           const h = o.side === 'north' || o.side === 'south',
@@ -527,15 +555,36 @@ export default function Plan({
           return (
             <g
               key={o.id}
-              pointerEvents="none"
+              className="plan-opening"
+              pointerEvents={tool === 'select' ? 'visibleStroke' : 'none'}
+              style={{ cursor: h ? 'ew-resize' : 'ns-resize' }}
               transform={`translate(${x} ${z}) rotate(${h ? 0 : 90})`}
+              onPointerDown={(e) => {
+                if (tool !== 'select' || e.button !== 0) return;
+                e.stopPropagation();
+                e.preventDefault();
+                svg.current!.setPointerCapture(e.pointerId);
+                onSelect(r.id);
+                const a = point(e);
+                gesture.current = { kind: 'opening', x: a.x, z: a.z, item: r, opening: o.id };
+              }}
             >
+              <title>{`${o.kind === 'door' ? 'Door' : 'Window'} · drag along the wall to move it`}</title>
+              <path d={`M0 0H${width}`} stroke="transparent" strokeWidth=".45" />
               <path
                 d={`M0 0H${width}`}
                 stroke={o.kind === 'window' ? '#8ac0c2' : '#f7f6f1'}
                 strokeWidth=".2"
               />
-              {o.kind === 'window' ? (
+              {o.kind === 'door' && width > 1.8 ? (
+                // Wide doors (garages) roll up, so show the overhead track instead of a swing.
+                <path
+                  d={`M0 ${into * (h ? 1 : -1) * 0.35}H${width}`}
+                  stroke="#9b8970"
+                  strokeWidth=".03"
+                  strokeDasharray=".15 .1"
+                />
+              ) : o.kind === 'window' ? (
                 <path d={`M0 -.075H${width}M0 .075H${width}`} stroke="#49868d" strokeWidth=".025" />
               ) : (
                 <path
@@ -843,6 +892,14 @@ function Shape({ item: i, floor }: { item: Item; floor: number }) {
       );
       break;
     }
+    case 'coffee':
+      body = (
+        <>
+          {r(0, 0, W, D, c, 0.12)}
+          {r(0.08, 0.08, W - 0.16, D - 0.16, '#ffffff22', 0.08)}
+        </>
+      );
+      break;
     case 'desk':
       body = (
         <>

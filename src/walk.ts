@@ -77,6 +77,7 @@ const SOLID = new Set([
   'fridge',
   'wardrobe',
   'desk',
+  'coffee',
   'media',
   'fireplace',
   'bathtub',
