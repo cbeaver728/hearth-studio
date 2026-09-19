@@ -36,6 +36,7 @@ Choose **Walk through**. You start outside the front door, full screen.
 - **W A S D** or the on-screen arrows to walk, **drag** to look around, **Q/E** or ←/→ to turn, **Shift** to hurry.
 - Walk onto the stairs to climb to the next floor. Walls, rails, and furniture block you; doorways don't.
 - The mini-map shows where you are on the current floor. Click it to jump somewhere. The floor buttons at the top take you straight to another level.
+- **Tour** glides through each room in turn, hands-free, with the room's name on screen. Touch any control to take over.
 - The camera button saves a picture of the view. **Esc** returns to editing.
 
 ## Saving your work

@@ -10,6 +10,8 @@ import {
   Camera,
   Footprints,
   Home,
+  Pause,
+  Play,
   RotateCcw,
   Sun,
   X,
@@ -51,6 +53,15 @@ interface Engine {
   world: WalkWorld | null;
   bounds: T.Box3;
 }
+interface TourStop {
+  x: number;
+  z: number;
+  dx: number;
+  dz: number;
+  yaw: number;
+  level: number;
+}
+const STOP_SECONDS = 5.5;
 interface Walker {
   x: number;
   z: number;
@@ -616,6 +627,18 @@ export default function Scene({ project: p, floor, mode, onMode, onNotice, onLev
   const walker = useRef<Walker>({ x: 0, z: 0, feet: 0, yaw: Math.PI, pitch: 0, level: 0, fall: 0 });
   const keys = useRef(new Set<string>());
   const pad = useRef({ forward: 0, turn: 0 });
+  // Guided tour: a slow look around each room in turn.
+  const tour = useRef<{ stops: TourStop[]; i: number; t: number } | null>(null);
+  const [touring, setTouring] = useState(false);
+  const [stop, setStop] = useState(0);
+  const [fading, setFading] = useState(false);
+  // A brief dip to dark between tour stops, then out of the way.
+  useEffect(() => {
+    if (!touring) return;
+    setFading(true);
+    const t = setTimeout(() => setFading(false), 700);
+    return () => clearTimeout(t);
+  }, [stop, touring]);
   const live = useRef({ mode, floor, p, onLevel });
   live.current = { mode, floor, p, onLevel };
   const [error, setError] = useState(false);
@@ -707,6 +730,7 @@ export default function Scene({ project: p, floor, mode, onMode, onNotice, onLev
       lastY = 0;
     const down = (e: PointerEvent) => {
       if (live.current.mode !== 'walk') return;
+      endTour.current();
       dragging = true;
       lastX = e.clientX;
       lastY = e.clientY;
@@ -750,6 +774,7 @@ export default function Scene({ project: p, floor, mode, onMode, onNotice, onLev
         e.preventDefault();
         keys.current.add(k);
         setHint(false);
+        endTour.current();
       }
     };
     const keyup = (e: KeyboardEvent) => keys.current.delete(e.key.toLowerCase());
@@ -767,6 +792,30 @@ export default function Scene({ project: p, floor, mode, onMode, onNotice, onLev
       const dt = Math.min((now - last) / 1000, 0.05);
       last = now;
       const e = engine.current!;
+      if (live.current.mode === 'walk' && e.world && tour.current) {
+        const tr = tour.current,
+          w = walker.current;
+        tr.t += dt;
+        if (tr.t > STOP_SECONDS) {
+          tr.t = 0;
+          tr.i++;
+          if (tr.i >= tr.stops.length) {
+            tour.current = null;
+            setTouring(false);
+          } else setStop(tr.i);
+        }
+        const st = tr.stops[Math.min(tr.i, tr.stops.length - 1)];
+        const k = Math.min(1, tr.t / STOP_SECONDS),
+          ease = k * k * (3 - 2 * k);
+        Object.assign(w, {
+          x: st.x + st.dx * ease,
+          z: st.z + st.dz * ease,
+          feet: st.level * FLOOR_H,
+          yaw: st.yaw + 0.35 - 0.7 * ease,
+          pitch: -0.08,
+          fall: 0,
+        });
+      }
       if (live.current.mode === 'walk' && e.world) {
         const w = walker.current,
           k = keys.current;
@@ -774,6 +823,7 @@ export default function Scene({ project: p, floor, mode, onMode, onNotice, onLev
           (k.has('arrowleft') || k.has('q') ? 1 : 0) -
           (k.has('arrowright') || k.has('e') ? 1 : 0) +
           pad.current.turn;
+        if (turn || pad.current.forward) endTour.current();
         w.yaw += turn * dt * 1.6;
         const forward =
             (k.has('w') || k.has('arrowup') ? 1 : 0) -
@@ -898,7 +948,76 @@ export default function Scene({ project: p, floor, mode, onMode, onNotice, onLev
     g.stroke();
   };
 
+  const endTour = useRef(() => {});
+  endTour.current = () => {
+    if (!tour.current) return;
+    tour.current = null;
+    setTouring(false);
+  };
+  const startTour = () => {
+    const world = engine.current?.world;
+    if (!world) return;
+    const w = walker.current;
+    const order = [...p.floors.map((f) => f.level)].sort((a, b) =>
+      a >= 0 && b >= 0 ? a - b : a >= 0 ? -1 : b >= 0 ? 1 : b - a,
+    );
+    const stops: TourStop[] = [];
+    let from = { x: w.x, z: w.z };
+    for (const level of order) {
+      const left = p.items.filter(
+        (i) => i.kind === 'room' && i.floor === level && Math.min(i.w, i.d) >= 2.2,
+      );
+      // Visit the nearest unvisited room next, so the tour flows through the house.
+      while (left.length) {
+        left.sort(
+          (a, b) =>
+            Math.hypot(a.x + a.w / 2 - from.x, a.z + a.d / 2 - from.z) -
+            Math.hypot(b.x + b.w / 2 - from.x, b.z + b.d / 2 - from.z),
+        );
+        const r = left.shift()!;
+        const cx = r.x + r.w / 2,
+          cz = r.z + r.d / 2,
+          feet = level * FLOOR_H;
+        // Stand in the corner nearest where we came from and look across the room.
+        const corners = [
+          [r.x + 0.55, r.z + 0.55],
+          [r.x + r.w - 0.55, r.z + 0.55],
+          [r.x + 0.55, r.z + r.d - 0.55],
+          [r.x + r.w - 0.55, r.z + r.d - 0.55],
+        ].sort(
+          (a, b) =>
+            Math.hypot(a[0] - from.x, a[1] - from.z) - Math.hypot(b[0] - from.x, b[1] - from.z),
+        );
+        const spot = corners.find(
+          ([x, z]) =>
+            world.free(x, z, feet) && Math.abs(world.support(x, z, feet + 0.1) - feet) < 0.05,
+        ) || [cx, cz];
+        const dx = cx - spot[0],
+          dz = cz - spot[1],
+          len = Math.hypot(dx, dz) || 1;
+        const drift = Math.min(0.6, len * 0.25);
+        const end = [spot[0] + (dx / len) * drift, spot[1] + (dz / len) * drift];
+        const ok = world.free(end[0], end[1], feet);
+        stops.push({
+          x: spot[0],
+          z: spot[1],
+          dx: ok ? end[0] - spot[0] : 0,
+          dz: ok ? end[1] - spot[1] : 0,
+          yaw: Math.atan2(-dx, -dz),
+          level,
+        });
+        from = { x: cx, z: cz };
+      }
+    }
+    if (!stops.length) return;
+    tour.current = { stops, i: 0, t: 0 };
+    setTouring(true);
+    setStop(0);
+    setHint(false);
+    dirty.current = true;
+  };
   const spawn = (level: number) => {
+    endTour.current();
     const e = engine.current;
     if (!e?.world) return;
     const world = e.world;
@@ -1075,6 +1194,7 @@ export default function Scene({ project: p, floor, mode, onMode, onNotice, onLev
   const hold = (key: 'forward' | 'turn', value: number) => ({
     onPointerDown: (e: React.PointerEvent) => {
       e.currentTarget.setPointerCapture(e.pointerId);
+      endTour.current();
       pad.current[key] = value;
       setHint(false);
     },
@@ -1086,6 +1206,7 @@ export default function Scene({ project: p, floor, mode, onMode, onNotice, onLev
   return (
     <div className={`scene-wrap ${mode === 'walk' ? 'walking' : ''}`}>
       <div ref={host} className="scene" data-testid="three-scene" />
+      {fading && <div className="walk-fade" key={stop} />}
       {error && (
         <div className="scene-error">
           3D needs WebGL. Try enabling hardware acceleration in your browser. Your 2D plan is still
@@ -1167,6 +1288,18 @@ export default function Scene({ project: p, floor, mode, onMode, onNotice, onLev
               ))}
             </div>
             <div className="walk-tools">
+              <button
+                className={`walk-tour ${touring ? 'on' : ''}`}
+                onClick={() => (touring ? endTour.current() : startTour())}
+                title={
+                  touring
+                    ? 'Stop the tour and walk yourself'
+                    : 'Glide through each room, hands-free'
+                }
+              >
+                {touring ? <Pause size={15} /> : <Play size={15} />}
+                {touring ? 'Stop tour' : 'Tour'}
+              </button>
               <button
                 className="icon-button glass"
                 aria-label="Toggle golden hour"

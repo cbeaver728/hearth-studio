@@ -1481,6 +1481,40 @@ kbd {
   display: flex;
   gap: 6px;
 }
+.walk-tour {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 38px;
+  padding: 0 14px;
+  border-radius: 10px;
+  background: #fbfcf7e0;
+  border: 1px solid #dbe4d2;
+  backdrop-filter: blur(8px);
+  color: var(--green);
+  font-weight: 600;
+  font-size: 13.5px;
+}
+.walk-tour.on {
+  background: var(--green);
+  color: #fff;
+  border-color: var(--green);
+}
+.walk-fade {
+  position: absolute;
+  inset: 0;
+  background: #1c2a24;
+  pointer-events: none;
+  animation: fade-out 0.7s ease-out forwards;
+}
+@keyframes fade-out {
+  from {
+    opacity: 0.85;
+  }
+  to {
+    opacity: 0;
+  }
+}
 .walk-tools .icon-button {
   width: 38px;
   height: 38px;
@@ -1542,10 +1576,13 @@ kbd {
   left: 50%;
   transform: translateX(-50%);
   font:
-    22px Georgia,
+    20px Georgia,
     serif;
   color: #fff;
-  text-shadow: 0 1px 12px #0008;
+  background: #1f302999;
+  backdrop-filter: blur(6px);
+  padding: 6px 16px 7px;
+  border-radius: 10px;
   pointer-events: none;
   animation: fade-in 0.5s ease-out;
 }
