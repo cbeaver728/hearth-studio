@@ -51,12 +51,12 @@ test('draw, move, resize, undo, redo, and reload preserve geometry', async ({ pa
   expect(await room.locator('rect').first().getAttribute('x')).toEqual(after);
   await page.getByLabel('Width (ft)', { exact: true }).fill('20');
   await page.getByLabel('Width (ft)', { exact: true }).press('Enter');
-  await expect(page.getByLabel('Width (ft)', { exact: true })).toHaveValue('20');
+  await expect(page.getByLabel('Width (ft)', { exact: true })).toHaveValue('20′');
   await expect(page.getByText('All changes saved on this device')).toBeVisible();
   await page.reload();
   await expect(page.getByTestId('shape-room')).toHaveCount(1);
   await page.getByTestId('shape-room').click();
-  await expect(page.getByLabel('Width (ft)', { exact: true })).toHaveValue('20');
+  await expect(page.getByLabel('Width (ft)', { exact: true })).toHaveValue('20′');
 });
 test('floor copies preserve doors and basement edits stay separate', async ({ page }) => {
   await open(page);

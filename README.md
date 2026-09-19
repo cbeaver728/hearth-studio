@@ -27,7 +27,9 @@ Other ways to run it:
 3. **Furniture.** The Furnish tab has living, kitchen, bedroom, and bathroom pieces. A preview follows your cursor, and pieces snap flush to walls. Press **E** (or ↻ on the selection bar) to turn the selected piece; arrow keys nudge it.
 4. **Floors.** Use **+** beside the floor menu. Pick a stair style and Hearth lays connecting stairs on the floor below (or above, for a basement) plus a landing on the new floor to build around. Rename or delete floors in the right panel.
 5. **Stairs.** Straight, L-shaped, switchback, and spiral. Choose **Up** or **Down** before placing, or change it later on the right. On the plan, **UP** marks the bottom step and **DN** the top; the floor above shows the opening with a guard rail. Stairs with no floor at the other end offer to create it.
-6. **Outside.** Patios, driveways, lawns, pools, trees, and fences live on the ground floor. Pick exterior and interior wall colors and a roof on the right, then choose **See the exterior**.
+6. **Sizes.** In feet, sizes read as feet and inches; type `12 6`, `12'6"`, or `12.5`.
+7. **Share the plan.** The picture button under the plan saves the current floor as a PNG with the house name and floor as a title.
+8. **Outside.** Patios, driveways, lawns, pools, trees, and fences live on the ground floor. Pick exterior and interior wall colors and a roof on the right, then choose **See the exterior**.
 
 ## Walking through
 

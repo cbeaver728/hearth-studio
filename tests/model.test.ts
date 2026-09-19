@@ -5,6 +5,7 @@ import {
   createItem,
   removeItem,
   sampleProject,
+  readFeet,
   snap,
   validateProject,
 } from '../src/model';
@@ -83,4 +84,13 @@ it('snaps consistently in every drawing direction', () => {
   expect(snap(1.13)).toBe(1.25);
   expect(snap(-1.13)).toBe(-1.25);
   expect(snap(1.134, false)).toBe(1.13);
+});
+it('reads lengths typed in feet and inches', () => {
+  expect(readFeet('12')).toBe(12);
+  expect(readFeet('12.5')).toBe(12.5);
+  expect(readFeet(`12'6"`)).toBe(12.5);
+  expect(readFeet('12′ 6″')).toBe(12.5);
+  expect(readFeet('12 6')).toBe(12.5);
+  expect(readFeet('12ft 3in')).toBe(12.25);
+  expect(readFeet('twelve')).toBeNaN();
 });

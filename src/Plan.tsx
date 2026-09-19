@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { Compass, Copy, Crosshair, Minus, Plus, RotateCw, Trash2 } from 'lucide-react';
+import { Compass, Copy, Crosshair, ImageDown, Minus, Plus, RotateCw, Trash2 } from 'lucide-react';
 import {
   catalogEntry,
   contentsOf,
@@ -435,6 +435,74 @@ export default function Plan({
     setView({ x: (minX + maxX) / 2 - w / 2, z: (minZ + maxZ) / 2 - h / 2, w, h });
   };
 
+  // Saves this floor's plan as a PNG, framed on the house, with the name and floor as a title.
+  const exportPlan = async () => {
+    const src = svg.current!;
+    const clone = src.cloneNode(true) as SVGSVGElement;
+    clone.querySelectorAll('.no-export').forEach((n) => n.remove());
+    // Copy the stylesheet-driven text styles onto the clone, which leaves the page's CSS behind.
+    const from = src.querySelectorAll('text'),
+      to = clone.querySelectorAll('text');
+    from.forEach((t, n) => {
+      const cs = getComputedStyle(t);
+      for (const prop of [
+        'fill',
+        'stroke',
+        'stroke-width',
+        'font-family',
+        'font-weight',
+        'paint-order',
+      ])
+        to[n]?.setAttribute(prop, cs.getPropertyValue(prop));
+    });
+    const indoor = p.items.filter((i) => onLevel(i, floor) && !isOutside(i));
+    const box = indoor.length ? indoor : p.items;
+    if (!box.length) return;
+    const minX = Math.min(...box.map((i) => i.x)) - 1.2,
+      minZ = Math.min(...box.map((i) => i.z)) - 2.2,
+      maxX = Math.max(...box.map((i) => i.x + i.w)) + 1.2,
+      maxZ = Math.max(...box.map((i) => i.z + i.d)) + 1.2;
+    const w = maxX - minX,
+      h = maxZ - minZ,
+      px = 2400,
+      py = Math.round((px * h) / w);
+    clone.setAttribute('viewBox', `${minX} ${minZ} ${w} ${h}`);
+    clone.setAttribute('width', String(px));
+    clone.setAttribute('height', String(py));
+    const title = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    title.setAttribute('x', String(minX + 0.4));
+    title.setAttribute('y', String(minZ + 1.1));
+    title.setAttribute('font-size', String(Math.max(0.5, w / 32)));
+    title.setAttribute('font-family', 'Georgia, serif');
+    title.setAttribute('fill', '#2e4539');
+    title.textContent = `${p.name} · ${p.floors.find((f) => f.level === floor)?.name ?? ''}`;
+    clone.appendChild(title);
+    const url = URL.createObjectURL(
+      new Blob([new XMLSerializer().serializeToString(clone)], { type: 'image/svg+xml' }),
+    );
+    try {
+      const img = new Image();
+      img.src = url;
+      await img.decode();
+      const canvas = document.createElement('canvas');
+      canvas.width = px;
+      canvas.height = py;
+      const g = canvas.getContext('2d')!;
+      g.fillStyle = '#f7f8f2';
+      g.fillRect(0, 0, px, py);
+      g.drawImage(img, 0, 0, px, py);
+      const a = document.createElement('a');
+      a.href = canvas.toDataURL('image/png');
+      a.download = `${p.name.replace(/[^a-z0-9_-]/gi, '-')}-${(p.floors.find((f) => f.level === floor)?.name ?? 'plan').replace(/[^a-z0-9_-]/gi, '-')}.png`;
+      a.click();
+      onNotice('Floor plan picture saved.');
+    } catch {
+      onNotice('Could not save the plan picture.');
+    } finally {
+      URL.revokeObjectURL(url);
+    }
+  };
+
   const overrides = new Map((draft || []).map((d) => [d.id, d]));
   const layer = (i: Item) =>
     isOutside(i) ? 0 : isRoom(i) ? 1 : i.kind === 'rug' ? 2 : i.kind === 'stairs' ? 4 : 3;
@@ -587,7 +655,7 @@ export default function Plan({
           </g>
         ))}
         {preview && (
-          <g opacity=".55" pointerEvents="none">
+          <g opacity=".55" pointerEvents="none" className="no-export">
             <Shape item={preview} floor={floor} />
             <rect
               x={preview.x}
@@ -683,7 +751,7 @@ export default function Plan({
             </g>
           ))}
         {sel && (
-          <g key={`selection-${sel.id}`}>
+          <g key={`selection-${sel.id}`} className="no-export">
             <rect
               x={sel.x - 0.1}
               y={sel.z - 0.1}
@@ -776,6 +844,14 @@ export default function Plan({
             <Plus size={16} />
           </button>
         </div>
+        <button
+          className="plan-export"
+          aria-label="Save plan picture"
+          title="Save a picture of this floor plan"
+          onClick={exportPlan}
+        >
+          <ImageDown size={16} />
+        </button>
       </div>
       <div className="north">
         <Compass size={23} />

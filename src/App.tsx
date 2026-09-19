@@ -66,6 +66,7 @@ import {
   deleteFloor,
   floorName,
   formatLength,
+  readFeet,
   hasFloor,
   isOutside,
   isRoom,
@@ -151,40 +152,56 @@ function download(name: string, data: string, type = 'application/json') {
   a.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
+/** Feet as 12′ 6″. */
+const showFeet = (ft: number) => {
+  const inches = Math.round(ft * 12);
+  const f = Math.floor(inches / 12),
+    i = inches % 12;
+  return i ? `${f}′ ${i}″` : `${f}′`;
+};
 function Numeric({
   label,
   value,
   onChange,
   min = 0.25,
   max = 100,
-  step = 0.25,
+  feet = false,
 }: {
   label: string;
   value: number;
   onChange: (n: number) => void;
   min?: number;
   max?: number;
-  step?: number;
+  /** Show and accept feet and inches instead of a plain number. */
+  feet?: boolean;
 }) {
-  const [text, setText] = useState(String(Math.round(value * 100) / 100));
-  useEffect(() => setText(String(Math.round(value * 100) / 100)), [value]);
+  const show = (v: number) => (feet ? showFeet(v) : String(Math.round(v * 100) / 100));
+  const [text, setText] = useState(show(value));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => setText(show(value)), [value, feet]);
   return (
     <label className="field">
       {label}
       <input
-        type="number"
+        type="text"
+        inputMode="decimal"
         value={text}
-        min={min}
-        max={max}
-        step={step}
+        title={feet ? `Type feet and inches, like 12 6 or 12'6"` : undefined}
         onChange={(e) => setText(e.target.value)}
+        onFocus={(e) => e.currentTarget.select()}
         onBlur={() => {
-          const n = Number(text);
-          if (text.trim() && Number.isFinite(n) && n >= min && n <= max) onChange(n);
-          else setText(String(Math.round(value * 100) / 100));
+          const n = feet ? readFeet(text) : Number(text);
+          if (text.trim() && Number.isFinite(n) && n >= min && n <= max) {
+            onChange(n);
+            setText(show(n));
+          } else setText(show(value));
         }}
         onKeyDown={(e) => {
           if (e.key === 'Enter') e.currentTarget.blur();
+          if (e.key === 'Escape') {
+            setText(show(value));
+            e.currentTarget.blur();
+          }
         }}
       />
     </label>
@@ -603,7 +620,7 @@ export default function App() {
   };
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
-      if ((e.target as HTMLElement).matches('input,textarea,select')) return;
+      if ((e.target as HTMLElement).matches?.('input,textarea,select')) return;
       if (e.key === 'Escape') {
         if (modal) setModal(null);
         else if (sceneMode === 'walk') changeSceneMode('dollhouse');
@@ -887,6 +904,7 @@ export default function App() {
             value={s.w * factor}
             min={0.25 * factor}
             max={100 * factor}
+            feet={u === 'ft'}
             onChange={(n) => patchItem({ w: n / factor })}
           />
           <Numeric
@@ -894,6 +912,7 @@ export default function App() {
             value={s.d * factor}
             min={0.25 * factor}
             max={100 * factor}
+            feet={u === 'ft'}
             onChange={(n) => patchItem({ d: n / factor })}
           />
         </div>
@@ -1017,6 +1036,7 @@ export default function App() {
                     value={o.width * factor}
                     min={0.3 * factor}
                     max={10 * factor}
+                    feet={u === 'ft'}
                     onChange={(n) =>
                       commit({
                         ...project,

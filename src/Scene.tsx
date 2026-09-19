@@ -759,7 +759,7 @@ export default function Scene({ project: p, floor, mode, onMode, onNotice, onLev
     renderer.domElement.addEventListener('pointercancel', up);
     const keydown = (e: KeyboardEvent) => {
       if (
-        (e.target as HTMLElement).matches('input,textarea,select') ||
+        (e.target as HTMLElement).matches?.('input,textarea,select') ||
         live.current.mode !== 'walk'
       )
         return;

@@ -688,3 +688,13 @@ export function contentsOf(p: Project, room: Item) {
       i.z + i.d <= room.z + room.d + 0.01,
   );
 }
+/** Reads 12'6", 12′ 6″, 12 6, 12ft 6in, or 12.5 as feet; NaN if it can't. */
+export function readFeet(text: string) {
+  const m = text
+    .trim()
+    .toLowerCase()
+    .match(
+      /^(\d+(?:\.\d+)?)\s*(?:'|′|ft|feet|foot)?\s*(?:(\d+(?:\.\d+)?)\s*(?:"|″|in|inch|inches)?)?$/,
+    );
+  return m ? Number(m[1]) + (m[2] ? Number(m[2]) / 12 : 0) : NaN;
+}

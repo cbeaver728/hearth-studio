@@ -700,11 +700,12 @@ kbd {
   left: 12px;
   right: 12px;
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-end;
   align-items: center;
   pointer-events: none;
 }
 .scale {
+  margin-right: auto;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -739,6 +740,19 @@ kbd {
   display: grid;
   place-items: center;
   color: #5d7056;
+}
+.plan-export {
+  pointer-events: auto;
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  background: #fffefa;
+  border: 1px solid #dce3d5;
+  box-shadow: 0 2px 12px #4c654615;
+  color: #5d7056;
+  margin-left: 8px;
 }
 .canvas-hint {
   position: absolute;
