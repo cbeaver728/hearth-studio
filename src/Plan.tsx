@@ -103,6 +103,67 @@ export default function Plan({
   };
   const roomsHere = p.items.filter((i) => isRoom(i) && i.floor === floor);
 
+  // Room edges line up with neighboring rooms and with the floor below, so walls stack and meet.
+  const edgeGuides = (except: string) => {
+    const guide = floor > 0 ? floor - 1 : floor < 0 ? floor + 1 : null;
+    const rooms = p.items.filter(
+      (r) => isRoom(r) && r.id !== except && (r.floor === floor || r.floor === guide),
+    );
+    return {
+      xs: rooms.flatMap((r) => [r.x, r.x + r.w]),
+      zs: rooms.flatMap((r) => [r.z, r.z + r.d]),
+    };
+  };
+  const nearest = (v: number, list: number[], reach = 0.3) => {
+    let best: number | undefined;
+    for (const c of list)
+      if (Math.abs(v - c) < reach && (best === undefined || Math.abs(v - c) < Math.abs(v - best)))
+        best = c;
+    return best;
+  };
+  const roomSnap = (
+    i: Item,
+    edges: { l?: boolean; r?: boolean; t?: boolean; b?: boolean; move?: boolean },
+  ) => {
+    if (!snapping || !isRoom(i)) return i;
+    const { xs, zs } = edgeGuides(i.id);
+    const out = { ...i };
+    if (edges.move) {
+      const l = nearest(i.x, xs),
+        r = nearest(i.x + i.w, xs),
+        t = nearest(i.z, zs),
+        b = nearest(i.z + i.d, zs);
+      const dx = [
+        l !== undefined ? l - i.x : undefined,
+        r !== undefined ? r - i.x - i.w : undefined,
+      ]
+        .filter((v): v is number => v !== undefined)
+        .sort((a, c) => Math.abs(a) - Math.abs(c))[0];
+      const dz = [
+        t !== undefined ? t - i.z : undefined,
+        b !== undefined ? b - i.z - i.d : undefined,
+      ]
+        .filter((v): v is number => v !== undefined)
+        .sort((a, c) => Math.abs(a) - Math.abs(c))[0];
+      if (dx !== undefined) out.x += dx;
+      if (dz !== undefined) out.z += dz;
+      return out;
+    }
+    const right = i.x + i.w,
+      bottom = i.z + i.d;
+    const l = edges.l ? nearest(i.x, xs) : undefined,
+      r = edges.r ? nearest(right, xs) : undefined,
+      t = edges.t ? nearest(i.z, zs) : undefined,
+      b = edges.b ? nearest(bottom, zs) : undefined;
+    const x0 = l ?? i.x,
+      x1 = r ?? right,
+      z0 = t ?? i.z,
+      z1 = b ?? bottom;
+    if (x1 - x0 >= 0.5) Object.assign(out, { x: x0, w: x1 - x0 });
+    if (z1 - z0 >= 0.5) Object.assign(out, { z: z0, d: z1 - z0 });
+    return out;
+  };
+
   // Pieces nudge flush against the inside face of nearby walls.
   const wallSnap = (i: Item) => {
     if (!snapping || isRoom(i) || isOutside(i)) return i;
@@ -268,7 +329,7 @@ export default function Plan({
       i.z = snap(Math.min(g.z, a.z), snapping);
       i.w = Math.abs(snap(a.x - g.x, snapping));
       i.d = Math.abs(snap(a.z - g.z, snapping));
-      setDraft([i]);
+      setDraft([roomSnap(i, { l: true, r: true, t: true, b: true })]);
       return;
     }
     if (g.kind === 'move') {
@@ -276,7 +337,7 @@ export default function Plan({
       g.moved = true;
       i.x = snap(src.x + a.x - g.x, snapping);
       i.z = snap(src.z + a.z - g.z, snapping);
-      i = wallSnap(i);
+      i = isRoom(i) ? roomSnap(i, { move: true }) : wallSnap(i);
       const dx = i.x - src.x,
         dz = i.z - src.z;
       setDraft([i, ...(g.carried || []).map((c) => ({ ...c, x: c.x + dx, z: c.z + dz }))]);
@@ -296,7 +357,7 @@ export default function Plan({
       i.z = Math.min(bottom - min, snap(src.z + a.z - g.z, snapping));
       i.d = bottom - i.z;
     }
-    setDraft([i]);
+    setDraft([roomSnap(i, { l: c[1] === 'w', r: c[1] === 'e', t: c[0] === 'n', b: c[0] === 's' })]);
   };
 
   const finish = () => {

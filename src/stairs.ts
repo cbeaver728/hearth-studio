@@ -183,6 +183,19 @@ export function rectToWorld(i: Item, r: Rect): Rect {
   return R(Math.min(ax, bx), Math.min(az, bz), Math.max(ax, bx), Math.max(az, bz));
 }
 
+/** Where you stand before the first step and after the last one, on the plan. */
+export function stairEnds(i: Item) {
+  const path = layoutFor(i).path.map(([u, v]) => toWorld(i, u, v));
+  const beyond = (a: [number, number], b: [number, number], d: number): [number, number] => {
+    const len = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
+    return [b[0] + ((b[0] - a[0]) / len) * d, b[1] + ((b[1] - a[1]) / len) * d];
+  };
+  return {
+    bottom: beyond(path[1], path[0], 0.55),
+    top: beyond(path[path.length - 2], path[path.length - 1], 0.55),
+  };
+}
+
 /** Which tread (if any) is under a local point. */
 export function treadAt(layout: StairLayout, u: number, v: number): Tread | undefined {
   for (const t of layout.treads) {

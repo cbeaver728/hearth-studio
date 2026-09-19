@@ -14,6 +14,7 @@ import {
 import {
   layoutFor,
   localSize,
+  stairEnds,
   stairHeightAt,
   subtractRects,
   toLocal,
@@ -169,6 +170,29 @@ describe('floors', () => {
     expect(landing.x).toBeLessThanOrEqual(stairs.x);
     expect(landing.x + landing.w).toBeGreaterThanOrEqual(stairs.x + stairs.w);
     expect(() => validateProject(result.project)).not.toThrow();
+  });
+  it('lays new stairs so both ends open into rooms, in every style', () => {
+    for (const style of styles) {
+      const p = blankProject();
+      const hall = createItem('room', 0, 0, 0);
+      Object.assign(hall, { w: 5, d: 4, name: 'Hall' });
+      p.items = [hall];
+      const { project } = addLevel(p, { type: 'upper', stairs: style })!;
+      const s = project.items.find((i) => i.kind === 'stairs')!;
+      const inside = (level: number, [x, z]: [number, number]) =>
+        project.items.some(
+          (r) =>
+            r.kind === 'room' &&
+            r.floor === level &&
+            x > r.x &&
+            x < r.x + r.w &&
+            z > r.z &&
+            z < r.z + r.d,
+        );
+      const ends = stairEnds(s);
+      expect(inside(0, ends.bottom), style).toBe(true);
+      expect(inside(1, ends.top), style).toBe(true);
+    }
   });
   it('adds a basement with stairs leading down', () => {
     const p = sampleProject();

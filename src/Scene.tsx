@@ -350,7 +350,15 @@ function buildContent(p: Project, mode: SceneMode, floor: number, evening: boole
       piece(o.end, o.end + 0.06, 0, 2.2, trim, thick + 0.04);
       if (height > 2.2) piece(o.start - 0.06, o.end + 0.06, 2.2, 2.28, trim, thick + 0.04);
       const width = o.end - o.start;
-      if (height < 2.2 || width > 1.8) continue;
+      if (height >= 2.2 && width > 1.8) {
+        // Wide doors are garage doors: a closed sectional panel with grooves.
+        const panel = mat(tone(p.exterior, 10), { rough: 0.6 });
+        piece(o.start, o.end, 0.02, 2.2, panel, 0.05);
+        for (let g = 1; g < 4; g++)
+          piece(o.start, o.end, g * 0.55, g * 0.55 + 0.02, tone(p.exterior, -25), 0.07);
+        continue;
+      }
+      if (height < 2.2) continue;
       // An open door leaf, swung into a room (the one on the negative side when both are rooms).
       const dir = sideA ? -1 : 1;
       const leaf = mat(tone(interior, -14));

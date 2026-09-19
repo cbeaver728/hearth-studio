@@ -1047,6 +1047,25 @@ kbd {
 .shape-actions .icon-button {
   margin-left: auto;
 }
+.name-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin: -4px 0 10px;
+}
+.name-chips button {
+  padding: 4px 9px;
+  border-radius: 999px;
+  border: 1px solid #dfe3d7;
+  background: var(--card);
+  font-size: 12px;
+  color: #4a5944;
+}
+.name-chips button:hover {
+  border-color: var(--green);
+  color: var(--green);
+  background: var(--green-soft);
+}
 .stair-styles {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -1173,6 +1192,13 @@ kbd {
   z-index: 100;
   font-size: 13.5px;
   max-width: min(640px, 86vw);
+}
+.toast > .toast-action {
+  color: #fff;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 6px;
+  background: #ffffff22;
 }
 .toast > button {
   display: flex;

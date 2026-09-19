@@ -55,7 +55,8 @@ import {
 } from 'lucide-react';
 import Plan, { type Tool } from './Plan';
 import Scene, { type SceneMode } from './Scene';
-import { addLevel, defaultFloorName, nextLevel } from './floors';
+import { addLevel, defaultFloorName, landingFor, nextLevel } from './floors';
+import { stairEnds } from './stairs';
 import {
   area,
   blankProject,
@@ -277,6 +278,23 @@ function Thumbnail({ p }: { p: Project }) {
     </svg>
   );
 }
+/** One-click names for a freshly drawn room, each with a fitting floor finish. */
+const ROOM_NAMES: [string, string][] = [
+  ['Living room', '#e6ddca'],
+  ['Kitchen', '#e9e2d5'],
+  ['Dining room', '#e6ddca'],
+  ['Primary bedroom', '#e2dfea'],
+  ['Bedroom', '#e2dfea'],
+  ['Bathroom', '#dbe8e4'],
+  ['Office', '#e3e6d7'],
+  ['Family room', '#e6ddca'],
+  ['Laundry', '#dbe8e4'],
+  ['Mudroom', '#d9d6cc'],
+  ['Pantry', '#e9e2d5'],
+  ['Closet', '#e2dfea'],
+  ['Hallway', '#eae0d1'],
+  ['Playroom', '#e3e6d7'],
+];
 const TILE_GROUPS: Record<'Build' | 'Furnish' | 'Landscape', string> = {
   Build: 'Build',
   Furnish: 'Furnish',
@@ -317,7 +335,11 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [floor, project.floors.length]);
   const input = useRef<HTMLInputElement>(null);
-  const notify = useCallback((s: string) => setNotice(s), []);
+  const [noticeUndo, setNoticeUndo] = useState(false);
+  const notify = useCallback((s: string, offerUndo = false) => {
+    setNotice(s);
+    setNoticeUndo(offerUndo);
+  }, []);
   const walking = sceneMode === 'walk';
   useEffect(() => {
     if (!modal) return;
@@ -514,9 +536,10 @@ export default function App() {
     commit(rotateItem(project, selected));
   };
   const remove = () => {
-    if (!selected) return;
-    commit(removeItem(project, selected));
+    if (!selectedItem) return;
+    commit(removeItem(project, selectedItem.id));
     setSelected(null);
+    notify(`${selectedItem.name} deleted.`, true);
   };
   const changeFloor = (level: number) => {
     setFloor(level);
@@ -559,7 +582,7 @@ export default function App() {
     commit(deleteFloor(project, level));
     setFloor(0);
     setSelected(null);
-    notify(`${name} removed. Press Ctrl+Z to bring it back.`);
+    notify(`${name} removed.`, true);
   };
   const selectTool = (t: Tool) => {
     setTool(t);
@@ -689,7 +712,21 @@ export default function App() {
     const { lower, upper } = stairLevels(s);
     const here = floor === lower || floor === upper ? floor : s.floor;
     const other = here === lower ? upper : lower;
-    return { lower, upper, here, other, ok: hasFloor(project, lower) && hasFloor(project, upper) };
+    const inRoom = (level: number, [x, z]: [number, number]) =>
+      project.items.some(
+        (r) =>
+          isRoom(r) && r.floor === level && x > r.x && x < r.x + r.w && z > r.z && z < r.z + r.d,
+      );
+    const ends = stairEnds(s);
+    return {
+      lower,
+      upper,
+      here,
+      other,
+      ok: hasFloor(project, lower) && hasFloor(project, upper),
+      topLands: inRoom(upper, ends.top),
+      bottomLands: inRoom(lower, ends.bottom),
+    };
   };
   let inspector: ReactNode;
   if (selectedItem) {
@@ -720,6 +757,20 @@ export default function App() {
             }}
           />
         </label>
+        {s.kind === 'room' && /^Room( copy)?$/.test(s.name) && (
+          <div className="name-chips" aria-label="Quick room names">
+            {ROOM_NAMES.map(([name, color]) => (
+              <button
+                key={name}
+                onClick={() =>
+                  patchItem({ name, ...(s.color === catalogEntry('room')!.color ? { color } : {}) })
+                }
+              >
+                {name}
+              </button>
+            ))}
+          </div>
+        )}
         {st && (
           <>
             <div className="field-label">Stair type</div>
@@ -787,6 +838,37 @@ export default function App() {
                     <Plus size={13} />
                     Add {s.dir === 'down' ? 'a basement' : 'a floor above'} here
                   </button>
+                </span>
+              </div>
+            )}
+            {st.ok && !st.topLands && (
+              <div className="connects warn">
+                <Layers size={16} />
+                <span>
+                  The top step doesn't reach a room on {floorName(project, st.upper)}, so there's
+                  nowhere to step off.
+                  <button
+                    className="text-button"
+                    onClick={() => {
+                      commit({
+                        ...project,
+                        items: [...project.items, landingFor(s, st.upper, 'Landing')],
+                      });
+                      notify(`Landing added on ${floorName(project, st.upper)}.`);
+                    }}
+                  >
+                    <Plus size={13} />
+                    Add a landing up there
+                  </button>
+                </span>
+              </div>
+            )}
+            {!st.bottomLands && (
+              <div className="connects warn">
+                <Layers size={16} />
+                <span>
+                  The bottom step opens outside the rooms on {floorName(project, st.lower)}. Turn or
+                  move the stairs so the UP end faces into a room.
                 </span>
               </div>
             )}
@@ -1514,6 +1596,18 @@ export default function App() {
         <div className="toast" role="status">
           <Check size={16} />
           {notice}
+          {noticeUndo && (
+            <button
+              className="toast-action"
+              aria-label="Undo the delete"
+              onClick={() => {
+                undo();
+                setNotice('');
+              }}
+            >
+              Undo
+            </button>
+          )}
           <button aria-label="Dismiss notification" onClick={() => setNotice('')}>
             <X size={14} />
           </button>

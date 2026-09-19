@@ -9,6 +9,7 @@ import {
   type Project,
   type StairStyle,
 } from './model';
+import { stairEnds } from './stairs';
 
 const overlaps = (a: Item, b: { x: number; z: number; w: number; d: number }) =>
   a.x < b.x + b.w - 0.01 &&
@@ -16,8 +17,10 @@ const overlaps = (a: Item, b: { x: number; z: number; w: number; d: number }) =>
   a.z < b.z + b.d - 0.01 &&
   a.z + a.d > b.z + 0.01;
 
-/** Finds a clear spot on a level for a staircase footprint, preferring halls and entries. */
-export function findStairSpot(p: Project, level: number, w: number, d: number) {
+/** Finds a clear spot and facing on a level for new stairs, preferring halls and entries.
+ * The bottom step must open into the room, not against a wall. */
+export function findStairSpot(p: Project, level: number, style: StairStyle) {
+  const e = stairEntry(style);
   const rooms = p.items
     .filter((i) => i.kind === 'room' && i.floor === level)
     .sort((a, b) => {
@@ -35,32 +38,57 @@ export function findStairSpot(p: Project, level: number, w: number, d: number) {
   );
   // First look for an empty spot; failing that, allow furniture underfoot (but never other stairs).
   for (const strict of [true, false])
-    for (const r of rooms) {
-      if (r.w < w + 0.2 || r.d < d + 0.2) continue;
-      // Try spots along the walls first, then inward.
-      const xs: number[] = [],
-        zs: number[] = [];
-      for (let x = r.x + 0.1; x <= r.x + r.w - w - 0.1 + 1e-6; x += 0.25) xs.push(x);
-      for (let z = r.z + 0.1; z <= r.z + r.d - d - 0.1 + 1e-6; z += 0.25) zs.push(z);
-      const edge = (v: number, list: number[]) => Math.min(v - list[0], list[list.length - 1] - v);
-      const spots = xs
-        .flatMap((x) => zs.map((z) => ({ x, z })))
-        .sort(
-          (a, b) => Math.min(edge(a.x, xs), edge(a.z, zs)) - Math.min(edge(b.x, xs), edge(b.z, zs)),
-        );
-      for (const s of spots) {
-        const box = { x: s.x, z: s.z, w, d };
-        if (!blockers.some((b) => (strict || b.kind === 'stairs') && overlaps(b, box)))
-          return { x: Math.round(s.x * 100) / 100, z: Math.round(s.z * 100) / 100 };
+    for (const r of rooms)
+      for (const rotation of [0, 90, 180, 270]) {
+        const w = rotation % 180 ? e.d : e.w,
+          d = rotation % 180 ? e.w : e.d;
+        if (r.w < w + 0.2 || r.d < d + 0.2) continue;
+        // Try spots along the walls first, then inward.
+        const xs: number[] = [],
+          zs: number[] = [];
+        for (let x = r.x + 0.1; x <= r.x + r.w - w - 0.1 + 1e-6; x += 0.25) xs.push(x);
+        for (let z = r.z + 0.1; z <= r.z + r.d - d - 0.1 + 1e-6; z += 0.25) zs.push(z);
+        const edge = (v: number, list: number[]) =>
+          Math.min(v - list[0], list[list.length - 1] - v);
+        const spots = xs
+          .flatMap((x) => zs.map((z) => ({ x, z })))
+          .sort(
+            (a, b) =>
+              Math.min(edge(a.x, xs), edge(a.z, zs)) - Math.min(edge(b.x, xs), edge(b.z, zs)),
+          );
+        for (const s of spots) {
+          const box = { x: s.x, z: s.z, w, d };
+          if (blockers.some((b) => (strict || b.kind === 'stairs') && overlaps(b, box))) continue;
+          const probe = { ...createItem(e.id, level, s.x, s.z), w, d, rotation };
+          const [bx, bz] = stairEnds(probe).bottom;
+          if (bx < r.x + 0.3 || bx > r.x + r.w - 0.3 || bz < r.z + 0.3 || bz > r.z + r.d - 0.3)
+            continue;
+          return { x: Math.round(s.x * 100) / 100, z: Math.round(s.z * 100) / 100, rotation };
+        }
       }
-    }
   const all = p.items.filter((i) => isRoom(i) && i.floor === level);
   if (all.length) {
     const maxX = Math.max(...all.map((i) => i.x + i.w)),
       minZ = Math.min(...all.map((i) => i.z));
-    return { x: maxX + 0.5, z: minZ };
+    return { x: maxX + 0.5, z: minZ, rotation: 0 };
   }
-  return { x: -w / 2, z: -d / 2 };
+  return { x: -e.w / 2, z: -e.d / 2, rotation: 0 };
+}
+
+/** A room around a staircase on the floor it arrives at, to step off onto. */
+export function landingFor(stair: Item, level: number, name: string) {
+  const m = 1.25;
+  const landing = createItem('room', level, 0, 0);
+  const x = Math.floor((stair.x - m) * 4) / 4,
+    z = Math.floor((stair.z - m) * 4) / 4;
+  Object.assign(landing, {
+    name,
+    x,
+    z,
+    w: Math.ceil((stair.x + stair.w + m - x) * 4) / 4,
+    d: Math.ceil((stair.z + stair.d + m - z) * 4) / 4,
+  });
+  return landing;
 }
 
 export const defaultFloorName = (level: number) =>
@@ -109,23 +137,16 @@ export function addLevel(p: Project, o: AddLevelOptions) {
   let stair: Item | undefined = o.stairId ? items.find((i) => i.id === o.stairId) : undefined;
   if (!stair && o.stairs) {
     const e = stairEntry(o.stairs);
-    const spot = findStairSpot({ ...p, items }, from, e.w, e.d);
+    const spot = findStairSpot({ ...p, items }, from, o.stairs);
     stair = createItem(e.id, from, spot.x, spot.z);
+    if (spot.rotation % 180) [stair.w, stair.d] = [stair.d, stair.w];
+    stair.rotation = spot.rotation;
     stair.dir = o.type === 'upper' ? 'up' : 'down';
     items.push(stair);
   }
   // A landing gives the new floor somewhere to stand at the top (or bottom) of the stairs.
   if (stair && !items.some((i) => isRoom(i) && i.floor === level && overlaps(i, stair!))) {
-    const m = 1.25;
-    const landing = createItem('room', level, 0, 0);
-    Object.assign(landing, {
-      name: o.type === 'upper' ? 'Landing' : 'Stair hall',
-      x: Math.floor((stair.x - m) * 4) / 4,
-      z: Math.floor((stair.z - m) * 4) / 4,
-      w: Math.ceil((stair.w + 2 * m) * 4) / 4,
-      d: Math.ceil((stair.d + 2 * m) * 4) / 4,
-    });
-    items.push(landing);
+    items.push(landingFor(stair, level, o.type === 'upper' ? 'Landing' : 'Stair hall'));
   }
   const name = o.name?.trim() || defaultFloorName(level);
   return {

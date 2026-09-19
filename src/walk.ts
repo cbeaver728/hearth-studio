@@ -49,7 +49,10 @@ export function wallBoxes(p: Project): Box[] {
   const boxes: Box[] = [];
   for (const w of buildWalls(p)) {
     const y = w.floor * FLOOR_H;
-    const doors = w.openings.filter((o) => o.kind === 'door').sort((a, b) => a.start - b.start);
+    // Wide doors are closed garage doors.
+    const doors = w.openings
+      .filter((o) => o.kind === 'door' && o.end - o.start <= 1.8)
+      .sort((a, b) => a.start - b.start);
     let at = w.start;
     const push = (a: number, b: number) => {
       if (b - a < 0.02) return;
