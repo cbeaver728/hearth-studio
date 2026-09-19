@@ -51,7 +51,7 @@ export function wallBoxes(p: Project): Box[] {
     const y = w.floor * FLOOR_H;
     // Wide doors are closed garage doors.
     const doors = w.openings
-      .filter((o) => o.kind === 'door' && o.end - o.start <= 1.8)
+      .filter((o) => o.kind === 'door' && !(o.garage && o.end - o.start > 1.8))
       .sort((a, b) => a.start - b.start);
     let at = w.start;
     const push = (a: number, b: number) => {

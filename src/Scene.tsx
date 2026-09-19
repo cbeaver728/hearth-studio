@@ -48,6 +48,8 @@ interface Engine {
   sun: T.DirectionalLight;
   hemi: T.HemisphereLight;
   ambient: T.AmbientLight;
+  /** A soft light that travels with you in the walkthrough, like room lighting. */
+  fill: T.PointLight;
   content: T.Group | null;
   dispose: (() => void) | null;
   world: WalkWorld | null;
@@ -350,8 +352,9 @@ function buildContent(p: Project, mode: SceneMode, floor: number, evening: boole
       piece(o.end, o.end + 0.06, 0, 2.2, trim, thick + 0.04);
       if (height > 2.2) piece(o.start - 0.06, o.end + 0.06, 2.2, 2.28, trim, thick + 0.04);
       const width = o.end - o.start;
+      if (width > 1.8 && !o.garage) continue; // A wide opening between rooms: just the casing.
       if (height >= 2.2 && width > 1.8) {
-        // Wide doors are garage doors: a closed sectional panel with grooves.
+        // Wide garage doors: a closed sectional panel with grooves.
         const panel = mat(tone(p.exterior, 10), { rough: 0.6 });
         piece(o.start, o.end, 0.02, 2.2, panel, 0.05);
         for (let g = 1; g < 4; g++)
@@ -706,7 +709,8 @@ export default function Scene({ project: p, floor, mode, onMode, onNotice, onLev
     sun.shadow.normalBias = 0.04;
     const hemi = new T.HemisphereLight('#d6eaff', '#64745c', 2.2);
     const ambient = new T.AmbientLight('#fff4e6', 0);
-    scene.add(sun, sun.target, hemi, ambient);
+    const fill = new T.PointLight('#fff1dc', 0, 11, 1.4);
+    scene.add(sun, sun.target, hemi, ambient, fill);
     engine.current = {
       renderer,
       scene,
@@ -715,6 +719,7 @@ export default function Scene({ project: p, floor, mode, onMode, onNotice, onLev
       sun,
       hemi,
       ambient,
+      fill,
       content: null,
       dispose: null,
       world: null,
@@ -862,6 +867,7 @@ export default function Scene({ project: p, floor, mode, onMode, onNotice, onLev
         seen = pose;
         camera.position.set(w.x, w.feet + EYE, w.z);
         camera.rotation.set(w.pitch, w.yaw, 0);
+        e.fill.position.set(w.x, w.feet + 2.3, w.z);
         const level = e.world.levelOf(w.feet);
         if (level !== w.level) {
           w.level = level;
@@ -1134,6 +1140,7 @@ export default function Scene({ project: p, floor, mode, onMode, onNotice, onLev
     e.sun.position.set(-14, evening ? 10 : 26, 12);
     e.hemi.intensity = mode === 'walk' ? (evening ? 0.9 : 1.5) : evening ? 1.1 : 2.1;
     e.ambient.intensity = mode === 'walk' ? (evening ? 0.5 : 0.7) : 0;
+    e.fill.intensity = mode === 'walk' ? (evening ? 12 : 6) : 0;
   }, [p, mode, floor, evening]);
 
   // Frame the camera when switching views.

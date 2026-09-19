@@ -566,7 +566,8 @@ export interface Wall {
   start: number;
   end: number;
   floor: number;
-  openings: { start: number; end: number; kind: 'window' | 'door' }[];
+  /** Garage doors are marked so they can be drawn closed; other wide doors are open archways. */
+  openings: { start: number; end: number; kind: 'window' | 'door'; garage?: true }[];
 }
 export function buildWalls(p: Project): Wall[] {
   const segments: Wall[] = [];
@@ -580,7 +581,12 @@ export function buildWalls(p: Project): Wall[] {
         .map((o) => {
           const width = Math.min(o.width, len - 0.2);
           const c = Math.max(width / 2 + 0.1, Math.min(len - width / 2 - 0.1, len * o.offset));
-          return { start: start + c - width / 2, end: start + c + width / 2, kind: o.kind };
+          return {
+            start: start + c - width / 2,
+            end: start + c + width / 2,
+            kind: o.kind,
+            ...(r.kind === 'garage' && o.kind === 'door' ? { garage: true as const } : {}),
+          };
         });
       segments.push({
         axis: horizontal ? 'x' : 'z',

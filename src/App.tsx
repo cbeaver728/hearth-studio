@@ -51,6 +51,7 @@ import {
   Toilet,
   CookingPot,
   RectangleHorizontal,
+  RectangleVertical,
   Shirt,
 } from 'lucide-react';
 import Plan, { type Tool } from './Plan';
@@ -352,6 +353,8 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [floor, project.floors.length]);
   const input = useRef<HTMLInputElement>(null);
+  // Ctrl+C / Ctrl+V: copy a piece (with a room's doors and windows) onto any floor.
+  const clipboard = useRef<{ item: Item; openings: Project['openings'] } | null>(null);
   const [noticeUndo, setNoticeUndo] = useState(false);
   const notify = useCallback((s: string, offerUndo = false) => {
     setNotice(s);
@@ -651,6 +654,40 @@ export default function App() {
       if (ctrl && k === 'd') {
         e.preventDefault();
         duplicate();
+        return;
+      }
+      if (ctrl && k === 'c' && selectedItem) {
+        clipboard.current = {
+          item: selectedItem,
+          openings: project.openings.filter((o) => o.roomId === selectedItem.id),
+        };
+        notify(`Copied ${selectedItem.name}. Press Ctrl+V to paste it on any floor.`);
+        return;
+      }
+      if (ctrl && k === 'v' && clipboard.current) {
+        e.preventDefault();
+        const { item, openings } = clipboard.current;
+        const id = uid();
+        const level = isOutside(item) ? 0 : floor;
+        const sameSpot =
+          item.floor !== level && project.items.every((i) => i.id !== item.id || i.floor !== level);
+        const pasted = {
+          ...item,
+          id,
+          floor: level,
+          x: item.x + (sameSpot ? 0 : 0.5),
+          z: item.z + (sameSpot ? 0 : 0.5),
+        };
+        commit({
+          ...project,
+          items: [...project.items, pasted],
+          openings: [
+            ...project.openings,
+            ...openings.map((o) => ({ ...o, id: uid(), roomId: id })),
+          ],
+        });
+        setSelected(id);
+        notify(`Pasted ${item.name} on ${floorName(project, level)}.`);
         return;
       }
       if (ctrl || e.altKey) return;
@@ -1370,6 +1407,17 @@ export default function App() {
                       <small>Click a wall</small>
                     </button>
                     <button
+                      className={`tile ${tool === 'arch' ? 'chosen' : ''}`}
+                      onClick={() => selectTool(tool === 'arch' ? 'select' : 'arch')}
+                      title="A wide doorless opening, for open-concept rooms"
+                    >
+                      <span className="tile-icon">
+                        <RectangleVertical size={22} strokeWidth={1.5} />
+                      </span>
+                      <strong>Wide opening</strong>
+                      <small>Open two rooms</small>
+                    </button>
+                    <button
                       className={`tile ${tool === 'window' ? 'chosen' : ''}`}
                       onClick={() => selectTool(tool === 'window' ? 'select' : 'window')}
                     >
@@ -1884,6 +1932,10 @@ export default function App() {
                   </span>
                   <span>
                     <kbd>Ctrl D</kbd>Duplicate
+                  </span>
+                  <span>
+                    <kbd>Ctrl C</kbd>
+                    <kbd>V</kbd>Copy to a floor
                   </span>
                   <span>
                     <kbd>Ctrl Z</kbd>Undo
