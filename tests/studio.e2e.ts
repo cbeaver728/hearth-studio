@@ -1,9 +1,13 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
+// Fresh browsers see the welcome guide first.
+async function open(page: Page) {
+  await page.goto('/');
+  await page.getByRole('button', { name: "Let's make room" }).click();
+}
 test('starter renders cleanly, walkthrough exits, exterior image exports', async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
-  await page.goto('/');
-  await expect(page.getByRole('heading', { name: 'Your home, taking shape.' })).toBeVisible();
+  await open(page);
   await expect(page.locator('canvas')).toBeVisible();
   await expect(page.getByText('All changes saved on this device')).toBeVisible();
   await page.screenshot({ path: 'test-results/editor.png' });
@@ -20,7 +24,7 @@ test('starter renders cleanly, walkthrough exits, exterior image exports', async
   await page.screenshot({ path: 'test-results/exterior.png' });
 });
 test('draw, move, resize, undo, redo, and reload preserve geometry', async ({ page }) => {
-  await page.goto('/');
+  await open(page);
   await page.getByRole('button', { name: 'My projects', exact: true }).click();
   await page.getByRole('button', { name: 'Start from scratch' }).click();
   await page.getByRole('button', { name: '2D plan', exact: true }).click();
@@ -55,25 +59,29 @@ test('draw, move, resize, undo, redo, and reload preserve geometry', async ({ pa
   await expect(page.getByLabel('Width (ft)', { exact: true })).toHaveValue('20');
 });
 test('floor copies preserve doors and basement edits stay separate', async ({ page }) => {
-  await page.goto('/');
+  await open(page);
   await page.getByRole('button', { name: 'Add floor or basement' }).click();
   await page.getByLabel('Floor name (optional)').fill('Upstairs');
   await page.getByLabel('Copy rooms and furniture').check();
+  await page.getByRole('dialog').getByRole('button', { name: 'None', exact: true }).click();
   await page.getByRole('button', { name: 'Create floor' }).click();
-  await expect(page.getByLabel('Active floor', { exact: true })).toHaveValue('1');
+  await expect(page.getByLabel('Active floor', { exact: true })).toHaveValue('2');
   await expect(page.getByTestId('shape-room')).toHaveCount(7);
   await page.getByRole('button', { name: 'Add floor or basement' }).click();
   await page.getByRole('button', { name: 'Basement', exact: true }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Straight', exact: true }).click();
   await page.getByRole('button', { name: 'Create floor' }).click();
   await expect(page.getByLabel('Active floor', { exact: true })).toHaveValue('-1');
-  await expect(page.getByTestId('shape-room')).toHaveCount(0);
+  // A new basement starts with the stairs down and a hall around them.
+  await expect(page.getByTestId('shape-room')).toHaveCount(1);
+  await expect(page.getByTestId('shape-stairs')).toHaveCount(1);
   await page.getByLabel('Active floor', { exact: true }).selectOption('0');
   await expect(page.getByTestId('shape-room')).toHaveCount(7);
 });
 test('exports a valid portable project and imports it without replacing original', async ({
   page,
 }) => {
-  await page.goto('/');
+  await open(page);
   const dl = page.waitForEvent('download');
   await page.getByRole('button', { name: 'Export project', exact: true }).click();
   const download = await dl;
@@ -85,7 +93,7 @@ test('exports a valid portable project and imports it without replacing original
   await expect(page.locator('.project-card')).toHaveCount(2);
 });
 test('bad project files do not erase the current design', async ({ page }) => {
-  await page.goto('/');
+  await open(page);
   await page.locator('input[type=file]').setInputFiles({
     name: 'broken.hearth',
     mimeType: 'application/json',
@@ -96,14 +104,14 @@ test('bad project files do not erase the current design', async ({ page }) => {
 });
 test('desktop layout stays within viewport at minimum size', async ({ page }) => {
   await page.setViewportSize({ width: 1050, height: 720 });
-  await page.goto('/');
+  await open(page);
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(1050);
   expect(await page.locator('.canvases').evaluate((e) => e.clientHeight)).toBeGreaterThan(250);
   await page.screenshot({ path: 'test-results/minimum-window.png' });
 });
 
 test('wall openings, drag resize, and keyboard shape movement work together', async ({ page }) => {
-  await page.goto('/');
+  await open(page);
   await page.getByRole('button', { name: '2D plan', exact: true }).click();
   const room = page.getByTestId('shape-room').first();
   const rect = room.locator('rect').first();
@@ -130,7 +138,7 @@ test('wall openings, drag resize, and keyboard shape movement work together', as
 });
 
 test('dialogs keep keyboard focus inside and restore it on escape', async ({ page }) => {
-  await page.goto('/');
+  await open(page);
   await page.getByRole('button', { name: 'Help and shortcuts' }).click();
   await expect(page.getByRole('button', { name: 'Close dialog' })).toBeFocused();
   await page.keyboard.press('Shift+Tab');
@@ -138,4 +146,28 @@ test('dialogs keep keyboard focus inside and restore it on escape', async ({ pag
   await page.keyboard.press('Escape');
   await expect(page.getByRole('dialog')).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Help and shortcuts' })).toBeFocused();
+});
+
+test('stairs rotate, change style, and lead up to the next floor', async ({ page }) => {
+  await open(page);
+  await page.getByRole('button', { name: '2D plan', exact: true }).click();
+  await page.getByRole('button', { name: /^Spiral/ }).click();
+  const plan = page.getByTestId('floor-plan');
+  const b = (await plan.boundingBox())!;
+  await page.mouse.click(b.x + b.width * 0.15, b.y + b.height * 0.15);
+  await expect(page.getByText('Joins')).toContainText('Ground floor');
+  await expect(page.getByText('Joins')).toContainText('Upstairs');
+  const width = page.getByLabel('Width (ft)', { exact: true });
+  await page
+    .getByRole('button', { name: /^Switchback/ })
+    .last()
+    .click();
+  const before = await width.inputValue();
+  await page.keyboard.press('e');
+  await expect(width).not.toHaveValue(before);
+  await page.getByRole('button', { name: 'Goes down' }).click();
+  await expect(page.getByText("There's no floor below yet.")).toBeVisible();
+  await page.getByRole('button', { name: 'Add a basement here' }).click();
+  await expect(page.getByLabel('Active floor', { exact: true })).toHaveValue('-1');
+  await expect(page.getByTestId('shape-stairs')).toHaveCount(1);
 });

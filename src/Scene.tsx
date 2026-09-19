@@ -1,8 +1,33 @@
 import { useEffect, useRef, useState } from 'react';
 import * as T from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { Camera, Footprints, RotateCcw, Sun, Box } from 'lucide-react';
-import { buildWalls, isOutside, isRoom, type Project } from './model';
+import {
+  ArrowDown,
+  ArrowLeft,
+  ArrowRight,
+  ArrowUp,
+  Box,
+  Camera,
+  Footprints,
+  Home,
+  RotateCcw,
+  Sun,
+  X,
+} from 'lucide-react';
+import {
+  buildWalls,
+  floorName,
+  FLOOR_H,
+  isOutside,
+  isRoom,
+  stairLevels,
+  type Item,
+  type Project,
+} from './model';
+import { layoutFor, localSize, RISE, subtractRects, toWorld, type Rect } from './stairs';
+import { buildWalkWorld, EYE, stairHoles, type WalkWorld } from './walk';
+import { furniture, tone, type Mat } from './furniture3d';
+
 export type SceneMode = 'dollhouse' | 'exterior' | 'walk';
 interface Props {
   project: Project;
@@ -10,19 +35,569 @@ interface Props {
   mode: SceneMode;
   onMode: (m: SceneMode) => void;
   onNotice: (s: string) => void;
+  /** Walkthrough only: the level the walker is standing on changed. */
+  onLevel?: (level: number) => void;
 }
-export default function Scene({ project: p, floor, mode, onMode, onNotice }: Props) {
+interface Engine {
+  renderer: T.WebGLRenderer;
+  scene: T.Scene;
+  camera: T.PerspectiveCamera;
+  controls: OrbitControls;
+  sun: T.DirectionalLight;
+  hemi: T.HemisphereLight;
+  ambient: T.AmbientLight;
+  content: T.Group | null;
+  dispose: (() => void) | null;
+  world: WalkWorld | null;
+  bounds: T.Box3;
+}
+interface Walker {
+  x: number;
+  z: number;
+  feet: number;
+  yaw: number;
+  pitch: number;
+  level: number;
+  fall: number;
+}
+
+let plankTexture: T.CanvasTexture | null = null;
+function planks() {
+  if (plankTexture) return plankTexture;
+  const c = document.createElement('canvas');
+  c.width = c.height = 256;
+  const g = c.getContext('2d')!;
+  g.fillStyle = '#fff';
+  g.fillRect(0, 0, 256, 256);
+  for (let row = 0; row < 8; row++) {
+    const y = row * 32;
+    g.fillStyle = `rgba(120,95,60,${0.03 + ((row * 37) % 5) * 0.012})`;
+    g.fillRect(0, y, 256, 32);
+    g.fillStyle = 'rgba(90,70,45,0.28)';
+    g.fillRect(0, y, 256, 1.5);
+    const off = (row * 97) % 256;
+    g.fillRect(off, y, 1.5, 32);
+    g.fillRect((off + 128) % 256, y, 1.5, 32);
+  }
+  plankTexture = new T.CanvasTexture(c);
+  plankTexture.wrapS = plankTexture.wrapT = T.RepeatWrapping;
+  plankTexture.colorSpace = T.SRGBColorSpace;
+  plankTexture.anisotropy = 4;
+  return plankTexture;
+}
+
+/** Builds every mesh for the current project and view. */
+function buildContent(p: Project, mode: SceneMode, floor: number, evening: boolean) {
+  const group = new T.Group();
+  const materials = new Map<string, T.Material>();
+  const mat: Mat = (color, o = {}) => {
+    const key = JSON.stringify([color, o]);
+    let m = materials.get(key);
+    if (!m) {
+      m = new T.MeshStandardMaterial({
+        color,
+        roughness: o.rough ?? 0.8,
+        metalness: o.metal ?? 0,
+        transparent: o.opacity !== undefined,
+        opacity: o.opacity ?? 1,
+        emissive: o.emissive || '#000000',
+        emissiveIntensity: o.emissive ? 1.2 : 0,
+        side: o.double ? T.DoubleSide : T.FrontSide,
+        depthWrite: o.opacity === undefined,
+      });
+      materials.set(key, m);
+    }
+    return m;
+  };
+  const add = (mesh: T.Mesh, cast = true) => {
+    mesh.castShadow = cast;
+    mesh.receiveShadow = true;
+    group.add(mesh);
+    return mesh;
+  };
+  const box = (
+    x: number,
+    y: number,
+    z: number,
+    w: number,
+    h: number,
+    d: number,
+    material: string | T.Material | T.Material[],
+  ) => {
+    if (w <= 0.001 || h <= 0.001 || d <= 0.001) return null;
+    const mesh = add(
+      new T.Mesh(
+        new T.BoxGeometry(w, h, d),
+        typeof material === 'string' ? mat(material) : material,
+      ),
+    );
+    mesh.position.set(x, y, z);
+    return mesh;
+  };
+  /** Box from plan rectangle and heights. */
+  const slab = (r: Rect, y0: number, y1: number, material: string | T.Material) =>
+    box(
+      (r.x0 + r.x1) / 2,
+      (y0 + y1) / 2,
+      (r.z0 + r.z1) / 2,
+      r.x1 - r.x0,
+      y1 - y0,
+      r.z1 - r.z0,
+      material,
+    );
+  const sphere = (x: number, y: number, z: number, r: number, color: string) =>
+    add(new T.Mesh(new T.IcosahedronGeometry(r, 1), mat(color))).position.set(x, y, z);
+
+  const levels = p.floors.map((f) => f.level).sort((a, b) => a - b);
+  const shown =
+    mode === 'walk'
+      ? levels
+      : mode === 'exterior'
+        ? levels.filter((l) => l >= 0)
+        : floor >= 0
+          ? levels.filter((l) => l >= 0 && l <= floor)
+          : [floor];
+  const showsOutside = mode !== 'dollhouse' || floor >= 0;
+  const wallHeight = (level: number) => (mode === 'dollhouse' && level === floor ? 1.15 : 3);
+  const interior = p.interior || '#f4efe6';
+  const roomsOn = (level: number) => p.items.filter((i) => isRoom(i) && i.floor === level);
+  const insideRoom = (level: number, x: number, z: number) =>
+    roomsOn(level).some((r) => x > r.x && x < r.x + r.w && z > r.z && z < r.z + r.d);
+
+  // Ground. Basements cut through it in the walkthrough so their stairs stay open.
+  const groundTop =
+    mode === 'walk' ? -0.02 : Math.min(0, mode === 'dollhouse' ? floor * FLOOR_H : 0) - 0.19;
+  const groundColor = evening ? '#7c906c' : '#a3b590';
+  const basementCuts =
+    mode === 'walk'
+      ? levels
+          .filter((l) => l < 0)
+          .flatMap((l) =>
+            roomsOn(l).map((r) => ({ x0: r.x, z0: r.z, x1: r.x + r.w, z1: r.z + r.d })),
+          )
+      : [];
+  for (const r of subtractRects({ x0: -60, z0: -60, x1: 60, z1: 60 }, basementCuts))
+    slab(r, groundTop - 0.4, groundTop, groundColor);
+  if (mode !== 'walk') {
+    box(0, groundTop - 0.15, 0, 33, 0.32, 29, '#728d69');
+    box(0, groundTop + 0.01, 0, 32.5, 0.02, 28.5, '#b0bf99');
+  }
+
+  // Landscape.
+  if (showsOutside)
+    for (const i of p.items.filter(isOutside)) {
+      const x = i.x + i.w / 2,
+        z = i.z + i.d / 2;
+      switch (i.kind) {
+        case 'grass':
+          box(x, 0.0, z, i.w, 0.05, i.d, i.color);
+          break;
+        case 'driveway':
+          box(x, 0.01, z, i.w, 0.06, i.d, i.color);
+          for (let dz = 1.5; dz < i.d; dz += 1.5)
+            box(x, 0.042, i.z + dz, i.w, 0.005, 0.024, '#989e94');
+          break;
+        case 'deck':
+          box(x, 0.07, z, i.w, 0.2, i.d, i.color);
+          for (let dx = 0.2; dx < i.w; dx += 0.2)
+            box(i.x + dx, 0.172, z, 0.013, 0.006, i.d, '#978467');
+          break;
+        case 'pool': {
+          box(x, 0.04, z, i.w + 0.3, 0.14, i.d + 0.3, '#e4dfce');
+          box(x, 0.1, z, i.w, 0.03, i.d, mat(i.color, { rough: 0.12, metal: 0.25 }));
+          break;
+        }
+        case 'tree':
+          box(x, 0.65, z, 0.2, 1.3, 0.2, '#8b7658');
+          sphere(x, 1.5 + i.w * 0.3, z, i.w * 0.48, i.color);
+          sphere(x - i.w * 0.25, 1.4, z + 0.15, i.w * 0.3, '#89a674');
+          sphere(x + i.w * 0.2, 1.8, z - 0.15, i.w * 0.28, '#a0b780');
+          break;
+        case 'fence': {
+          const along = i.w >= i.d;
+          const len = along ? i.w : i.d;
+          for (let t = 0; t < len; t += 0.18)
+            along
+              ? box(i.x + t + 0.06, 0.65, z, 0.12, 1.3, Math.max(0.06, i.d), i.color)
+              : box(x, 0.65, i.z + t + 0.06, Math.max(0.06, i.w), 1.3, 0.12, i.color);
+          break;
+        }
+      }
+    }
+
+  // Floors, with openings where stairs arrive.
+  const plank = planks();
+  for (const level of shown) {
+    const y = level * FLOOR_H,
+      holes = stairHoles(p, level);
+    for (const r of roomsOn(level))
+      for (const piece of subtractRects(
+        { x0: r.x, z0: r.z, x1: r.x + r.w, z1: r.z + r.d },
+        holes,
+      )) {
+        slab(
+          piece,
+          y - 0.18,
+          y - 0.01,
+          level === levels[0] || mode !== 'walk' ? tone(r.color, -20) : '#f3f0ea',
+        );
+        const w = piece.x1 - piece.x0,
+          d = piece.z1 - piece.z0;
+        const top = new T.PlaneGeometry(w, d);
+        top.rotateX(-Math.PI / 2);
+        if (r.kind === 'room') {
+          const uv = top.attributes.uv as T.BufferAttribute;
+          for (let n = 0; n < uv.count; n++)
+            uv.setXY(n, (uv.getX(n) * w + piece.x0) / 1.6, (uv.getY(n) * d + piece.z0) / 1.6);
+        }
+        const m = add(
+          new T.Mesh(
+            top,
+            r.kind === 'room'
+              ? new T.MeshStandardMaterial({ color: r.color, map: plank, roughness: 0.7 })
+              : mat(r.color),
+          ),
+          false,
+        );
+        m.position.set((piece.x0 + piece.x1) / 2, y, (piece.z0 + piece.z1) / 2);
+      }
+  }
+
+  // Walls: exterior finish outside, interior paint inside, trim at every opening.
+  const trim = '#fbf8f1';
+  for (const wall of buildWalls(p).filter((w) => shown.includes(w.floor))) {
+    const y = wall.floor * FLOOR_H,
+      height = wallHeight(wall.floor),
+      thick = 0.16;
+    const mid = (wall.start + wall.end) / 2;
+    const sideA =
+      wall.axis === 'x'
+        ? insideRoom(wall.floor, mid, wall.line - 0.25)
+        : insideRoom(wall.floor, wall.line - 0.25, mid);
+    const sideB =
+      wall.axis === 'x'
+        ? insideRoom(wall.floor, mid, wall.line + 0.25)
+        : insideRoom(wall.floor, wall.line + 0.25, mid);
+    const neg = mat(sideA ? interior : p.exterior),
+      pos = mat(sideB ? interior : p.exterior),
+      edge = mat(mode === 'dollhouse' ? '#f5f0e5' : interior);
+    // BoxGeometry face order: +x, -x, +y, -y, +z, -z.
+    const faces =
+      wall.axis === 'x' ? [edge, edge, edge, edge, pos, neg] : [pos, neg, edge, edge, edge, edge];
+    const piece = (
+      a: number,
+      b: number,
+      bottom: number,
+      top: number,
+      material: T.Material | T.Material[] | string = faces,
+      t = thick,
+    ) =>
+      wall.axis === 'x'
+        ? box((a + b) / 2, y + (bottom + top) / 2, wall.line, b - a, top - bottom, t, material)
+        : box(wall.line, y + (bottom + top) / 2, (a + b) / 2, t, top - bottom, b - a, material);
+    const cuts = [
+      ...new Set([wall.start, wall.end, ...wall.openings.flatMap((o) => [o.start, o.end])]),
+    ].sort((a, b) => a - b);
+    for (let n = 0; n < cuts.length - 1; n++) {
+      const a = cuts[n],
+        b = cuts[n + 1];
+      const openings = wall.openings.filter((o) => o.start <= a + 0.001 && o.end >= b - 0.001);
+      const open = openings.find((o) => o.kind === 'door') || openings[0];
+      if (!open) {
+        piece(a, b, 0, height);
+        piece(a, b, 0, 0.09, '#d2caba', thick + 0.02);
+        continue;
+      }
+      const bottom = open.kind === 'window' ? 0.95 : 0,
+        top = open.kind === 'window' ? 2.25 : 2.2;
+      if (bottom > 0) piece(a, b, 0, Math.min(bottom, height));
+      if (height > top) piece(a, b, top, height);
+      if (open.kind === 'window' && height > bottom) {
+        piece(
+          a,
+          b,
+          bottom,
+          Math.min(top, height),
+          mat(evening ? '#f3d19a' : '#a9d0d6', {
+            opacity: evening ? 0.8 : 0.3,
+            rough: 0.1,
+            metal: 0.1,
+            emissive: evening ? '#be874a' : undefined,
+          }),
+          0.03,
+        );
+        for (const xx of [a, b, (a + b) / 2])
+          piece(xx - 0.03, xx + 0.03, bottom, Math.min(top, height), '#52675f', 0.06);
+        piece(a - 0.04, b + 0.04, bottom - 0.04, bottom, trim, thick + 0.08);
+        if (height >= top) piece(a, b, top - 0.05, top, '#52675f', 0.06);
+      }
+    }
+    // Door casings.
+    for (const o of wall.openings.filter((o) => o.kind === 'door')) {
+      if (height < 1) continue;
+      piece(o.start - 0.06, o.start, 0, 2.2, trim, thick + 0.04);
+      piece(o.end, o.end + 0.06, 0, 2.2, trim, thick + 0.04);
+      if (height > 2.2) piece(o.start - 0.06, o.end + 0.06, 2.2, 2.28, trim, thick + 0.04);
+    }
+    if (mode === 'dollhouse' && wall.floor === floor)
+      piece(wall.start, wall.end, height, height + 0.02, '#f5f0e5', thick + 0.005);
+  }
+
+  // Stairs.
+  for (const s of p.items.filter((i) => i.kind === 'stairs')) {
+    const { lower, upper } = stairLevels(s);
+    if (!shown.includes(lower) && !(mode === 'dollhouse' && upper === floor)) continue;
+    buildStairs(s, lower, upper, shown.includes(upper), group, mat, interior);
+  }
+
+  // Furniture.
+  for (const i of p.items) {
+    if (isRoom(i) || isOutside(i) || i.kind === 'stairs' || !shown.includes(i.floor)) continue;
+    const g = furniture(i, i.floor * FLOOR_H, mat);
+    if (g) group.add(g);
+  }
+
+  // Roofs: a gable (or flat) roof over the top of each stack, flat roofs over lower parts.
+  if (mode !== 'dollhouse') {
+    const roofMat = mat(p.roof, { double: true });
+    for (const level of levels.filter((l) => l >= 0))
+      for (const kind of ['room', 'garage'] as const) {
+        const rooms = p.items.filter((i) => i.floor === level && i.kind === kind);
+        if (!rooms.length) continue;
+        const y = level * FLOOR_H + 3.0;
+        const above = p.items.filter(
+          (i) =>
+            isRoom(i) &&
+            i.floor === level + 1 &&
+            rooms.some(
+              (r) => i.x < r.x + r.w && i.x + i.w > r.x && i.z < r.z + r.d && i.z + i.d > r.z,
+            ),
+        );
+        if (above.length) {
+          const cover = above.map((r) => ({ x0: r.x, z0: r.z, x1: r.x + r.w, z1: r.z + r.d }));
+          for (const r of rooms)
+            for (const piece of subtractRects(
+              { x0: r.x - 0.12, z0: r.z - 0.12, x1: r.x + r.w + 0.12, z1: r.z + r.d + 0.12 },
+              cover,
+            ))
+              slab(piece, y, y + 0.22, roofMat);
+          continue;
+        }
+        const minX = Math.min(...rooms.map((i) => i.x)) - 0.3,
+          maxX = Math.max(...rooms.map((i) => i.x + i.w)) + 0.3,
+          minZ = Math.min(...rooms.map((i) => i.z)) - 0.3,
+          maxZ = Math.max(...rooms.map((i) => i.z + i.d)) + 0.3,
+          w = maxX - minX,
+          d = maxZ - minZ,
+          x = (minX + maxX) / 2,
+          z = (minZ + maxZ) / 2;
+        if (p.roofStyle === 'flat') {
+          box(x, y + 0.11, z, w, 0.22, d, roofMat);
+          continue;
+        }
+        const rise = Math.min(2.2, w * 0.23);
+        const shape = new T.Shape();
+        shape.moveTo(-w / 2, 0);
+        shape.lineTo(w / 2, 0);
+        shape.lineTo(0, rise);
+        shape.closePath();
+        const roof = add(
+          new T.Mesh(
+            new T.ExtrudeGeometry(shape, { depth: d, bevelEnabled: false }),
+            mat(tone(p.exterior, -8), { double: true }),
+          ),
+        );
+        roof.position.set(x, y + 0.02, minZ);
+        const length = Math.hypot(w / 2, rise),
+          angle = Math.atan2(rise, w / 2);
+        for (const side of [-1, 1]) {
+          const panel = box(
+            x + (side * w) / 4,
+            y + rise / 2 + 0.1,
+            z,
+            length + 0.1,
+            0.11,
+            d + 0.12,
+            roofMat,
+          );
+          if (panel) panel.rotation.z = -side * angle;
+        }
+      }
+  }
+
+  const bounds = new T.Box3();
+  const framed = p.items.filter((i) => isRoom(i) && shown.includes(i.floor));
+  for (const r of framed.length ? framed : p.items) {
+    bounds.expandByPoint(new T.Vector3(r.x, r.floor * FLOOR_H, r.z));
+    bounds.expandByPoint(new T.Vector3(r.x + r.w, r.floor * FLOOR_H + 3, r.z + r.d));
+  }
+  if (bounds.isEmpty()) bounds.set(new T.Vector3(-6, 0, -6), new T.Vector3(6, 3, 6));
+  const dispose = () => {
+    const cached = new Set(materials.values());
+    group.traverse((o) => {
+      if (!(o instanceof T.Mesh)) return;
+      o.geometry.dispose();
+      for (const m of [o.material].flat()) if (!cached.has(m)) m.dispose();
+    });
+    cached.forEach((m) => m.dispose());
+  };
+  return { group, dispose, bounds };
+}
+
+function buildStairs(
+  s: Item,
+  lower: number,
+  upper: number,
+  upperShown: boolean,
+  group: T.Group,
+  mat: Mat,
+  interior: string,
+) {
+  const layout = layoutFor(s);
+  const { LW, LD } = localSize(s);
+  const g = new T.Group();
+  g.position.set(s.x + s.w / 2, lower * FLOOR_H, s.z + s.d / 2);
+  g.rotation.y = (-s.rotation * Math.PI) / 180;
+  group.add(g);
+  const put = (m: T.Mesh) => {
+    m.castShadow = m.receiveShadow = true;
+    g.add(m);
+    return m;
+  };
+  const b = (
+    u0: number,
+    u1: number,
+    y0: number,
+    y1: number,
+    v0: number,
+    v1: number,
+    material: T.Material,
+  ) => {
+    const m = put(new T.Mesh(new T.BoxGeometry(u1 - u0, y1 - y0, v1 - v0), material));
+    m.position.set((u0 + u1) / 2 - LW / 2, (y0 + y1) / 2, (v0 + v1) / 2 - LD / 2);
+    return m;
+  };
+  const body = mat(tone(s.color, -18)),
+    tread = mat(s.color),
+    rail = mat('#6b5a45'),
+    glass = mat('#d6e8ea', { opacity: 0.3, rough: 0.05 });
+  for (const t of layout.treads) {
+    const top = t.k * RISE;
+    if (t.rect) {
+      const r = t.rect;
+      b(r.x0, r.x1, Math.max(0, top - 0.45), top - 0.035, r.z0, r.z1, body);
+      b(r.x0 - 0.01, r.x1 + 0.01, top - 0.035, top, r.z0 - 0.015, r.z1 + 0.015, tread);
+    } else if (t.wedge) {
+      const w = t.wedge;
+      const geo = new T.CylinderGeometry(w.r1, w.r1, 0.05, 8, 1, false, w.a0, w.a1 - w.a0 + 0.02);
+      const m = put(new T.Mesh(geo, tread));
+      m.position.set(w.cu - LW / 2, top - 0.025, w.cv - LD / 2);
+    }
+  }
+  if (layout.pole) {
+    const h = (upper - lower) * FLOOR_H + 1;
+    const m = put(new T.Mesh(new T.CylinderGeometry(layout.pole.r, layout.pole.r, h, 16), rail));
+    m.position.set(layout.pole.u - LW / 2, h / 2, layout.pole.v - LD / 2);
+    // Handrail spiralling up the outside edge.
+    const w0 = layout.treads[0].wedge!;
+    const pts: T.Vector3[] = [];
+    for (const t of layout.treads) {
+      const a = (t.wedge!.a0 + t.wedge!.a1) / 2;
+      pts.push(
+        new T.Vector3(
+          (w0.r1 - 0.04) * Math.sin(a) + w0.cu - LW / 2,
+          t.k * RISE + 0.9,
+          (w0.r1 - 0.04) * Math.cos(a) + w0.cv - LD / 2,
+        ),
+      );
+    }
+    put(new T.Mesh(new T.TubeGeometry(new T.CatmullRomCurve3(pts), 64, 0.025, 6), rail));
+    for (const t of layout.treads.filter((_, n) => n % 2 === 0)) {
+      const a = (t.wedge!.a0 + t.wedge!.a1) / 2;
+      const post = put(new T.Mesh(new T.CylinderGeometry(0.012, 0.012, 0.9, 6), rail));
+      post.position.set(
+        (w0.r1 - 0.04) * Math.sin(a) + w0.cu - LW / 2,
+        t.k * RISE + 0.45,
+        (w0.r1 - 0.04) * Math.cos(a) + w0.cv - LD / 2,
+      );
+    }
+  }
+  const segment = (
+    a: [number, number],
+    bb: [number, number],
+    y0: number,
+    y1: number,
+    material: T.Material,
+    t: number,
+  ) => {
+    const u0 = Math.min(a[0], bb[0]) - t / 2,
+      u1 = Math.max(a[0], bb[0]) + t / 2,
+      v0 = Math.min(a[1], bb[1]) - t / 2,
+      v1 = Math.max(a[1], bb[1]) + t / 2;
+    b(u0, u1, y0, y1, v0, v1, material);
+  };
+  for (const d of layout.dividers)
+    segment(d.a, d.b, 0, (upper - lower) * FLOOR_H + 1, mat(interior), 0.1);
+  if (upperShown) {
+    const y = (upper - lower) * FLOOR_H;
+    for (const r of layout.rails) {
+      segment(r.a, r.b, y, y + 0.92, glass, 0.02);
+      segment(r.a, r.b, y + 0.92, y + 0.97, rail, 0.06);
+    }
+  }
+  // A handrail along the open side of straight flights.
+  if (s.style === 'straight' || !s.style) {
+    const h = (upper - lower) * FLOOR_H;
+    const len = Math.hypot(LD, h);
+    const m = put(new T.Mesh(new T.BoxGeometry(0.05, 0.05, len), rail));
+    m.position.set(LW / 2 - 0.04, h / 2 + 0.9, 0);
+    m.rotation.x = Math.atan2(h, LD);
+  }
+}
+
+/** Finds the main entrance: an outside door on the ground floor, preferring an entry room. */
+function frontDoor(p: Project) {
+  const rooms = p.items.filter((i) => i.kind === 'room' && i.floor === 0);
+  const inside = (x: number, z: number) =>
+    p.items.some(
+      (r) => isRoom(r) && r.floor === 0 && x > r.x && x < r.x + r.w && z > r.z && z < r.z + r.d,
+    );
+  const doors = p.openings
+    .filter((o) => o.kind === 'door')
+    .map((o) => {
+      const r = rooms.find((i) => i.id === o.roomId);
+      if (!r) return null;
+      const h = o.side === 'north' || o.side === 'south',
+        len = h ? r.w : r.d,
+        width = Math.min(o.width, len - 0.2),
+        c = Math.max(width / 2 + 0.1, Math.min(len - width / 2 - 0.1, len * o.offset));
+      const x = h ? r.x + c : o.side === 'west' ? r.x : r.x + r.w,
+        z = h ? (o.side === 'north' ? r.z : r.z + r.d) : r.z + c;
+      const n = { north: [0, -1], south: [0, 1], west: [-1, 0], east: [1, 0] }[o.side];
+      if (inside(x + n[0] * 0.3, z + n[1] * 0.3)) return null;
+      const score = /entry|foyer|front|mud/i.test(r.name) ? 2 : o.side === 'south' ? 1 : 0;
+      return { x, z, nx: n[0], nz: n[1], score };
+    })
+    .filter((d): d is NonNullable<typeof d> => !!d)
+    .sort((a, b) => b.score - a.score);
+  return doors[0];
+}
+
+export default function Scene({ project: p, floor, mode, onMode, onNotice, onLevel }: Props) {
   const host = useRef<HTMLDivElement>(null);
-  const cameraRef = useRef<{
-    pos: T.Vector3;
-    target: T.Vector3;
-    mode: SceneMode;
-    floor: number;
-  } | null>(null);
-  const snapshot = useRef<() => void>(() => {});
-  const reset = useRef<() => void>(() => {});
+  const map = useRef<HTMLCanvasElement>(null);
+  const engine = useRef<Engine | null>(null);
+  const walker = useRef<Walker>({ x: 0, z: 0, feet: 0, yaw: Math.PI, pitch: 0, level: 0, fall: 0 });
+  const keys = useRef(new Set<string>());
+  const pad = useRef({ forward: 0, turn: 0 });
+  const live = useRef({ mode, floor, p, onLevel });
+  live.current = { mode, floor, p, onLevel };
   const [error, setError] = useState(false);
   const [evening, setEvening] = useState(false);
+  const [hint, setHint] = useState(true);
+  const [walkLevel, setWalkLevel] = useState(floor);
+
+  // One renderer for the lifetime of the view.
   useEffect(() => {
     const node = host.current!;
     let renderer: T.WebGLRenderer;
@@ -32,378 +607,65 @@ export default function Scene({ project: p, floor, mode, onMode, onNotice }: Pro
       setError(true);
       return;
     }
-    setError(false);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = T.PCFShadowMap;
+    renderer.shadowMap.type = T.PCFSoftShadowMap;
     renderer.outputColorSpace = T.SRGBColorSpace;
     renderer.toneMapping = T.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = evening ? 1.15 : 1.35;
     node.appendChild(renderer.domElement);
     const scene = new T.Scene();
-    scene.background = new T.Color(evening ? '#687b83' : '#e4eae3');
-    scene.fog = new T.Fog(evening ? '#687b83' : '#e4eae3', 55, 130);
-    const camera = new T.PerspectiveCamera(42, 1, 0.06, 250);
+    const camera = new T.PerspectiveCamera(45, 1, 0.05, 300);
+    camera.rotation.order = 'YXZ';
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
-    controls.minDistance = 4;
-    controls.maxDistance = 90;
+    controls.minDistance = 3;
+    controls.maxDistance = 110;
     controls.maxPolarAngle = Math.PI / 2 - 0.035;
-    controls.enabled = mode !== 'walk';
-    const light = new T.DirectionalLight(evening ? '#ffc792' : '#fff5df', evening ? 2.5 : 3.2);
-    light.position.set(-12, evening ? 12 : 25, 10);
-    light.castShadow = true;
-    light.shadow.mapSize.set(2048, 2048);
-    Object.assign(light.shadow.camera, {
-      left: -30,
-      right: 30,
-      top: 30,
-      bottom: -30,
+    const sun = new T.DirectionalLight('#fff5df', 3);
+    sun.castShadow = true;
+    sun.shadow.mapSize.set(2048, 2048);
+    Object.assign(sun.shadow.camera, {
+      left: -32,
+      right: 32,
+      top: 32,
+      bottom: -32,
       near: 1,
-      far: 90,
+      far: 120,
     });
-    light.shadow.bias = -0.0005;
-    light.shadow.normalBias = 0.04;
-    scene.add(light, new T.HemisphereLight('#d6eaff', '#64745c', evening ? 1.2 : 2.3));
-    const materials = new Map<string, T.MeshStandardMaterial>();
-    const mat = (color: string, roughness = 0.8) => {
-      const key = color + roughness;
-      let m = materials.get(key);
-      if (!m) {
-        m = new T.MeshStandardMaterial({ color, roughness });
-        materials.set(key, m);
-      }
-      return m;
+    sun.shadow.bias = -0.0005;
+    sun.shadow.normalBias = 0.04;
+    const hemi = new T.HemisphereLight('#d6eaff', '#64745c', 2.2);
+    const ambient = new T.AmbientLight('#fff4e6', 0);
+    scene.add(sun, sun.target, hemi, ambient);
+    engine.current = {
+      renderer,
+      scene,
+      camera,
+      controls,
+      sun,
+      hemi,
+      ambient,
+      content: null,
+      dispose: null,
+      world: null,
+      bounds: new T.Box3(),
     };
-    const blockers: T.Mesh[] = [];
-    const box = (
-      x: number,
-      y: number,
-      z: number,
-      w: number,
-      h: number,
-      d: number,
-      color: string,
-      collision = false,
-    ) => {
-      if (w <= 0.001 || h <= 0.001 || d <= 0.001) return null;
-      const mesh = new T.Mesh(new T.BoxGeometry(w, h, d), mat(color));
-      mesh.position.set(x, y, z);
-      mesh.castShadow = true;
-      mesh.receiveShadow = true;
-      scene.add(mesh);
-      if (collision) blockers.push(mesh);
-      return mesh;
-    };
-    const sphere = (x: number, y: number, z: number, r: number, color: string) => {
-      const mesh = new T.Mesh(new T.IcosahedronGeometry(r, 1), mat(color));
-      mesh.position.set(x, y, z);
-      mesh.castShadow = true;
-      mesh.receiveShadow = true;
-      scene.add(mesh);
-      return mesh;
-    };
-    const groundY = mode === 'exterior' ? -0.19 : Math.min(0, floor * 3.2) - 0.19;
-    box(0, groundY - 0.2, 0, 90, 0.4, 90, evening ? '#7c906c' : '#a3b590');
-    // A simple, quiet site border gives the design a presentation-board feel.
-    if (mode !== 'walk') {
-      box(0, groundY - 0.17, 0, 33, 0.32, 29, '#728d69');
-      box(0, groundY + 0.005, 0, 32.5, 0.12, 28.5, '#b0bf99');
-    }
-    const visible = p.items.filter((i) =>
-      mode === 'exterior' ? i.floor >= 0 : i.floor === floor || (floor === 0 && isOutside(i)),
-    );
-    for (const i of visible) {
-      const x = i.x + i.w / 2,
-        z = i.z + i.d / 2,
-        y = i.floor * 3.2;
-      if (isRoom(i)) {
-        box(x, y - 0.09, z, i.w, 0.18, i.d, i.color); // individual boards add scale without textures
-        if (i.kind === 'room')
-          for (let dz = 0.35; dz < i.d; dz += 0.35)
-            box(x, y + 0.006, i.z + dz, i.w, 0.007, 0.009, '#c7bea9');
-        continue;
-      }
-      switch (i.kind) {
-        case 'grass':
-          box(x, 0.025, z, i.w, 0.08, i.d, i.color);
-          break;
-        case 'driveway':
-          box(x, 0.015, z, i.w, 0.09, i.d, i.color);
-          for (let dz = 1.5; dz < i.d; dz += 1.5)
-            box(x, 0.065, i.z + dz, i.w, 0.008, 0.024, '#989e94');
-          break;
-        case 'deck':
-          box(x, 0.07, z, i.w, 0.22, i.d, i.color);
-          for (let dx = 0.2; dx < i.w; dx += 0.2)
-            box(i.x + dx, 0.185, z, 0.013, 0.008, i.d, '#978467');
-          break;
-        case 'pool': {
-          box(x, 0.04, z, i.w + 0.3, 0.18, i.d + 0.3, '#e4dfce');
-          const water = box(x, 0.14, z, i.w, 0.08, i.d, i.color);
-          if (water)
-            water.material = new T.MeshStandardMaterial({
-              color: i.color,
-              metalness: 0.28,
-              roughness: 0.16,
-            });
-          for (let a = 0; a < 3; a++)
-            box(i.x + 0.18, 0.195, i.z + 0.5 + a * 0.25, 0.36, 0.04, 0.1, '#d4e4df');
-          break;
-        }
-        case 'tree': {
-          box(x, 0.65, z, 0.2, 1.3, 0.2, '#8b7658');
-          sphere(x, 1.5 + i.w * 0.3, z, i.w * 0.48, i.color);
-          sphere(x - i.w * 0.25, 1.4, z + 0.15, i.w * 0.3, '#89a674');
-          sphere(x + i.w * 0.2, 1.8, z - 0.15, i.w * 0.28, '#a0b780');
-          break;
-        }
-        case 'fence':
-          for (let dx = 0; dx < i.w; dx += 0.18)
-            box(i.x + dx, 0.65, z, 0.12, 1.3, Math.max(0.08, i.d), i.color);
-          break;
-        case 'sofa':
-          box(x, y + 0.28, z, i.w, 0.42, i.d, i.color);
-          box(x, y + 0.65, i.z + 0.1, i.w, 0.5, 0.2, i.color);
-          box(i.x + 0.1, y + 0.52, z, 0.2, 0.5, i.d, i.color);
-          box(i.x + i.w - 0.1, y + 0.52, z, 0.2, 0.5, i.d, i.color);
-          for (let n = 0; n < 2; n++)
-            box(
-              i.x + i.w * (0.27 + n * 0.46),
-              y + 0.53,
-              z + 0.06,
-              i.w * 0.42,
-              0.16,
-              i.d * 0.7,
-              '#aec1b6',
-            );
-          break;
-        case 'bed':
-          box(x, y + 0.25, z, i.w, 0.4, i.d, '#a79178');
-          box(x, y + 0.51, z, i.w * 0.97, 0.22, i.d * 0.97, i.color);
-          box(x, y + 0.7, i.z + 0.05, i.w, 0.95, 0.12, '#9b8b7c');
-          for (let n = 0; n < 2; n++)
-            box(
-              i.x + i.w * (0.26 + n * 0.48),
-              y + 0.69,
-              i.z + 0.35,
-              i.w * 0.43,
-              0.15,
-              0.42,
-              '#f8f4e8',
-            );
-          box(x, y + 0.64, i.z + i.d * 0.76, i.w * 0.98, 0.035, i.d * 0.38, '#a8b9b4');
-          break;
-        case 'table':
-          box(x, y + 0.76, z, i.w, 0.12, i.d, i.color);
-          for (const dx of [-1, 1])
-            for (const dz of [-1, 1])
-              box(x + dx * i.w * 0.38, y + 0.36, z + dz * i.d * 0.35, 0.07, 0.72, 0.07, '#73634e');
-          for (const dz of [-1, 1]) {
-            box(x, y + 0.44, z + dz * (i.d / 2 + 0.32), 0.5, 0.08, 0.5, '#b9b09b');
-            box(x, y + 0.7, z + dz * (i.d / 2 + 0.55), 0.5, 0.52, 0.055, '#b9b09b');
-          }
-          break;
-        case 'counter':
-          box(x, y + 0.46, z, i.w, 0.92, i.d, i.color);
-          box(x, y + 0.96, z, i.w + 0.06, 0.09, i.d + 0.06, '#f1ede0');
-          box(i.x + 0.4, y + 1.015, z, 0.5, 0.02, i.d * 0.65, '#aaaead');
-          break;
-        case 'stairs':
-          for (let s = 0; s < 12; s++)
-            box(
-              x,
-              y + (s + 1) * 0.125,
-              i.z + (i.d * (s + 0.5)) / 12,
-              i.w,
-              (s + 1) * 0.25,
-              i.d / 12,
-              i.color,
-            );
-          break;
-      }
-    }
-    for (const wall of buildWalls(p).filter((w) =>
-      mode === 'exterior' ? w.floor >= 0 : w.floor === floor,
-    )) {
-      const y = wall.floor * 3.2,
-        height = mode === 'dollhouse' ? 1.15 : 3,
-        thick = 0.16;
-      const wallBox = (
-        a: number,
-        b: number,
-        bottom: number,
-        top: number,
-        color = p.exterior,
-        solid = false,
-      ) =>
-        wall.axis === 'x'
-          ? box(
-              (a + b) / 2,
-              y + (bottom + top) / 2,
-              wall.line,
-              b - a,
-              top - bottom,
-              thick,
-              color,
-              solid,
-            )
-          : box(
-              wall.line,
-              y + (bottom + top) / 2,
-              (a + b) / 2,
-              thick,
-              top - bottom,
-              b - a,
-              color,
-              solid,
-            );
-      const cuts = [
-        ...new Set([wall.start, wall.end, ...wall.openings.flatMap((o) => [o.start, o.end])]),
-      ].sort((a, b) => a - b);
-      for (let n = 0; n < cuts.length - 1; n++) {
-        const a = cuts[n],
-          b = cuts[n + 1];
-        const openings = wall.openings.filter((o) => o.start <= a + 0.001 && o.end >= b - 0.001);
-        const open = openings.find((o) => o.kind === 'door') || openings[0];
-        if (!open) {
-          wallBox(a, b, 0, height, p.exterior, true);
-          wallBox(a, b, 0, 0.08, '#d2caba');
-        } else {
-          const bottom = open.kind === 'window' ? 0.95 : 0,
-            top = open.kind === 'window' ? 2.25 : 2.35;
-          if (bottom > 0) wallBox(a, b, 0, Math.min(bottom, height), p.exterior, true);
-          if (height > top) wallBox(a, b, top, height, p.exterior, true);
-          if (open.kind === 'window' && height > bottom) {
-            const pane = wallBox(a, b, bottom, Math.min(top, height), '#8cb8bd', true);
-            if (pane)
-              pane.material = new T.MeshStandardMaterial({
-                color: evening ? '#f3d19a' : '#99c8cf',
-                transparent: true,
-                opacity: evening ? 0.85 : 0.4,
-                roughness: 0.15,
-                metalness: 0.2,
-                emissive: evening ? '#be874a' : '#000000',
-                emissiveIntensity: 0.25,
-              });
-            for (const xx of [a, b, (a + b) / 2])
-              wallBox(xx - 0.025, xx + 0.025, bottom, Math.min(top, height), '#52675f');
-            wallBox(a, b, bottom, bottom + 0.045, '#52675f');
-            if (height >= top) wallBox(a, b, top - 0.045, top, '#52675f');
-          }
-        }
-      }
-      if (mode === 'dollhouse') wallBox(wall.start, wall.end, height, height + 0.03, '#f5f0e5');
-    }
-    if (mode === 'exterior') {
-      // One roof per level's main volume, plus a distinct lower garage volume.
-      for (const level of p.floors.filter((f) => f.level >= 0))
-        for (const kind of ['room', 'garage']) {
-          const rooms = p.items.filter((i) => i.floor === level.level && i.kind === kind);
-          if (!rooms.length) continue;
-          // Do not roof a level that has another occupied floor directly above it.
-          if (kind === 'room' && p.items.some((i) => i.kind === 'room' && i.floor > level.level))
-            continue;
-          const minX = Math.min(...rooms.map((i) => i.x)) - 0.3,
-            maxX = Math.max(...rooms.map((i) => i.x + i.w)) + 0.3,
-            minZ = Math.min(...rooms.map((i) => i.z)) - 0.3,
-            maxZ = Math.max(...rooms.map((i) => i.z + i.d)) + 0.3,
-            y = level.level * 3.2 + 3.08,
-            w = maxX - minX,
-            d = maxZ - minZ,
-            x = (minX + maxX) / 2,
-            z = (minZ + maxZ) / 2;
-          if (p.roofStyle === 'flat') box(x, y, z, w, 0.22, d, p.roof);
-          else {
-            const rise = Math.min(2.2, w * 0.23);
-            const shape = new T.Shape();
-            shape.moveTo(-w / 2, 0);
-            shape.lineTo(w / 2, 0);
-            shape.lineTo(0, rise);
-            shape.closePath();
-            const roof = new T.Mesh(
-              new T.ExtrudeGeometry(shape, { depth: d, bevelEnabled: false }),
-              mat(p.roof),
-            );
-            roof.position.set(x, y, minZ);
-            roof.castShadow = true;
-            roof.receiveShadow = true;
-            scene.add(roof);
-            const length = Math.hypot(w / 2, rise),
-              angle = Math.atan2(rise, w / 2);
-            for (const side of [-1, 1]) {
-              const panel = box(
-                x + (side * w) / 4,
-                y + rise / 2 + 0.12,
-                z,
-                length,
-                0.11,
-                d + 0.12,
-                p.roof,
-              );
-              if (panel) panel.rotation.z = -side * angle;
-            }
-          }
-        }
-    }
-    const rooms = visible.filter(isRoom),
-      cx = rooms.length ? rooms.reduce((s, i) => s + i.x + i.w / 2, 0) / rooms.length : 0,
-      cz = rooms.length ? rooms.reduce((s, i) => s + i.z + i.d / 2, 0) / rooms.length : 0;
-    let yaw = Math.PI,
-      pitch = 0;
-    const spawn = () => {
-      const r = rooms.find((i) => i.kind === 'room');
-      camera.position.set(r ? r.x + r.w / 2 : 0, floor * 3.2 + 1.65, r ? r.z + r.d / 2 : 0);
-      yaw = Math.PI;
-      pitch = 0;
-      camera.rotation.order = 'YXZ';
-      camera.rotation.set(pitch, yaw, 0);
-    };
-    const resetCamera = () => {
-      if (mode === 'walk') spawn();
-      else {
-        const bounds = new T.Box3();
-        rooms.forEach((r) => {
-          bounds.expandByPoint(new T.Vector3(r.x, 0, r.z));
-          bounds.expandByPoint(new T.Vector3(r.x + r.w, 0, r.z + r.d));
-        });
-        const span = rooms.length
-          ? Math.max(bounds.max.x - bounds.min.x, bounds.max.z - bounds.min.z, 12)
-          : 18;
-        controls.target.set(cx, mode === 'exterior' ? 1.4 : floor * 3.2, cz);
-        camera.position.set(
-          cx + span * 1.25,
-          span * 1.1 + Math.max(0, floor * 3.2),
-          cz + span * 1.45,
-        );
-        controls.update();
-      }
-    };
-    const saved = cameraRef.current;
-    if (saved && saved.mode === mode && saved.floor === floor && mode !== 'walk') {
-      camera.position.copy(saved.pos);
-      controls.target.copy(saved.target);
-    } else resetCamera();
-    reset.current = resetCamera;
-    const keys = new Set<string>();
-    const keydown = (e: KeyboardEvent) => {
-      if ((e.target as HTMLElement).matches('input,textarea,select') || mode !== 'walk') return;
-      if (
-        ['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(
-          e.key.toLowerCase(),
-        )
-      ) {
-        e.preventDefault();
-        keys.add(e.key.toLowerCase());
-      }
-    };
-    const keyup = (e: KeyboardEvent) => keys.delete(e.key.toLowerCase());
-    const blur = () => keys.clear();
+    if (import.meta.env.DEV) Object.assign(window, { __hearth: { engine, walker } });
+    const resize = new ResizeObserver(() => {
+      const w = node.clientWidth,
+        h = node.clientHeight;
+      if (!w || !h) return;
+      renderer.setSize(w, h);
+      camera.aspect = w / h;
+      camera.updateProjectionMatrix();
+    });
+    resize.observe(node);
+
     let dragging = false,
       lastX = 0,
       lastY = 0;
     const down = (e: PointerEvent) => {
-      if (mode !== 'walk') return;
+      if (live.current.mode !== 'walk') return;
       dragging = true;
       lastX = e.clientX;
       lastY = e.clientY;
@@ -411,169 +673,485 @@ export default function Scene({ project: p, floor, mode, onMode, onNotice }: Pro
     };
     const move = (e: PointerEvent) => {
       if (!dragging) return;
-      yaw -= (e.clientX - lastX) * 0.004;
-      pitch = Math.max(-1.3, Math.min(1.3, pitch - (e.clientY - lastY) * 0.004));
+      const w = walker.current;
+      w.yaw -= (e.clientX - lastX) * 0.0045;
+      w.pitch = Math.max(-1.2, Math.min(1.2, w.pitch - (e.clientY - lastY) * 0.0045));
       lastX = e.clientX;
       lastY = e.clientY;
     };
     const up = () => (dragging = false);
-    window.addEventListener('keydown', keydown);
-    window.addEventListener('keyup', keyup);
-    window.addEventListener('blur', blur);
     renderer.domElement.addEventListener('pointerdown', down);
     renderer.domElement.addEventListener('pointermove', move);
     renderer.domElement.addEventListener('pointerup', up);
-    const resize = new ResizeObserver(() => {
-      const w = node.clientWidth,
-        h = node.clientHeight;
-      renderer.setSize(w, h);
-      camera.aspect = w / h;
-      camera.updateProjectionMatrix();
-    });
-    resize.observe(node);
-    snapshot.current = () => {
-      renderer.render(scene, camera);
-      const a = document.createElement('a');
-      a.href = renderer.domElement.toDataURL('image/png');
-      a.download = `${p.name.replace(/[^a-z0-9_-]/gi, '-')}-${mode}.png`;
-      a.click();
-      onNotice('Your 3D snapshot has been exported.');
+    renderer.domElement.addEventListener('pointercancel', up);
+    const keydown = (e: KeyboardEvent) => {
+      if (
+        (e.target as HTMLElement).matches('input,textarea,select') ||
+        live.current.mode !== 'walk'
+      )
+        return;
+      const k = e.key.toLowerCase();
+      if (
+        [
+          'w',
+          'a',
+          's',
+          'd',
+          'q',
+          'e',
+          'shift',
+          'arrowup',
+          'arrowdown',
+          'arrowleft',
+          'arrowright',
+        ].includes(k)
+      ) {
+        e.preventDefault();
+        keys.current.add(k);
+        setHint(false);
+      }
     };
-    const ray = new T.Raycaster();
+    const keyup = (e: KeyboardEvent) => keys.current.delete(e.key.toLowerCase());
+    const blur = () => keys.current.clear();
+    window.addEventListener('keydown', keydown);
+    window.addEventListener('keyup', keyup);
+    window.addEventListener('blur', blur);
+
     let frame = 0,
-      last = performance.now();
+      last = performance.now(),
+      tickCount = 0;
     const tick = (now: number) => {
       frame = requestAnimationFrame(tick);
       const dt = Math.min((now - last) / 1000, 0.05);
       last = now;
-      if (mode === 'walk') {
-        if (keys.has('arrowleft')) yaw += dt * 1.3;
-        if (keys.has('arrowright')) yaw -= dt * 1.3;
-        camera.rotation.set(pitch, yaw, 0);
+      const e = engine.current!;
+      if (live.current.mode === 'walk' && e.world) {
+        const w = walker.current,
+          k = keys.current;
+        const turn =
+          (k.has('arrowleft') || k.has('q') ? 1 : 0) -
+          (k.has('arrowright') || k.has('e') ? 1 : 0) +
+          pad.current.turn;
+        w.yaw += turn * dt * 1.6;
         const forward =
-            (keys.has('w') || keys.has('arrowup') ? 1 : 0) -
-            (keys.has('s') || keys.has('arrowdown') ? 1 : 0),
-          strafe = (keys.has('d') ? 1 : 0) - (keys.has('a') ? 1 : 0);
-        const v = new T.Vector3(
-          -Math.sin(yaw) * forward + Math.cos(yaw) * strafe,
-          0,
-          -Math.cos(yaw) * forward - Math.sin(yaw) * strafe,
-        );
-        if (v.lengthSq()) {
-          v.normalize();
-          ray.set(camera.position, v);
-          ray.far = 0.3 + dt * 3;
-          const hits = ray.intersectObjects(blockers, false);
-          if (!hits.length) {
-            camera.position.addScaledVector(v, dt * 3);
-            camera.position.x = T.MathUtils.clamp(camera.position.x, -190, 190);
-            camera.position.z = T.MathUtils.clamp(camera.position.z, -190, 190);
-          }
+            (k.has('w') || k.has('arrowup') ? 1 : 0) -
+            (k.has('s') || k.has('arrowdown') ? 1 : 0) +
+            pad.current.forward,
+          strafe = (k.has('d') ? 1 : 0) - (k.has('a') ? 1 : 0);
+        let vx = -Math.sin(w.yaw) * forward + Math.cos(w.yaw) * strafe,
+          vz = -Math.cos(w.yaw) * forward - Math.sin(w.yaw) * strafe;
+        const len = Math.hypot(vx, vz);
+        if (len > 0) {
+          const speed = (k.has('shift') ? 4.2 : 2.4) * dt;
+          vx = (vx / len) * speed;
+          vz = (vz / len) * speed;
+          if (e.world.free(w.x + vx, w.z, w.feet)) w.x += vx;
+          if (e.world.free(w.x, w.z + vz, w.feet)) w.z += vz;
         }
+        const ground = e.world.support(w.x, w.z, w.feet);
+        if (ground >= w.feet) {
+          w.feet += (ground - w.feet) * Math.min(1, dt * 16);
+          w.fall = 0;
+        } else {
+          w.fall = Math.min(w.fall + dt * 14, 9);
+          w.feet = Math.max(ground, w.feet - Math.max(w.fall, 3) * dt);
+        }
+        camera.position.set(w.x, w.feet + EYE, w.z);
+        camera.rotation.set(w.pitch, w.yaw, 0);
+        const level = e.world.levelOf(w.feet);
+        if (level !== w.level) {
+          w.level = level;
+          setWalkLevel(level);
+          live.current.onLevel?.(level);
+        }
+        if (++tickCount % 3 === 0) drawMap();
       } else controls.update();
       renderer.render(scene, camera);
     };
     frame = requestAnimationFrame(tick);
     return () => {
-      cameraRef.current = {
-        pos: camera.position.clone(),
-        target: controls.target.clone(),
-        mode,
-        floor,
-      };
       cancelAnimationFrame(frame);
       resize.disconnect();
       window.removeEventListener('keydown', keydown);
       window.removeEventListener('keyup', keyup);
       window.removeEventListener('blur', blur);
-      renderer.domElement.removeEventListener('pointerdown', down);
-      renderer.domElement.removeEventListener('pointermove', move);
-      renderer.domElement.removeEventListener('pointerup', up);
       controls.dispose();
-      scene.traverse((o) => {
-        if (o instanceof T.Mesh) {
-          o.geometry.dispose();
-          if (!Array.isArray(o.material)) o.material.dispose();
-        }
-      });
-      materials.forEach((m) => m.dispose());
+      engine.current?.dispose?.();
       renderer.dispose();
+      renderer.forceContextLoss();
       node.removeChild(renderer.domElement);
+      engine.current = null;
     };
-  }, [p, floor, mode, evening]);
+  }, []);
+
+  const drawMap = () => {
+    const canvas = map.current,
+      e = engine.current;
+    if (!canvas || !e) return;
+    const g = canvas.getContext('2d')!;
+    const { p } = live.current;
+    const w = walker.current;
+    const size = canvas.width;
+    g.clearRect(0, 0, size, size);
+    const rooms = p.items.filter((i) => isRoom(i) && i.floor === w.level);
+    const all = p.items.filter(isRoom);
+    if (!all.length) return;
+    const minX = Math.min(...all.map((i) => i.x)) - 1.5,
+      maxX = Math.max(...all.map((i) => i.x + i.w)) + 1.5,
+      minZ = Math.min(...all.map((i) => i.z)) - 1.5,
+      maxZ = Math.max(...all.map((i) => i.z + i.d)) + 1.5;
+    const scale = Math.min(size / (maxX - minX), size / (maxZ - minZ));
+    const ox = (size - (maxX - minX) * scale) / 2,
+      oz = (size - (maxZ - minZ) * scale) / 2;
+    const X = (x: number) => ox + (x - minX) * scale,
+      Z = (z: number) => oz + (z - minZ) * scale;
+    for (const r of rooms) {
+      g.fillStyle = r.color;
+      g.fillRect(X(r.x), Z(r.z), r.w * scale, r.d * scale);
+      g.strokeStyle = '#56645d';
+      g.lineWidth = 1.5;
+      g.strokeRect(X(r.x), Z(r.z), r.w * scale, r.d * scale);
+    }
+    for (const s of p.items.filter((i) => i.kind === 'stairs')) {
+      const { lower, upper } = stairLevels(s);
+      if (lower !== w.level && upper !== w.level) continue;
+      g.fillStyle = 'rgba(199,133,81,0.55)';
+      g.fillRect(X(s.x), Z(s.z), s.w * scale, s.d * scale);
+    }
+    const px = X(w.x),
+      pz = Z(w.z);
+    const dx = -Math.sin(w.yaw),
+      dz = -Math.cos(w.yaw);
+    g.fillStyle = 'rgba(207,135,78,0.25)';
+    g.beginPath();
+    g.moveTo(px, pz);
+    const a = Math.atan2(dz, dx);
+    g.arc(px, pz, 26, a - 0.55, a + 0.55);
+    g.closePath();
+    g.fill();
+    g.fillStyle = '#cf874e';
+    g.strokeStyle = '#fff';
+    g.lineWidth = 2;
+    g.beginPath();
+    g.arc(px, pz, 5, 0, Math.PI * 2);
+    g.fill();
+    g.stroke();
+  };
+
+  const spawn = (level: number) => {
+    const e = engine.current;
+    if (!e?.world) return;
+    const world = e.world;
+    const w = walker.current;
+    let x = 0,
+      z = 0,
+      yaw = Math.PI,
+      found = false;
+    const face = (dx: number, dz: number) => Math.atan2(-dx, -dz);
+    if (level === 0) {
+      const d = frontDoor(p);
+      if (d) {
+        x = d.x + d.nx * 2.2;
+        z = d.z + d.nz * 2.2;
+        yaw = face(-d.nx, -d.nz);
+        found = true;
+      }
+    }
+    if (!found) {
+      const arriving = p.items.find((i) => i.kind === 'stairs' && stairLevels(i).upper === level);
+      const leaving = p.items.find((i) => i.kind === 'stairs' && stairLevels(i).lower === level);
+      const s = arriving || leaving;
+      if (s) {
+        const path = layoutFor(s).path.map(([u, v]) => toWorld(s, u, v));
+        const [a, b] = arriving
+          ? [path[path.length - 2], path[path.length - 1]]
+          : [path[1], path[0]];
+        const dx = b[0] - a[0],
+          dz = b[1] - a[1],
+          len = Math.hypot(dx, dz) || 1;
+        x = b[0] + (dx / len) * 0.9;
+        z = b[1] + (dz / len) * 0.9;
+        yaw = arriving ? face(dx, dz) : face(-dx, -dz);
+        found = true;
+      }
+    }
+    if (!found) {
+      const rooms = p.items
+        .filter((i) => i.kind === 'room' && i.floor === level)
+        .sort((a, b) => b.w * b.d - a.w * a.d);
+      if (rooms[0]) {
+        x = rooms[0].x + rooms[0].w / 2;
+        z = rooms[0].z + rooms[0].d / 2;
+      }
+    }
+    // Nudge to the nearest open spot if furniture or a wall is in the way. Indoors, stay inside.
+    const feet0 = level * FLOOR_H;
+    const rooms = p.items.filter((i) => isRoom(i) && i.floor === level);
+    const indoors = !(level === 0 && found && frontDoor(p)) && rooms.length > 0;
+    const inRoom = (tx: number, tz: number) =>
+      !indoors ||
+      rooms.some(
+        (r) => tx > r.x + 0.3 && tx < r.x + r.w - 0.3 && tz > r.z + 0.3 && tz < r.z + r.d - 0.3,
+      );
+    search: for (let r = 0; r < 6; r += 0.25)
+      for (let a = 0; a < Math.PI * 2; a += Math.PI / 12) {
+        const tx = x + Math.cos(a) * r,
+          tz = z + Math.sin(a) * r;
+        const f = world.support(tx, tz, feet0 + 0.1);
+        if (Math.abs(f - feet0) < 0.05 && inRoom(tx, tz) && world.free(tx, tz, f)) {
+          x = tx;
+          z = tz;
+          break search;
+        }
+        if (r === 0) break;
+      }
+    Object.assign(w, {
+      x,
+      z,
+      yaw,
+      pitch: -0.05,
+      feet: world.support(x, z, feet0 + 0.1),
+      level,
+      fall: 0,
+    });
+    setWalkLevel(level);
+    setHint(true);
+  };
+
+  // Rebuild the house whenever the design or view changes.
+  useEffect(() => {
+    const e = engine.current;
+    if (!e) return;
+    e.dispose?.();
+    if (e.content) e.scene.remove(e.content);
+    const built = buildContent(p, mode, floor, evening);
+    e.content = built.group;
+    e.dispose = built.dispose;
+    e.bounds = built.bounds;
+    e.scene.add(built.group);
+    e.world = mode === 'walk' ? buildWalkWorld(p) : null;
+    const sky = evening ? '#8a8f94' : mode === 'walk' ? '#dfe9ee' : '#e4eae3';
+    e.scene.background = new T.Color(sky);
+    e.scene.fog = new T.Fog(sky, 60, 160);
+    e.renderer.toneMappingExposure = mode === 'walk' ? (evening ? 1.0 : 1.1) : evening ? 1.1 : 1.25;
+    e.sun.color.set(evening ? '#ffc792' : '#fff5df');
+    e.sun.intensity = evening ? 2.2 : 3;
+    e.sun.position.set(-14, evening ? 10 : 26, 12);
+    e.hemi.intensity = mode === 'walk' ? (evening ? 0.9 : 1.5) : evening ? 1.1 : 2.1;
+    e.ambient.intensity = mode === 'walk' ? (evening ? 0.5 : 0.7) : 0;
+  }, [p, mode, floor, evening]);
+
+  // Frame the camera when switching views.
+  const frameCamera = () => {
+    const e = engine.current;
+    if (!e) return;
+    if (live.current.mode === 'walk') {
+      spawn(live.current.floor);
+      return;
+    }
+    const c = e.bounds.getCenter(new T.Vector3()),
+      size = e.bounds.getSize(new T.Vector3());
+    const span = Math.max(size.x, size.z, 12);
+    const targetY = mode === 'exterior' ? 1.4 : floor * FLOOR_H;
+    e.controls.target.set(c.x, targetY, c.z);
+    e.camera.position.set(c.x + span * 1.05, targetY + span * 1.15, c.z + span * 1.3);
+    e.camera.rotation.order = 'YXZ';
+    e.controls.enabled = true;
+    e.controls.update();
+  };
+  useEffect(() => {
+    const e = engine.current;
+    if (!e) return;
+    e.controls.enabled = mode !== 'walk';
+    if (mode === 'walk') spawn(floor);
+    else frameCamera();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode]);
+  // Choosing another floor during a walkthrough takes you there; in the dollhouse it refocuses.
+  useEffect(() => {
+    const e = engine.current;
+    if (!e) return;
+    if (mode === 'walk') {
+      if (floor !== walker.current.level) spawn(floor);
+    } else {
+      const dy = floor * FLOOR_H - e.controls.target.y;
+      if (mode === 'dollhouse' && Math.abs(dy) > 0.01) {
+        e.controls.target.y += dy;
+        e.camera.position.y += dy;
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [floor]);
+  useEffect(() => {
+    if (!hint || mode !== 'walk') return;
+    const t = setTimeout(() => setHint(false), 7000);
+    return () => clearTimeout(t);
+  }, [hint, mode]);
+
+  const snapshot = () => {
+    const e = engine.current;
+    if (!e) return;
+    e.renderer.render(e.scene, e.camera);
+    const a = document.createElement('a');
+    a.href = e.renderer.domElement.toDataURL('image/png');
+    a.download = `${p.name.replace(/[^a-z0-9_-]/gi, '-')}-${mode}.png`;
+    a.click();
+    onNotice('Your 3D snapshot has been exported.');
+  };
+  const hold = (key: 'forward' | 'turn', value: number) => ({
+    onPointerDown: (e: React.PointerEvent) => {
+      e.currentTarget.setPointerCapture(e.pointerId);
+      pad.current[key] = value;
+      setHint(false);
+    },
+    onPointerUp: () => (pad.current[key] = 0),
+    onPointerCancel: () => (pad.current[key] = 0),
+    onLostPointerCapture: () => (pad.current[key] = 0),
+  });
+  const levels = [...p.floors].sort((a, b) => b.level - a.level);
   return (
     <div className={`scene-wrap ${mode === 'walk' ? 'walking' : ''}`}>
       <div ref={host} className="scene" data-testid="three-scene" />
       {error && (
         <div className="scene-error">
-          3D needs WebGL. Try the desktop app or enable hardware acceleration in your browser. Your
-          2D plan is still available.
+          3D needs WebGL. Try enabling hardware acceleration in your browser. Your 2D plan is still
+          available.
         </div>
       )}
-      <div className="panel-corner">
-        <span className="live-dot" />
-        LIVE 3D
-        <span className="muted">
-          / {mode === 'walk' ? 'Walkthrough' : mode === 'exterior' ? 'Exterior' : 'Dollhouse'}
-        </span>
-      </div>
-      <div className="scene-controls">
-        <div className="segmented">
-          <button
-            className={mode === 'dollhouse' ? 'active' : ''}
-            onClick={() => onMode('dollhouse')}
-          >
-            <Box size={14} />
-            Dollhouse
-          </button>
-          <button
-            className={mode === 'exterior' ? 'active' : ''}
-            onClick={() => onMode('exterior')}
-          >
-            Exterior
-          </button>
-        </div>
-        <button
-          className="icon-button glass"
-          aria-label="Toggle golden hour"
-          title="Toggle golden hour"
-          onClick={() => setEvening((v) => !v)}
-        >
-          <Sun size={17} />
-        </button>
-      </div>
-      {mode === 'walk' && (
-        <div className="walk-instructions">
-          <Footprints size={18} />
-          <strong>You're home.</strong>
-          <span>W A S D to move · Drag to look · ← → to turn</span>
-          <button onClick={() => onMode('dollhouse')}>
-            Back to edit <kbd>Esc</kbd>
-          </button>
-          <small>Choose a floor above to visit another level.</small>
-        </div>
+      {mode !== 'walk' ? (
+        <>
+          <div className="panel-corner">
+            <span className="live-dot" />
+            LIVE 3D
+            <span className="muted">/ {mode === 'exterior' ? 'Exterior' : 'Dollhouse'}</span>
+          </div>
+          <div className="scene-controls">
+            <div className="segmented">
+              <button
+                className={mode === 'dollhouse' ? 'active' : ''}
+                onClick={() => onMode('dollhouse')}
+              >
+                <Box size={14} />
+                Dollhouse
+              </button>
+              <button
+                className={mode === 'exterior' ? 'active' : ''}
+                onClick={() => onMode('exterior')}
+              >
+                <Home size={14} />
+                Exterior
+              </button>
+            </div>
+            <button
+              className="icon-button glass"
+              aria-label="Toggle golden hour"
+              title="Toggle golden hour"
+              onClick={() => setEvening((v) => !v)}
+            >
+              <Sun size={17} />
+            </button>
+          </div>
+          <div className="scene-bottom">
+            <button
+              className="icon-button glass"
+              aria-label="Reset 3D camera"
+              title="Reset camera"
+              onClick={frameCamera}
+            >
+              <RotateCcw size={17} />
+            </button>
+            <span>Drag to orbit · Right-drag to pan · Scroll to zoom</span>
+            <button
+              className="icon-button glass"
+              aria-label="Export 3D image"
+              title="Export a 3D image"
+              onClick={snapshot}
+            >
+              <Camera size={18} />
+            </button>
+          </div>
+        </>
+      ) : (
+        <>
+          <div className="walk-top">
+            <button className="walk-exit" onClick={() => onMode('dollhouse')}>
+              <X size={16} />
+              Back to editing <kbd>Esc</kbd>
+            </button>
+            <div className="walk-levels" role="group" aria-label="Go to floor">
+              {levels.map((f) => (
+                <button
+                  key={f.level}
+                  className={walkLevel === f.level ? 'active' : ''}
+                  onClick={() => {
+                    spawn(f.level);
+                    onLevel?.(f.level);
+                  }}
+                >
+                  {f.name}
+                </button>
+              ))}
+            </div>
+            <div className="walk-tools">
+              <button
+                className="icon-button glass"
+                aria-label="Toggle golden hour"
+                title="Golden hour"
+                onClick={() => setEvening((v) => !v)}
+              >
+                <Sun size={17} />
+              </button>
+              <button
+                className="icon-button glass"
+                aria-label="Export 3D image"
+                title="Save a picture of this view"
+                onClick={snapshot}
+              >
+                <Camera size={18} />
+              </button>
+              <button
+                className="icon-button glass"
+                aria-label="Start the tour over"
+                title="Start over at the front door"
+                onClick={() => spawn(0)}
+              >
+                <RotateCcw size={17} />
+              </button>
+            </div>
+          </div>
+          {hint && (
+            <div className="walk-hint" role="status">
+              <Footprints size={16} />
+              <strong>You're home.</strong>
+              <span>
+                <kbd>W</kbd>
+                <kbd>A</kbd>
+                <kbd>S</kbd>
+                <kbd>D</kbd> walk · drag to look · <kbd>Shift</kbd> hurry · walk onto stairs to
+                change floors
+              </span>
+            </div>
+          )}
+          <div className="walk-map">
+            <canvas ref={map} width={170} height={170} aria-label="Map of this floor" />
+            <span>{floorName(p, walkLevel)}</span>
+          </div>
+          <div className="walk-pad" aria-label="Movement controls">
+            <button aria-label="Walk forward" {...hold('forward', 1)}>
+              <ArrowUp size={20} />
+            </button>
+            <button aria-label="Turn left" {...hold('turn', 1)}>
+              <ArrowLeft size={20} />
+            </button>
+            <button aria-label="Walk backward" {...hold('forward', -1)}>
+              <ArrowDown size={20} />
+            </button>
+            <button aria-label="Turn right" {...hold('turn', -1)}>
+              <ArrowRight size={20} />
+            </button>
+          </div>
+        </>
       )}
-      <div className="scene-bottom">
-        <button
-          className="icon-button glass"
-          aria-label="Reset 3D camera"
-          title="Reset camera"
-          onClick={() => reset.current()}
-        >
-          <RotateCcw size={17} />
-        </button>
-        <span>
-          {mode === 'walk' ? 'Explore at your own pace' : 'Drag to orbit · Scroll to zoom'}
-        </span>
-        <button
-          className="icon-button glass"
-          aria-label="Export 3D image"
-          title="Export a 3D image"
-          onClick={() => snapshot.current()}
-        >
-          <Camera size={18} />
-        </button>
-      </div>
     </div>
   );
 }

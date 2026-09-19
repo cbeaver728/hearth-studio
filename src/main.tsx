@@ -7,3 +7,6 @@ createRoot(document.getElementById('root')!).render(
     <App />
   </React.StrictMode>,
 );
+// Offline support and "Install app" when served from the web (not the desktop or single-file editions).
+if (import.meta.env.PROD && location.protocol === 'https:' && 'serviceWorker' in navigator)
+  navigator.serviceWorker.register('./sw.js').catch(() => {});

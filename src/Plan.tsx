@@ -1,19 +1,24 @@
-import { useRef, useState } from 'react';
-import { Crosshair, Minus, Plus, Compass } from 'lucide-react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { Compass, Copy, Crosshair, Minus, Plus, RotateCw, Trash2 } from 'lucide-react';
 import {
-  catalog,
+  catalogEntry,
+  contentsOf,
   createItem,
   formatLength,
+  hasFloor,
   isOutside,
   isRoom,
+  onLevel,
   snap,
+  stairLevels,
   uid,
   type Item,
-  type Kind,
   type Project,
   type Side,
 } from './model';
-export type Tool = 'select' | 'pan' | 'window' | 'door' | Kind;
+import { layoutFor, localSize, toWorld } from './stairs';
+/** 'select', 'pan', 'window', 'door', or a catalog id such as 'sofa' or 'stairs-spiral'. */
+export type Tool = string;
 interface Props {
   project: Project;
   floor: number;
@@ -24,7 +29,23 @@ interface Props {
   onChange: (p: Project) => void;
   onTool: (t: Tool) => void;
   onNotice: (s: string) => void;
+  onRotate: () => void;
+  onDuplicate: () => void;
+  onDelete: () => void;
 }
+type Corner = 'nw' | 'ne' | 'sw' | 'se';
+interface Gesture {
+  kind: 'draw' | 'move' | 'resize' | 'pan';
+  x: number;
+  z: number;
+  item?: Item;
+  corner?: Corner;
+  carried?: Item[];
+  moved?: boolean;
+}
+const placing = (tool: Tool) =>
+  !['select', 'pan', 'window', 'door', 'room', 'garage'].includes(tool);
+
 export default function Plan({
   project: p,
   floor,
@@ -35,184 +56,328 @@ export default function Plan({
   onChange,
   onTool,
   onNotice,
+  onRotate,
+  onDuplicate,
+  onDelete,
 }: Props) {
   const svg = useRef<SVGSVGElement>(null);
+  const wrap = useRef<HTMLDivElement>(null);
   const [view, setView] = useState({ x: -14, z: -12, w: 29, h: 27 });
-  const [draft, setDraft] = useState<Item | null>(null);
-  const gesture = useRef<{
-    kind: 'draw' | 'move' | 'resize' | 'pan';
-    x: number;
-    z: number;
-    item?: Item;
-    vx: number;
-    vz: number;
-  } | null>(null);
+  const [draft, setDraft] = useState<Item[] | null>(null);
+  const [hover, setHover] = useState<{ x: number; z: number } | null>(null);
+  const [panning, setPanning] = useState(false);
+  const gesture = useRef<Gesture | null>(null);
+  const fitted = useRef(false);
+
+  // Keep the drawing's aspect ratio matched to the panel so overlays line up exactly.
+  useEffect(() => {
+    const el = wrap.current!;
+    const ro = new ResizeObserver(() => {
+      const r = el.getBoundingClientRect();
+      if (!r.width || !r.height) return;
+      setView((v) => {
+        const h = (v.w * r.height) / r.width;
+        return { ...v, z: v.z + (v.h - h) / 2, h };
+      });
+      if (!fitted.current) {
+        fitted.current = true;
+        requestAnimationFrame(() => fit());
+      }
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const point = (e: { clientX: number; clientY: number }) => {
     const pt = svg.current!.createSVGPoint();
     pt.x = e.clientX;
     pt.y = e.clientY;
-    return pt.matrixTransform(svg.current!.getScreenCTM()!.inverse());
+    const r = pt.matrixTransform(svg.current!.getScreenCTM()!.inverse());
+    return { x: r.x, z: r.y };
   };
-  const begin = (e: React.PointerEvent, id?: string, resize = false) => {
-    if (e.button !== 0 && e.button !== 1) return;
+  const roomsHere = p.items.filter((i) => isRoom(i) && i.floor === floor);
+
+  // Pieces nudge flush against the inside face of nearby walls.
+  const wallSnap = (i: Item) => {
+    if (!snapping || isRoom(i) || isOutside(i)) return i;
+    const xs = roomsHere.flatMap((r) => [r.x + 0.08, r.x + r.w - 0.08]),
+      zs = roomsHere.flatMap((r) => [r.z + 0.08, r.z + r.d - 0.08]);
+    const near = (v: number, list: number[]) => list.find((c) => Math.abs(v - c) < 0.22);
+    const out = { ...i };
+    const l = near(i.x, xs),
+      r = near(i.x + i.w, xs),
+      t = near(i.z, zs),
+      b = near(i.z + i.d, zs);
+    if (l !== undefined) out.x = l;
+    else if (r !== undefined) out.x = r - i.w;
+    if (t !== undefined) out.z = t;
+    else if (b !== undefined) out.z = b - i.d;
+    return out;
+  };
+
+  const placeOpening = (a: { x: number; z: number }, kind: 'window' | 'door') => {
+    let best: { r: Item; side: Side; dist: number; offset: number } | undefined;
+    for (const r of roomsHere) {
+      const candidates: { side: Side; dist: number; offset: number }[] = [
+        {
+          side: 'north',
+          dist: Math.hypot(Math.max(r.x - a.x, 0, a.x - r.x - r.w), a.z - r.z),
+          offset: (a.x - r.x) / r.w,
+        },
+        {
+          side: 'south',
+          dist: Math.hypot(Math.max(r.x - a.x, 0, a.x - r.x - r.w), a.z - r.z - r.d),
+          offset: (a.x - r.x) / r.w,
+        },
+        {
+          side: 'west',
+          dist: Math.hypot(a.x - r.x, Math.max(r.z - a.z, 0, a.z - r.z - r.d)),
+          offset: (a.z - r.z) / r.d,
+        },
+        {
+          side: 'east',
+          dist: Math.hypot(a.x - r.x - r.w, Math.max(r.z - a.z, 0, a.z - r.z - r.d)),
+          offset: (a.z - r.z) / r.d,
+        },
+      ];
+      for (const c of candidates) if (!best || c.dist < best.dist) best = { r, ...c };
+    }
+    if (best && best.dist < 0.8) {
+      onChange({
+        ...p,
+        openings: [
+          ...p.openings,
+          {
+            id: uid(),
+            roomId: best.r.id,
+            side: best.side,
+            offset: Math.round(Math.max(0.1, Math.min(0.9, best.offset)) * 100) / 100,
+            width: kind === 'window' ? 1.5 : 0.9,
+            kind,
+          },
+        ],
+      });
+      onSelect(best.r.id);
+      onNotice(
+        `${kind === 'window' ? 'Window' : 'Door'} added. Click another wall for more, or press Esc.`,
+      );
+    } else onNotice('Click right on a room wall to place an opening.');
+  };
+
+  const begin = (e: React.PointerEvent, id?: string, corner?: Corner) => {
+    if (e.button !== 0 && e.button !== 1 && e.button !== 2) return;
     e.preventDefault();
     const a = point(e);
     svg.current!.setPointerCapture(e.pointerId);
     const item = p.items.find((i) => i.id === id);
-    if (tool === 'pan' || e.button === 1) {
-      gesture.current = { kind: 'pan', x: a.x, z: a.y, vx: view.x, vz: view.z };
+    if (
+      tool === 'pan' ||
+      e.button === 1 ||
+      e.button === 2 ||
+      (e.button === 0 && e.shiftKey && !item)
+    ) {
+      gesture.current = { kind: 'pan', x: a.x, z: a.z };
+      setPanning(true);
       return;
     }
     if (tool === 'window' || tool === 'door') {
-      const rooms = p.items.filter((i) => isRoom(i) && i.floor === floor);
-      let best: { r: Item; side: Side; dist: number; offset: number } | undefined;
-      for (const r of rooms) {
-        const candidates: { side: Side; dist: number; offset: number }[] = [
-          {
-            side: 'north',
-            dist: Math.hypot(Math.max(r.x - a.x, 0, a.x - r.x - r.w), a.y - r.z),
-            offset: (a.x - r.x) / r.w,
-          },
-          {
-            side: 'south',
-            dist: Math.hypot(Math.max(r.x - a.x, 0, a.x - r.x - r.w), a.y - r.z - r.d),
-            offset: (a.x - r.x) / r.w,
-          },
-          {
-            side: 'west',
-            dist: Math.hypot(a.x - r.x, Math.max(r.z - a.y, 0, a.y - r.z - r.d)),
-            offset: (a.y - r.z) / r.d,
-          },
-          {
-            side: 'east',
-            dist: Math.hypot(a.x - r.x - r.w, Math.max(r.z - a.y, 0, a.y - r.z - r.d)),
-            offset: (a.y - r.z) / r.d,
-          },
-        ];
-        for (const c of candidates) if (!best || c.dist < best.dist) best = { r, ...c };
-      }
-      if (best && best.dist < 1) {
-        onChange({
-          ...p,
-          openings: [
-            ...p.openings,
-            {
-              id: uid(),
-              roomId: best.r.id,
-              side: best.side,
-              offset: Math.max(0.1, Math.min(0.9, best.offset)),
-              width: tool === 'window' ? 1.5 : 1,
-              kind: tool,
-            },
-          ],
-        });
-        onSelect(best.r.id);
-        onNotice(`${tool === 'window' ? 'Window' : 'Door'} added. Click another wall to add more.`);
-      } else onNotice('Click close to a room wall to place an opening.');
+      placeOpening(a, tool);
       return;
     }
     if (tool === 'select') {
       if (item) {
         onSelect(item.id);
+        const carried = isRoom(item) && !corner && !e.altKey ? contentsOf(p, item) : [];
         gesture.current = {
-          kind: resize ? 'resize' : 'move',
+          kind: corner ? 'resize' : 'move',
           x: a.x,
-          z: a.y,
+          z: a.z,
           item: { ...item },
-          vx: view.x,
-          vz: view.z,
+          corner,
+          carried,
         };
-        setDraft(item);
-      } else onSelect(null);
+      } else {
+        onSelect(null);
+        gesture.current = { kind: 'pan', x: a.x, z: a.z };
+      }
       return;
     }
     if (tool === 'room' || tool === 'garage') {
-      const i = createItem(tool, floor, snap(a.x, snapping), snap(a.y, snapping));
+      const i = createItem(tool, floor, snap(a.x, snapping), snap(a.z, snapping));
       i.w = 0;
       i.d = 0;
-      setDraft(i);
-      gesture.current = { kind: 'draw', x: i.x, z: i.z, item: i, vx: view.x, vz: view.z };
+      setDraft([i]);
+      gesture.current = { kind: 'draw', x: i.x, z: i.z, item: i };
       return;
     }
-    const i = createItem(tool as Kind, floor, snap(a.x, snapping), snap(a.y, snapping));
+    const entry = catalogEntry(tool);
+    if (!entry) return;
+    if (isOutside({ kind: entry.kind } as Item) && floor !== 0) {
+      onNotice('Landscaping goes on the ground floor. Switch floors to add it.');
+      return;
+    }
+    let i = createItem(tool, floor, 0, 0);
+    i.x = snap(a.x - i.w / 2, snapping);
+    i.z = snap(a.z - i.d / 2, snapping);
+    i = wallSnap(i);
+    if (i.kind === 'stairs') {
+      // Point stairs at a real floor: up if there's a level above, otherwise down.
+      i.dir = hasFloor(p, floor + 1) || !hasFloor(p, floor - 1) ? 'up' : 'down';
+      const to = floor + (i.dir === 'up' ? 1 : -1);
+      onNotice(
+        hasFloor(p, to)
+          ? `Stairs ${i.dir} to ${p.floors.find((f) => f.level === to)!.name}. Rotate with the ↻ button or the E key.`
+          : 'Stairs placed. Add a floor above to connect them — use the panel on the right.',
+      );
+    }
     onChange({ ...p, items: [...p.items, i] });
     onSelect(i.id);
-    onTool('select');
+    if (!e.shiftKey) onTool('select');
   };
+
   const move = (e: React.PointerEvent) => {
+    const a = point(e);
+    if (placing(tool) || tool === 'window' || tool === 'door') setHover(a);
     const g = gesture.current;
     if (!g) return;
-    const a = point(e);
     if (g.kind === 'pan') {
-      setView((v) => ({ ...v, x: v.x + g.x - a.x, z: v.z + g.z - a.y }));
+      setView((v) => ({ ...v, x: v.x + g.x - a.x, z: v.z + g.z - a.z }));
       return;
     }
-    const i = { ...g.item! };
+    const src = g.item!;
+    let i = { ...src };
     if (g.kind === 'draw') {
       i.x = snap(Math.min(g.x, a.x), snapping);
-      i.z = snap(Math.min(g.z, a.y), snapping);
+      i.z = snap(Math.min(g.z, a.z), snapping);
       i.w = Math.abs(snap(a.x - g.x, snapping));
-      i.d = Math.abs(snap(a.y - g.z, snapping));
+      i.d = Math.abs(snap(a.z - g.z, snapping));
+      setDraft([i]);
+      return;
     }
     if (g.kind === 'move') {
-      i.x = snap(g.item!.x + a.x - g.x, snapping);
-      i.z = snap(g.item!.z + a.y - g.z, snapping);
+      if (!g.moved && Math.hypot(a.x - g.x, a.z - g.z) < 0.08) return;
+      g.moved = true;
+      i.x = snap(src.x + a.x - g.x, snapping);
+      i.z = snap(src.z + a.z - g.z, snapping);
+      i = wallSnap(i);
+      const dx = i.x - src.x,
+        dz = i.z - src.z;
+      setDraft([i, ...(g.carried || []).map((c) => ({ ...c, x: c.x + dx, z: c.z + dz }))]);
+      return;
     }
-    if (g.kind === 'resize') {
-      i.w = Math.max(0.25, snap(g.item!.w + a.x - g.x, snapping));
-      i.d = Math.max(0.25, snap(g.item!.d + a.y - g.z, snapping));
+    const c = g.corner!;
+    const min = 0.25;
+    const right = src.x + src.w,
+      bottom = src.z + src.d;
+    if (c === 'ne' || c === 'se') i.w = Math.max(min, snap(right + a.x - g.x, snapping) - src.x);
+    else {
+      i.x = Math.min(right - min, snap(src.x + a.x - g.x, snapping));
+      i.w = right - i.x;
     }
-    setDraft(i);
+    if (c === 'sw' || c === 'se') i.d = Math.max(min, snap(bottom + a.z - g.z, snapping) - src.z);
+    else {
+      i.z = Math.min(bottom - min, snap(src.z + a.z - g.z, snapping));
+      i.d = bottom - i.z;
+    }
+    setDraft([i]);
   };
+
   const finish = () => {
     const g = gesture.current;
     if (!g) return;
     gesture.current = null;
+    setPanning(false);
     if (draft && g.kind !== 'pan') {
       if (g.kind === 'draw') {
-        if (draft.w >= 0.5 && draft.d >= 0.5) {
-          onChange({ ...p, items: [...p.items, draft] });
-          onSelect(draft.id);
+        const d = draft[0];
+        if (d.w >= 0.75 && d.d >= 0.75) {
+          onChange({ ...p, items: [...p.items, d] });
+          onSelect(d.id);
           onTool('select');
+          onNotice(
+            `${d.kind === 'garage' ? 'Garage' : 'Room'} added. Rename it on the right, then add doors and windows.`,
+          );
         } else onNotice('Drag across the grid to draw a room.');
-      } else if (JSON.stringify(draft) !== JSON.stringify(g.item))
-        onChange({ ...p, items: p.items.map((i) => (i.id === draft.id ? draft : i)) });
+      } else {
+        const byId = new Map(draft.map((d) => [d.id, d]));
+        if (
+          draft.some(
+            (d) => JSON.stringify(d) !== JSON.stringify(p.items.find((i) => i.id === d.id)),
+          )
+        )
+          onChange({ ...p, items: p.items.map((i) => byId.get(i.id) || i) });
+      }
     }
     setDraft(null);
   };
-  const zoom = (factor: number) =>
-    setView((v) => ({
-      x: v.x + (v.w - v.w * factor) / 2,
-      z: v.z + (v.h - v.h * factor) / 2,
-      w: Math.max(8, Math.min(120, v.w * factor)),
-      h: Math.max(7.45, Math.min(111.7, v.h * factor)),
-    }));
+
+  const zoomAt = (factor: number, cx?: number, cz?: number) =>
+    setView((v) => {
+      const w = Math.max(6, Math.min(140, v.w * factor));
+      const k = w / v.w;
+      const ox = cx ?? v.x + v.w / 2,
+        oz = cz ?? v.z + v.h / 2;
+      return { x: ox - (ox - v.x) * k, z: oz - (oz - v.z) * k, w, h: v.h * k };
+    });
+  useEffect(() => {
+    const el = svg.current!;
+    const wheel = (e: WheelEvent) => {
+      e.preventDefault();
+      const a = point(e);
+      zoomAt(Math.exp(e.deltaY * 0.0012), a.x, a.z);
+    };
+    el.addEventListener('wheel', wheel, { passive: false });
+    return () => el.removeEventListener('wheel', wheel);
+  }, []);
   const fit = () => {
-    const items = p.items.filter((i) => i.floor === floor || isOutside(i));
+    const items = p.items.filter((i) => onLevel(i, floor) || (floor === 0 && isOutside(i)));
+    const el = wrap.current?.getBoundingClientRect();
+    const ratio = el && el.width ? el.height / el.width : 0.9;
     if (!items.length) {
-      setView({ x: -14, z: -12, w: 29, h: 27 });
+      setView({ x: -12, z: -12 * ratio, w: 24, h: 24 * ratio });
       return;
     }
-    const minX = Math.min(...items.map((i) => i.x)) - 3,
-      minZ = Math.min(...items.map((i) => i.z)) - 3,
-      maxX = Math.max(...items.map((i) => i.x + i.w)) + 3,
-      maxZ = Math.max(...items.map((i) => i.z + i.d)) + 3;
-    setView({ x: minX, z: minZ, w: maxX - minX, h: maxZ - minZ });
+    const minX = Math.min(...items.map((i) => i.x)) - 2,
+      minZ = Math.min(...items.map((i) => i.z)) - 2,
+      maxX = Math.max(...items.map((i) => i.x + i.w)) + 2,
+      maxZ = Math.max(...items.map((i) => i.z + i.d)) + 2;
+    const w = Math.max(maxX - minX, (maxZ - minZ) / ratio, 10),
+      h = w * ratio;
+    setView({ x: (minX + maxX) / 2 - w / 2, z: (minZ + maxZ) / 2 - h / 2, w, h });
   };
-  const visible = p.items
-    .filter((i) => i.floor === floor || (floor >= 0 && isOutside(i)))
-    .sort(
-      (a, b) => (isOutside(a) ? -2 : isRoom(a) ? -1 : 0) - (isOutside(b) ? -2 : isRoom(b) ? -1 : 0),
-    );
-  const items = visible.map((i) => (draft?.id === i.id ? draft : i));
-  if (draft && gesture.current?.kind === 'draw') items.push(draft);
+
+  const overrides = new Map((draft || []).map((d) => [d.id, d]));
+  const layer = (i: Item) =>
+    isOutside(i) ? 0 : isRoom(i) ? 1 : i.kind === 'rug' ? 2 : i.kind === 'stairs' ? 4 : 3;
+  const items = p.items
+    .filter((i) => onLevel(i, floor) || (floor === 0 && isOutside(i)))
+    .map((i) => overrides.get(i.id) || i)
+    .sort((a, b) => layer(a) - layer(b));
+  if (draft && gesture.current?.kind === 'draw') items.push(draft[0]);
+  const faded = floor !== 0 ? p.items.filter((i) => isOutside(i)) : [];
+  const ghostLevel = floor > 0 ? floor - 1 : floor < 0 ? floor + 1 : null;
+  const ghosts =
+    ghostLevel === null ? [] : p.items.filter((i) => isRoom(i) && i.floor === ghostLevel);
+  const sel = items.find((i) => i.id === selected);
+  const px = (x: number) => ((x - view.x) / view.w) * 100,
+    pz = (z: number) => ((z - view.z) / view.h) * 100;
+  const preview = (() => {
+    if (!hover || !placing(tool)) return null;
+    const e = catalogEntry(tool);
+    if (!e) return null;
+    const i = createItem(tool, floor, 0, 0);
+    i.x = snap(hover.x - i.w / 2, snapping);
+    i.z = snap(hover.z - i.d / 2, snapping);
+    return wallSnap(i);
+  })();
+  const u = p.units;
+
   return (
-    <div className={`plan-wrap tool-${tool}`}>
-      <div className="panel-corner">
-        <span className="live-dot" />
-        2D FLOOR PLAN
-        <span className="muted">/ {p.floors.find((f) => f.level === floor)?.name}</span>
-      </div>
+    <div
+      ref={wrap}
+      className={`plan-wrap tool-${tool.replace(/[^a-z]/g, '')} ${panning ? 'panning' : ''}`}
+    >
       <svg
         ref={svg}
         data-testid="floor-plan"
@@ -222,11 +387,13 @@ export default function Plan({
         onPointerDown={(e) => begin(e)}
         onPointerMove={move}
         onPointerUp={finish}
+        onPointerLeave={() => setHover(null)}
+        onContextMenu={(e) => e.preventDefault()}
         onPointerCancel={() => {
           gesture.current = null;
           setDraft(null);
+          setPanning(false);
         }}
-        onWheel={(e) => zoom(e.deltaY > 0 ? 1.08 : 0.92)}
       >
         <defs>
           <pattern id="small-grid" width="0.25" height="0.25" patternUnits="userSpaceOnUse">
@@ -239,25 +406,54 @@ export default function Plan({
           <pattern id="deck" width="0.3" height="0.3" patternUnits="userSpaceOnUse">
             <path d="M0 0H.3" stroke="#796448" strokeOpacity=".25" strokeWidth=".025" />
           </pattern>
+          <pattern
+            id="hatch"
+            width="0.2"
+            height="0.2"
+            patternUnits="userSpaceOnUse"
+            patternTransform="rotate(45)"
+          >
+            <path d="M0 0V.2" stroke="#9c653c" strokeOpacity=".35" strokeWidth=".03" />
+          </pattern>
+          <marker
+            id="arrow"
+            viewBox="0 0 10 10"
+            refX="7"
+            refY="5"
+            markerWidth="4"
+            markerHeight="4"
+            orient="auto"
+          >
+            <path d="M0 0L10 5L0 10z" fill="#5a4d3c" />
+          </marker>
         </defs>
         <rect x="-250" y="-250" width="500" height="500" fill="url(#grid)" />
-        {floor !== 0 &&
-          p.items
-            .filter((i) => isRoom(i) && i.floor === floor - 1)
-            .map((i) => (
-              <rect
-                key={`ghost-${i.id}`}
-                x={i.x}
-                y={i.z}
-                width={i.w}
-                height={i.d}
-                fill="none"
-                stroke="#aab4a9"
-                strokeWidth=".05"
-                strokeDasharray=".15 .15"
-                pointerEvents="none"
-              />
-            ))}
+        {faded.map((i) => (
+          <rect
+            key={`fade-${i.id}`}
+            x={i.x}
+            y={i.z}
+            width={i.w}
+            height={i.d}
+            fill={i.color}
+            opacity=".18"
+            pointerEvents="none"
+          />
+        ))}
+        {ghosts.map((i) => (
+          <rect
+            key={`ghost-${i.id}`}
+            x={i.x}
+            y={i.z}
+            width={i.w}
+            height={i.d}
+            fill="none"
+            stroke="#9aa89b"
+            strokeWidth=".06"
+            strokeDasharray=".18 .14"
+            pointerEvents="none"
+          />
+        ))}
         {items.map((i) => (
           <g
             key={i.id}
@@ -275,21 +471,17 @@ export default function Plan({
                 e.preventDefault();
                 e.stopPropagation();
                 const delta = e.shiftKey ? 1 : 0.25;
+                const dx = e.key === 'ArrowRight' ? delta : e.key === 'ArrowLeft' ? -delta : 0,
+                  dz = e.key === 'ArrowDown' ? delta : e.key === 'ArrowUp' ? -delta : 0;
+                const moving = new Set([
+                  i.id,
+                  ...(isRoom(i) ? contentsOf(p, i).map((c) => c.id) : []),
+                ]);
                 onSelect(i.id);
                 onChange({
                   ...p,
                   items: p.items.map((a) =>
-                    a.id === i.id
-                      ? {
-                          ...a,
-                          x:
-                            a.x +
-                            (e.key === 'ArrowRight' ? delta : e.key === 'ArrowLeft' ? -delta : 0),
-                          z:
-                            a.z +
-                            (e.key === 'ArrowDown' ? delta : e.key === 'ArrowUp' ? -delta : 0),
-                        }
-                      : a,
+                    moving.has(a.id) ? { ...a, x: a.x + dx, z: a.z + dz } : a,
                   ),
                 });
               }
@@ -298,120 +490,40 @@ export default function Plan({
               e.stopPropagation();
               begin(e, i.id);
             }}
-            className="plan-item"
+            className={`plan-item ${i.id === selected ? 'is-selected' : ''}`}
           >
             <title>
-              {i.name} · {formatLength(i.w, p.units)} × {formatLength(i.d, p.units)}
+              {i.name} · {formatLength(i.w, u)} × {formatLength(i.d, u)}
             </title>
-            {i.kind === 'tree' ? (
-              <>
-                <circle
-                  cx={i.x + i.w / 2}
-                  cy={i.z + i.d / 2}
-                  r={i.w / 2}
-                  fill={i.color}
-                  fillOpacity=".4"
-                  stroke={i.color}
-                  strokeWidth=".05"
-                />
-                <circle
-                  cx={i.x + i.w / 2}
-                  cy={i.z + i.d / 2}
-                  r={i.w * 0.34}
-                  fill={i.color}
-                  fillOpacity=".6"
-                />
-                <path
-                  d={`M${i.x + i.w / 2} ${i.z + i.d * 0.2}v${i.d * 0.6}m${-i.w * 0.3} ${-i.d * 0.3}h${i.w * 0.6}`}
-                  stroke="#4c7652"
-                  strokeWidth=".04"
-                />
-              </>
-            ) : (
-              <rect
-                x={i.x}
-                y={i.z}
-                width={i.w}
-                height={i.d}
-                rx={isRoom(i) ? 0 : i.kind === 'pool' ? 0.3 : 0.06}
-                fill={i.color}
-                stroke={isRoom(i) ? '#56645d' : i.kind === 'pool' ? '#ebede4' : '#788276'}
-                strokeWidth={isRoom(i) ? 0.13 : i.kind === 'pool' ? 0.16 : 0.035}
-              />
-            )}
-            {i.kind === 'deck' && (
-              <rect x={i.x} y={i.z} width={i.w} height={i.d} fill="url(#deck)" />
-            )}
-            {i.kind === 'pool' && (
-              <rect
-                x={i.x + 0.18}
-                y={i.z + 0.18}
-                width={Math.max(0.1, i.w - 0.36)}
-                height={Math.max(0.1, i.d - 0.36)}
-                rx=".2"
-                fill="none"
-                stroke="#bde9e8"
-                strokeWidth=".04"
-              />
-            )}
-            {i.kind === 'bed' && (
-              <>
-                <rect
-                  x={i.x + 0.08}
-                  y={i.z + 0.1}
-                  width={i.w - 0.16}
-                  height={i.d * 0.22}
-                  rx=".06"
-                  fill="#f5f2ed"
-                  stroke="#8b8d9b"
-                  strokeWidth=".025"
-                />
-                <path
-                  d={`M${i.x + 0.06} ${i.z + i.d * 0.38}h${i.w - 0.12}`}
-                  stroke="#8b8d9b"
-                  strokeWidth=".04"
-                />
-              </>
-            )}
-            {i.kind === 'sofa' && (
-              <>
-                <rect
-                  x={i.x + 0.13}
-                  y={i.z + 0.2}
-                  width={Math.max(0.1, i.w - 0.26)}
-                  height={Math.max(0.1, i.d - 0.35)}
-                  rx=".08"
-                  fill="#a7bbb0"
-                  stroke="#5e8071"
-                  strokeWidth=".035"
-                />
-                <path
-                  d={`M${i.x + i.w / 2} ${i.z + 0.2}v${i.d - 0.35}`}
-                  stroke="#5e8071"
-                  strokeWidth=".035"
-                />
-              </>
-            )}
-            {i.kind === 'stairs' &&
-              Array.from({ length: 12 }, (_, n) => (
-                <path
-                  key={n}
-                  d={`M${i.x} ${i.z + (n * i.d) / 12}h${i.w}`}
-                  stroke="#857a67"
-                  strokeWidth=".025"
-                />
-              ))}
+            <Shape item={i} floor={floor} />
           </g>
         ))}
+        {preview && (
+          <g opacity=".55" pointerEvents="none">
+            <Shape item={preview} floor={floor} />
+            <rect
+              x={preview.x}
+              y={preview.z}
+              width={preview.w}
+              height={preview.d}
+              fill="none"
+              stroke="#cf874e"
+              strokeWidth=".05"
+              strokeDasharray=".12 .08"
+            />
+          </g>
+        )}
         {p.openings.map((o) => {
           const r = items.find((i) => i.id === o.roomId);
-          if (!r) return null;
+          if (!r || !isRoom(r)) return null;
           const h = o.side === 'north' || o.side === 'south',
             len = h ? r.w : r.d,
             width = Math.min(o.width, len - 0.2),
             center = Math.max(width / 2 + 0.1, Math.min(len - width / 2 - 0.1, len * o.offset)),
             x = h ? r.x + center - width / 2 : o.side === 'west' ? r.x : r.x + r.w,
             z = h ? (o.side === 'north' ? r.z : r.z + r.d) : r.z + center - width / 2;
+          // Doors swing into the room they belong to.
+          const into = o.side === 'north' || o.side === 'west' ? 1 : -1;
           return (
             <g
               key={o.id}
@@ -420,20 +532,18 @@ export default function Plan({
             >
               <path
                 d={`M0 0H${width}`}
-                stroke={o.kind === 'window' ? '#8ac0c2' : r.color}
-                strokeWidth=".18"
+                stroke={o.kind === 'window' ? '#8ac0c2' : '#f7f6f1'}
+                strokeWidth=".2"
               />
               {o.kind === 'window' ? (
                 <path d={`M0 -.075H${width}M0 .075H${width}`} stroke="#49868d" strokeWidth=".025" />
               ) : (
-                <>
-                  <path
-                    d={`M0 0V${width}M0 ${width}A${width} ${width} 0 0 0 ${width} 0`}
-                    fill="none"
-                    stroke="#9b8970"
-                    strokeWidth=".028"
-                  />
-                </>
+                <path
+                  d={`M0 0V${into * width * (h ? 1 : -1)}M0 ${into * width * (h ? 1 : -1)}A${width} ${width} 0 0 ${into > 0 === h ? 0 : 1} ${width} 0`}
+                  fill="none"
+                  stroke="#9b8970"
+                  strokeWidth=".03"
+                />
               )}
             </g>
           );
@@ -447,87 +557,112 @@ export default function Plan({
                 y={i.z + i.d / 2 - 0.08}
                 textAnchor="middle"
                 className="room-name"
-                fontSize={Math.min(0.58, (i.w / Math.max(i.name.length, 1)) * 1.5)}
+                fontSize={Math.min(0.5, (i.w / Math.max(i.name.length, 1)) * 1.5)}
               >
                 {i.name}
               </text>
               <text
                 x={i.x + i.w / 2}
-                y={i.z + i.d / 2 + 0.36}
+                y={i.z + i.d / 2 + 0.34}
                 textAnchor="middle"
                 className="room-area"
-                fontSize=".36"
+                fontSize=".3"
               >
-                {Math.round(i.w * i.d * (p.units === 'ft' ? 10.7639 : 1))}{' '}
-                {p.units === 'ft' ? 'sq ft' : 'm²'}
+                {formatLength(i.w, u)} × {formatLength(i.d, u)}
               </text>
             </g>
           ))}
-        {items
-          .filter((i) => selected === i.id)
-          .map((i) => (
-            <g key={`selection-${i.id}`}>
+        {sel && (
+          <g key={`selection-${sel.id}`}>
+            <rect
+              x={sel.x - 0.1}
+              y={sel.z - 0.1}
+              width={sel.w + 0.2}
+              height={sel.d + 0.2}
+              fill="none"
+              stroke="#cf874e"
+              strokeWidth=".055"
+              strokeDasharray=".12 .08"
+              pointerEvents="none"
+            />
+            {(['nw', 'ne', 'sw', 'se'] as Corner[]).map((c) => (
               <rect
-                x={i.x - 0.1}
-                y={i.z - 0.1}
-                width={i.w + 0.2}
-                height={i.d + 0.2}
-                fill="none"
-                stroke="#cf874e"
-                strokeWidth=".055"
-                strokeDasharray=".12 .08"
-                pointerEvents="none"
-              />
-              <rect
-                data-testid="resize-handle"
-                x={i.x + i.w - 0.3}
-                y={i.z + i.d - 0.3}
-                width=".6"
-                height=".6"
-                rx=".04"
+                key={c}
+                data-testid={c === 'se' ? 'resize-handle' : `resize-${c}`}
+                x={(c[1] === 'e' ? sel.x + sel.w : sel.x) - 0.22}
+                y={(c[0] === 's' ? sel.z + sel.d : sel.z) - 0.22}
+                width=".44"
+                height=".44"
+                rx=".06"
                 fill="#cf874e"
                 stroke="white"
                 strokeWidth=".06"
-                style={{ cursor: 'nwse-resize' }}
+                style={{ cursor: c === 'nw' || c === 'se' ? 'nwse-resize' : 'nesw-resize' }}
                 onPointerDown={(e) => {
                   e.stopPropagation();
-                  begin(e, i.id, true);
+                  if (tool === 'select') begin(e, sel.id, c);
                 }}
               />
-              <text
-                x={i.x + i.w / 2}
-                y={i.z - 0.35}
-                fontSize=".27"
-                textAnchor="middle"
-                fill="#9c653c"
-              >
-                {formatLength(i.w, p.units)}
-              </text>
-              <text
-                x={i.x + i.w + 0.35}
-                y={i.z + i.d / 2}
-                fontSize=".27"
-                fill="#9c653c"
-                transform={`rotate(90 ${i.x + i.w + 0.35} ${i.z + i.d / 2})`}
-                textAnchor="middle"
-              >
-                {formatLength(i.d, p.units)}
-              </text>
-            </g>
-          ))}
+            ))}
+            <text
+              x={sel.x + sel.w / 2}
+              y={sel.z - 0.35}
+              fontSize=".3"
+              textAnchor="middle"
+              className="dim-label"
+            >
+              {formatLength(sel.w, u)}
+            </text>
+            <text
+              x={sel.x + sel.w + 0.4}
+              y={sel.z + sel.d / 2}
+              fontSize=".3"
+              className="dim-label"
+              transform={`rotate(90 ${sel.x + sel.w + 0.4} ${sel.z + sel.d / 2})`}
+              textAnchor="middle"
+            >
+              {formatLength(sel.d, u)}
+            </text>
+          </g>
+        )}
       </svg>
+      {sel && !gesture.current && tool === 'select' && (
+        <div
+          className="selection-bar"
+          style={{
+            left: `${Math.min(92, Math.max(8, px(sel.x + sel.w / 2)))}%`,
+            top: `${Math.max(4, pz(sel.z) - 1)}%`,
+          }}
+          onPointerDown={(e) => e.stopPropagation()}
+        >
+          <button aria-label="Rotate 90 degrees" title="Rotate 90° (E)" onClick={onRotate}>
+            <RotateCw size={15} />
+          </button>
+          <button aria-label="Duplicate" title="Duplicate (Ctrl+D)" onClick={onDuplicate}>
+            <Copy size={15} />
+          </button>
+          <button aria-label="Delete" title="Delete (Del)" className="danger" onClick={onDelete}>
+            <Trash2 size={15} />
+          </button>
+        </div>
+      )}
+      <div className="panel-corner">
+        <span className="live-dot" />
+        2D FLOOR PLAN
+        <span className="muted">/ {p.floors.find((f) => f.level === floor)?.name}</span>
+      </div>
       <div className="plan-bottom">
         <div className="scale">
           <span /> 1 m grid <span className="key">{snapping ? '¼ m snap' : 'Free move'}</span>
         </div>
         <div className="canvas-buttons">
-          <button aria-label="Zoom out" onClick={() => zoom(1.2)}>
+          <button aria-label="Zoom out" onClick={() => zoomAt(1.2)}>
             <Minus size={16} />
           </button>
-          <button aria-label="Fit plan" onClick={fit}>
+          <button aria-label="Fit plan" title="Fit to view" onClick={fit}>
             <Crosshair size={17} />
           </button>
-          <button aria-label="Zoom in" onClick={() => zoom(0.8)}>
+          <button aria-label="Zoom in" onClick={() => zoomAt(0.8)}>
             <Plus size={16} />
           </button>
         </div>
@@ -540,13 +675,411 @@ export default function Plan({
         {tool === 'room' || tool === 'garage'
           ? 'Click and drag to draw. Release to build.'
           : tool === 'window' || tool === 'door'
-            ? `Click a wall to add a ${tool}.`
+            ? `Click a wall to add a ${tool} · Esc when done`
             : tool === 'pan'
               ? 'Drag the canvas to look around.'
               : tool === 'select'
-                ? 'Drag shapes to move · Drag the amber corner to resize'
-                : `Click the plan to place ${catalog.find((c) => c.kind === tool)?.name.toLowerCase()}`}
+                ? 'Drag to move · Corners resize · Rooms carry their furniture (hold Alt to move alone) · Scroll to zoom'
+                : `Click to place ${catalogEntry(tool)?.name.toLowerCase()} · Shift-click to place several`}
       </div>
     </div>
+  );
+}
+
+/** Draws one shape on the plan. */
+function Shape({ item: i, floor }: { item: Item; floor: number }) {
+  if (i.kind === 'tree')
+    return (
+      <>
+        <circle
+          cx={i.x + i.w / 2}
+          cy={i.z + i.d / 2}
+          r={i.w / 2}
+          fill={i.color}
+          fillOpacity=".4"
+          stroke={i.color}
+          strokeWidth=".05"
+        />
+        <circle
+          cx={i.x + i.w / 2}
+          cy={i.z + i.d / 2}
+          r={i.w * 0.34}
+          fill={i.color}
+          fillOpacity=".6"
+        />
+      </>
+    );
+  if (isRoom(i) || isOutside(i))
+    return (
+      <>
+        <rect
+          x={i.x}
+          y={i.z}
+          width={i.w}
+          height={i.d}
+          rx={isRoom(i) ? 0 : i.kind === 'pool' ? 0.3 : 0.06}
+          fill={i.color}
+          stroke={isRoom(i) ? '#56645d' : i.kind === 'pool' ? '#ebede4' : '#788276'}
+          strokeWidth={isRoom(i) ? 0.16 : i.kind === 'pool' ? 0.16 : 0.035}
+        />
+        {i.kind === 'deck' && <rect x={i.x} y={i.z} width={i.w} height={i.d} fill="url(#deck)" />}
+        {i.kind === 'pool' && (
+          <rect
+            x={i.x + 0.18}
+            y={i.z + 0.18}
+            width={Math.max(0.1, i.w - 0.36)}
+            height={Math.max(0.1, i.d - 0.36)}
+            rx=".2"
+            fill="none"
+            stroke="#bde9e8"
+            strokeWidth=".04"
+          />
+        )}
+      </>
+    );
+  if (i.kind === 'stairs') return <StairsShape item={i} floor={floor} />;
+  const { LW: W, LD: D } = localSize(i);
+  const s = '#6f6656',
+    sw = 0.03;
+  const r = (
+    x: number,
+    y: number,
+    w: number,
+    h: number,
+    fill: string,
+    rx = 0.04,
+    extra?: object,
+  ) => (
+    <rect
+      x={x - W / 2}
+      y={y - D / 2}
+      width={Math.max(0.01, w)}
+      height={Math.max(0.01, h)}
+      rx={rx}
+      fill={fill}
+      stroke={s}
+      strokeWidth={sw}
+      {...extra}
+    />
+  );
+  const circle = (x: number, y: number, rad: number, fill: string) => (
+    <circle cx={x - W / 2} cy={y - D / 2} r={rad} fill={fill} stroke={s} strokeWidth={sw} />
+  );
+  const ellipse = (x: number, y: number, rx: number, ry: number, fill: string) => (
+    <ellipse
+      cx={x - W / 2}
+      cy={y - D / 2}
+      rx={rx}
+      ry={ry}
+      fill={fill}
+      stroke={s}
+      strokeWidth={sw}
+    />
+  );
+  const line = (x1: number, y1: number, x2: number, y2: number) => (
+    <path
+      d={`M${x1 - W / 2} ${y1 - D / 2}L${x2 - W / 2} ${y2 - D / 2}`}
+      stroke={s}
+      strokeWidth={sw}
+    />
+  );
+  let body: ReactNode;
+  const c = i.color;
+  switch (i.kind) {
+    case 'sofa':
+    case 'armchair': {
+      const arm = Math.min(0.2, W * 0.15);
+      const seats = i.kind === 'armchair' ? 1 : Math.max(2, Math.round((W - 2 * arm) / 0.9));
+      body = (
+        <>
+          {r(0, 0, W, D, c, 0.1)}
+          {r(0, 0, W, 0.22, c, 0.06)}
+          {r(0, 0, arm, D, c, 0.06)}
+          {r(W - arm, 0, arm, D, c, 0.06)}
+          {Array.from({ length: seats }, (_, n) => (
+            <g key={n}>
+              {r(
+                arm + ((W - 2 * arm) / seats) * n + 0.02,
+                0.24,
+                (W - 2 * arm) / seats - 0.04,
+                D - 0.28,
+                '#ffffff55',
+                0.05,
+              )}
+            </g>
+          ))}
+        </>
+      );
+      break;
+    }
+    case 'bed':
+      body = (
+        <>
+          {r(0, 0, W, D, c, 0.06)}
+          {r(0, 0, W, 0.1, '#9b8b7c', 0.02)}
+          {r(W * 0.06, 0.16, W * 0.4, 0.38, '#f5f2ed', 0.06)}
+          {r(W * 0.54, 0.16, W * 0.4, 0.38, '#f5f2ed', 0.06)}
+          {r(0.02, D * 0.5, W - 0.04, D * 0.48, '#a8b9b4aa', 0.04)}
+        </>
+      );
+      break;
+    case 'table': {
+      const n = Math.max(1, Math.floor(W / 0.75));
+      body = (
+        <>
+          {D > 0.7 &&
+            W > 1 &&
+            Array.from({ length: n }, (_, k) => {
+              const x = (W / n) * (k + 0.5);
+              return (
+                <g key={k}>
+                  {r(x - 0.22, -0.48, 0.44, 0.42, '#d8cfbd', 0.06)}
+                  {r(x - 0.22, D + 0.06, 0.44, 0.42, '#d8cfbd', 0.06)}
+                </g>
+              );
+            })}
+          {r(0, 0, W, D, c, 0.08)}
+        </>
+      );
+      break;
+    }
+    case 'desk':
+      body = (
+        <>
+          {circle(W * 0.3 + 0.22, D + 0.3, 0.24, '#bdb8b1')}
+          {r(0, 0, W, D, c, 0.04)}
+        </>
+      );
+      break;
+    case 'counter':
+      body = (
+        <>
+          {r(0, 0, W, D, c, 0.04)}
+          {r(0.06, 0.06, W - 0.12, D - 0.12, '#f1ede0', 0.03)}
+        </>
+      );
+      break;
+    case 'kitchen':
+      body = (
+        <>
+          {r(0, 0, W, D, c, 0.02)}
+          {r(W * 0.3 - 0.3, 0.1, 0.6, D - 0.2, '#c9d2d2', 0.06)}
+          {[0, 1, 2, 3].map((k) => (
+            <g key={k}>
+              {circle(
+                W * 0.72 + (k % 2 ? 0.14 : -0.14),
+                D / 2 + (k > 1 ? 0.14 : -0.14),
+                0.09,
+                '#3a3e3c',
+              )}
+            </g>
+          ))}
+        </>
+      );
+      break;
+    case 'fridge':
+      body = (
+        <>
+          {r(0, 0, W, D, c, 0.03)}
+          {line(0.05, D - 0.08, W - 0.05, D - 0.08)}
+        </>
+      );
+      break;
+    case 'wardrobe':
+      body = (
+        <>
+          {r(0, 0, W, D, c, 0.02)}
+          {line(0, 0, W / 2, D)}
+          {line(W, 0, W / 2, D)}
+        </>
+      );
+      break;
+    case 'media':
+      body = (
+        <>
+          {r(0, 0, W, D, c, 0.03)}
+          {r(W * 0.08, 0.02, W * 0.84, 0.06, '#222', 0.01)}
+        </>
+      );
+      break;
+    case 'fireplace':
+      body = (
+        <>
+          {r(0, 0, W, D, c, 0.02)}
+          {r(W * 0.25, D * 0.35, W * 0.5, D * 0.65, '#c26a2c', 0.02)}
+        </>
+      );
+      break;
+    case 'plant':
+      body = (
+        <>
+          {circle(W / 2, D / 2, Math.min(W, D) * 0.48, c)}
+          {circle(W / 2, D / 2, Math.min(W, D) * 0.2, '#c9b49a')}
+        </>
+      );
+      break;
+    case 'rug':
+      body = (
+        <>
+          <rect x={-W / 2} y={-D / 2} width={W} height={D} rx=".06" fill={c} opacity=".7" />
+          <rect
+            x={-W / 2 + 0.12}
+            y={-D / 2 + 0.12}
+            width={W - 0.24}
+            height={D - 0.24}
+            fill="none"
+            stroke="#fff"
+            strokeOpacity=".6"
+            strokeWidth=".04"
+          />
+        </>
+      );
+      break;
+    case 'bathtub':
+      body = (
+        <>
+          {r(0, 0, W, D, c, 0.12)}
+          {ellipse(W / 2, D / 2, W / 2 - 0.12, D / 2 - 0.1, '#d3e7e9')}
+        </>
+      );
+      break;
+    case 'shower':
+      body = (
+        <>
+          {r(0, 0, W, D, c, 0.02)}
+          {line(0, 0, W, D)}
+          {line(W, 0, 0, D)}
+          {circle(W / 2, D / 2, 0.06, '#fff')}
+        </>
+      );
+      break;
+    case 'toilet':
+      body = (
+        <>
+          {r(W * 0.08, 0, W * 0.84, D * 0.28, c, 0.04)}
+          {ellipse(W / 2, D * 0.62, W * 0.36, D * 0.34, c)}
+        </>
+      );
+      break;
+    case 'vanity':
+      body = (
+        <>
+          {r(0, 0, W, D, c, 0.03)}
+          {ellipse(W / 2, D / 2, Math.min(0.24, W * 0.3), D * 0.3, '#fff')}
+        </>
+      );
+      break;
+    default:
+      body = r(0, 0, W, D, c);
+  }
+  return (
+    <g transform={`translate(${i.x + i.w / 2} ${i.z + i.d / 2}) rotate(${i.rotation})`}>{body}</g>
+  );
+}
+
+function StairsShape({ item: i, floor }: { item: Item; floor: number }) {
+  const layout = layoutFor(i);
+  const { lower } = stairLevels(i);
+  const upperView = floor !== lower;
+  const W = layout.LW,
+    D = layout.LD;
+  const path = layout.path.map(([u, v]) => `${u - W / 2} ${v - D / 2}`).join('L');
+  const label = upperView ? 'DN' : 'UP';
+  // Labels stay upright: place them at the bottom (UP) or top (DN) of the run, in plan space.
+  const [lu, lv] = upperView ? layout.path[layout.path.length - 1] : layout.path[0];
+  const [lx, lz] = toWorld(i, lu, lv);
+  return (
+    <>
+      <g
+        transform={`translate(${i.x + i.w / 2} ${i.z + i.d / 2}) rotate(${i.rotation})`}
+        opacity={upperView ? 0.6 : 1}
+      >
+        {upperView && <rect x={-W / 2} y={-D / 2} width={W} height={D} fill="#f7f4ec" />}
+        {layout.treads.map((t) => {
+          if (t.rect) {
+            const r = t.rect;
+            return (
+              <rect
+                key={t.k}
+                x={r.x0 - W / 2}
+                y={r.z0 - D / 2}
+                width={r.x1 - r.x0}
+                height={r.z1 - r.z0}
+                fill={i.color}
+                stroke="#857a67"
+                strokeWidth=".025"
+              />
+            );
+          }
+          const w = t.wedge!;
+          const pt = (a: number, rad: number) =>
+            `${w.cu - W / 2 + rad * Math.sin(a)} ${w.cv - D / 2 + rad * Math.cos(a)}`;
+          return (
+            <path
+              key={t.k}
+              d={`M${pt(w.a0, w.r0)}L${pt(w.a0, w.r1)}A${w.r1} ${w.r1} 0 0 0 ${pt(w.a1, w.r1)}L${pt(w.a1, w.r0)}Z`}
+              fill={i.color}
+              stroke="#857a67"
+              strokeWidth=".025"
+            />
+          );
+        })}
+        {layout.pole && (
+          <circle
+            cx={layout.pole.u - W / 2}
+            cy={layout.pole.v - D / 2}
+            r={layout.pole.r + 0.03}
+            fill="#6b5a45"
+          />
+        )}
+        {layout.dividers.map((d, n) => (
+          <path
+            key={n}
+            d={`M${d.a[0] - W / 2} ${d.a[1] - D / 2}L${d.b[0] - W / 2} ${d.b[1] - D / 2}`}
+            stroke="#6f6656"
+            strokeWidth=".08"
+          />
+        ))}
+        {upperView &&
+          layout.rails.map((r, n) => (
+            <path
+              key={n}
+              d={`M${r.a[0] - W / 2} ${r.a[1] - D / 2}L${r.b[0] - W / 2} ${r.b[1] - D / 2}`}
+              stroke="#6b5a45"
+              strokeWidth=".06"
+            />
+          ))}
+        {upperView && <rect x={-W / 2} y={-D / 2} width={W} height={D} fill="url(#hatch)" />}
+        <path
+          d={`M${path}`}
+          fill="none"
+          stroke="#5a4d3c"
+          strokeWidth=".045"
+          markerEnd="url(#arrow)"
+          strokeDasharray={upperView ? '.12 .08' : undefined}
+        />
+        {!upperView && (
+          <circle
+            cx={layout.path[0][0] - W / 2}
+            cy={layout.path[0][1] - D / 2}
+            r=".07"
+            fill="#5a4d3c"
+          />
+        )}
+      </g>
+      <g pointerEvents="none">
+        <rect
+          x={lx - 0.28}
+          y={lz - 0.17}
+          width=".56"
+          height=".34"
+          rx=".08"
+          fill={upperView ? '#6f7d75' : '#cf874e'}
+        />
+        <text x={lx} y={lz + 0.09} textAnchor="middle" fontSize=".24" fontWeight="700" fill="#fff">
+          {label}
+        </text>
+      </g>
+    </>
   );
 }

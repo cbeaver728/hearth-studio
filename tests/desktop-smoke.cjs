@@ -15,7 +15,7 @@ const assert = require('node:assert/strict');
     const page = await app.firstWindow();
     const errors = [];
     page.on('pageerror', (e) => errors.push(e.message));
-    await page.getByRole('heading', { name: 'Your home, taking shape.' }).waitFor();
+    await page.getByRole('button', { name: "Let's make room" }).click();
     await page.locator('canvas').waitFor();
     assert.equal(await page.evaluate(() => typeof window.hearth.save), 'function');
     const projectFile = path.join(temporary, 'native-save.hearth');

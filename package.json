@@ -1,6 +1,6 @@
 {
   "name": "hearth-studio",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
   "description": "A playful, local-first home design studio with 2D plans and 3D walkthroughs.",
   "author": "cbeaver728",
@@ -15,7 +15,9 @@
     "test": "vitest run",
     "test:e2e": "playwright test",
     "format": "prettier --write src tests electron *.ts *.json *.html *.md",
-    "test:desktop": "npm run build && node tests/desktop-smoke.cjs"
+    "test:desktop": "npm run build && node tests/desktop-smoke.cjs",
+    "build:single": "npm run build && node scripts/single-file.mjs",
+    "test:e2e:edge": "playwright test -c playwright.edge.config.ts"
   },
   "dependencies": {
     "lucide-react": "^0.577.0",

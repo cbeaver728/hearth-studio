@@ -1,62 +1,85 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   ArrowDownToLine,
   ArrowUpFromLine,
+  Armchair,
+  Bath,
+  BedDouble,
+  Car,
   Check,
   ChevronDown,
   ChevronRight,
+  Columns3,
   Copy,
+  DoorClosed,
   DoorOpen,
   Download,
+  Fence,
+  Flame,
+  Flower2,
+  FolderOpen,
   Footprints,
   Grid2X2,
   Hand,
   HelpCircle,
   Home,
   Layers,
-  LayoutDashboard,
   Maximize2,
   MousePointer2,
+  PanelLeftClose,
+  Pencil,
   Plus,
   Redo2,
+  Refrigerator,
   RotateCw,
   Ruler,
   Save,
-  Settings2,
+  ShowerHead,
+  Sofa,
   Sparkles,
+  Sprout,
   Square,
-  Trash2,
-  Undo2,
-  X,
-  Armchair,
-  TreePine,
-  PanelLeftClose,
-  FolderOpen,
-  BedDouble,
-  Car,
-  Waves,
-  Fence,
-  Flower2,
   Table2,
-  Columns3,
-  DoorClosed,
+  Trash2,
+  TreePine,
+  Tv,
+  Undo2,
+  Warehouse,
+  Waves,
+  X,
+  Lamp,
+  Toilet,
+  CookingPot,
+  RectangleHorizontal,
+  Shirt,
 } from 'lucide-react';
 import Plan, { type Tool } from './Plan';
 import Scene, { type SceneMode } from './Scene';
+import { addLevel, defaultFloorName, nextLevel } from './floors';
 import {
   area,
   blankProject,
   catalog,
+  catalogEntry,
+  deleteFloor,
+  floorName,
   formatLength,
+  hasFloor,
   isOutside,
   isRoom,
+  onLevel,
   removeItem,
+  rotateItem,
   sampleProject,
+  stairEntry,
+  stairLevels,
+  stairNames,
   uid,
   validateProject,
   type Item,
   type Kind,
   type Project,
+  type StairStyle,
 } from './model';
 declare global {
   interface Window {
@@ -70,12 +93,25 @@ const STORAGE = 'hearth-studio-projects-v1';
 const ACTIVE = 'hearth-studio-active';
 const icons: Record<Kind, typeof Home> = {
   room: Square,
-  garage: Car,
+  garage: Warehouse,
   stairs: Layers,
-  sofa: Armchair,
+  sofa: Sofa,
+  armchair: Armchair,
+  rug: RectangleHorizontal,
+  media: Tv,
+  fireplace: Flame,
+  plant: Sprout,
   bed: BedDouble,
+  wardrobe: Shirt,
+  desk: Lamp,
   table: Table2,
   counter: Columns3,
+  kitchen: CookingPot,
+  fridge: Refrigerator,
+  bathtub: Bath,
+  shower: ShowerHead,
+  toilet: Toilet,
+  vanity: Waves,
   deck: Grid2X2,
   driveway: Car,
   grass: Flower2,
@@ -95,13 +131,14 @@ function initial() {
           list,
           project: list.find((p) => p.id === localStorage.getItem(ACTIVE)) || list[0],
           error: false,
+          fresh: false,
         };
     }
   } catch {
-    return { list: [], project: sampleProject(), error: true };
+    return { list: [], project: sampleProject(), error: true, fresh: false };
   }
   const project = sampleProject();
-  return { list: [project], project, error: false };
+  return { list: [project], project, error: false, fresh: true };
 }
 function download(name: string, data: string, type = 'application/json') {
   const url = URL.createObjectURL(new Blob([data], { type }));
@@ -150,6 +187,100 @@ function Numeric({
     </label>
   );
 }
+/** Little top-down pictures of each stair style. */
+export function StairIcon({ style, size = 34 }: { style: StairStyle; size?: number }) {
+  const s = {
+    fill: 'none',
+    stroke: 'currentColor',
+    strokeWidth: 1.6,
+    strokeLinecap: 'round' as const,
+  };
+  return (
+    <svg width={size} height={size} viewBox="0 0 34 34" aria-hidden="true">
+      {style === 'straight' && (
+        <>
+          <rect x="11" y="3" width="12" height="28" rx="1.5" {...s} />
+          {[8, 12, 16, 20, 24].map((y) => (
+            <path key={y} d={`M11 ${y}h12`} {...s} strokeWidth={1} />
+          ))}
+          <path d="M17 28V6m-3 3 3-3 3 3" {...s} />
+        </>
+      )}
+      {style === 'l' && (
+        <>
+          <path d="M4 31V4h27v10H14v17z" {...s} />
+          {[18, 22, 26].map((y) => (
+            <path key={y} d={`M4 ${y}h10`} {...s} strokeWidth={1} />
+          ))}
+          {[18, 22, 26].map((x) => (
+            <path key={x} d={`M${x} 4v10`} {...s} strokeWidth={1} />
+          ))}
+          <path d="M9 29V9h19m-3-3 3 3-3 3" {...s} />
+        </>
+      )}
+      {style === 'u' && (
+        <>
+          <rect x="4" y="3" width="26" height="28" rx="1.5" {...s} />
+          <path d="M17 13v18" {...s} />
+          {[17, 21, 25].map((y) => (
+            <path key={y} d={`M4 ${y}h26`} {...s} strokeWidth={1} />
+          ))}
+          <path d="M10 29V8h14v21m-3-3 3 3 3-3" {...s} />
+        </>
+      )}
+      {style === 'spiral' && (
+        <>
+          <circle cx="17" cy="17" r="14" {...s} />
+          <circle cx="17" cy="17" r="2" {...s} />
+          {[0, 45, 90, 135, 180, 225].map((a) => (
+            <path
+              key={a}
+              d={`M17 17L${17 + 14 * Math.sin((a * Math.PI) / 180)} ${17 + 14 * Math.cos((a * Math.PI) / 180)}`}
+              {...s}
+              strokeWidth={1}
+            />
+          ))}
+          <path d="M3 17h7" {...s} />
+        </>
+      )}
+    </svg>
+  );
+}
+/** A small plan drawing of a project's ground floor, for the project list. */
+function Thumbnail({ p }: { p: Project }) {
+  const rooms = p.items.filter((i) => isRoom(i) && i.floor === 0);
+  if (!rooms.length) return <Home size={42} strokeWidth={1} />;
+  const minX = Math.min(...rooms.map((i) => i.x)),
+    maxX = Math.max(...rooms.map((i) => i.x + i.w)),
+    minZ = Math.min(...rooms.map((i) => i.z)),
+    maxZ = Math.max(...rooms.map((i) => i.z + i.d));
+  const pad = 1;
+  return (
+    <svg
+      viewBox={`${minX - pad} ${minZ - pad} ${maxX - minX + pad * 2} ${maxZ - minZ + pad * 2}`}
+      className="thumb-svg"
+    >
+      {rooms.map((r) => (
+        <rect
+          key={r.id}
+          x={r.x}
+          y={r.z}
+          width={r.w}
+          height={r.d}
+          fill={r.color}
+          stroke="#56645d"
+          strokeWidth=".14"
+        />
+      ))}
+    </svg>
+  );
+}
+const TILE_GROUPS: Record<'Build' | 'Furnish' | 'Landscape', string> = {
+  Build: 'Build',
+  Furnish: 'Furnish',
+  Landscape: 'Outside',
+};
+
 export default function App() {
   const [start] = useState(initial);
   const [project, setProject] = useState(start.project);
@@ -163,18 +294,23 @@ export default function App() {
   const [mode, setMode] = useState<'split' | 'plan' | '3d'>('split');
   const [sceneMode, setSceneMode] = useState<SceneMode>('dollhouse');
   const [snapping, setSnapping] = useState(true);
-  const [modal, setModal] = useState<'projects' | 'help' | 'floor' | null>(null);
+  const [modal, setModal] = useState<'projects' | 'help' | 'floor' | null>(
+    start.fresh ? 'help' : null,
+  );
   const [notice, setNotice] = useState('');
   const [history, setHistory] = useState<{ past: Project[]; future: Project[] }>({
     past: [],
     future: [],
   });
   const [rename, setRename] = useState(false);
-  const [floorName, setFloorName] = useState('');
+  const [renamingFloor, setRenamingFloor] = useState<number | null>(null);
+  const [floorName_, setFloorName] = useState('');
   const [floorType, setFloorType] = useState<'upper' | 'basement'>('upper');
   const [copyFloor, setCopyFloor] = useState(false);
+  const [floorStairs, setFloorStairs] = useState<StairStyle | null>('straight');
   const input = useRef<HTMLInputElement>(null);
   const notify = useCallback((s: string) => setNotice(s), []);
+  const walking = sceneMode === 'walk';
   useEffect(() => {
     if (!modal) return;
     const previous = document.activeElement as HTMLElement | null;
@@ -221,7 +357,7 @@ export default function App() {
   }, [project, library, storageBlocked]);
   const commit = useCallback(
     (p: Project) => {
-      setHistory((h) => ({ past: [...h.past, project].slice(-70), future: [] }));
+      setHistory((h) => ({ past: [...h.past, project].slice(-100), future: [] }));
       setProject({ ...p, updated: new Date().toISOString() });
       setSaved(false);
     },
@@ -241,10 +377,11 @@ export default function App() {
     setHistory({ past: [...history.past, project], future: history.future.slice(1) });
     setProject(next);
     setSelected((id) => (next.items.some((i) => i.id === id) ? id : null));
-  }, [history, project]);
+    if (!next.floors.some((f) => f.level === floor)) setFloor(0);
+  }, [history, project, floor]);
   useEffect(() => {
     if (!notice) return;
-    const t = setTimeout(() => setNotice(''), 4500);
+    const t = setTimeout(() => setNotice(''), 5000);
     return () => clearTimeout(t);
   }, [notice]);
   useEffect(() => {
@@ -263,6 +400,7 @@ export default function App() {
       }
     }, 450);
     return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [project, storageBlocked]);
   const selectedItem = project.items.find((i) => i.id === selected);
   const patchItem = (patch: Partial<Item>) =>
@@ -292,7 +430,31 @@ export default function App() {
     setHistory({ past: [], future: [] });
     setModal(null);
     setSceneMode('dollhouse');
+    setMode((m) => (m === '3d' ? 'split' : m));
     setTool('select');
+  };
+  const deleteProject = (p: Project) => {
+    if (
+      !window.confirm(
+        `Delete “${p.name}” from this device? Export it first if you might want it later.`,
+      )
+    )
+      return;
+    const rest = library.filter((i) => i.id !== p.id);
+    if (p.id === project.id) {
+      const next = rest[0] || blankProject();
+      setLibrary(rest.length ? rest : [next]);
+      setProject(next);
+      setFloor(0);
+      setSelected(null);
+      setHistory({ past: [], future: [] });
+    } else setLibrary(rest);
+    try {
+      localStorage.setItem(STORAGE, JSON.stringify(rest.length ? rest : []));
+    } catch {
+      /* Autosave reports storage problems. */
+    }
+    notify(`“${p.name}” deleted.`);
   };
   const importText = (text: string) => {
     try {
@@ -339,103 +501,596 @@ export default function App() {
     });
     setSelected(id);
   };
-  useEffect(() => {
-    const key = (e: KeyboardEvent) => {
-      if ((e.target as HTMLElement).matches('input,textarea,select')) return;
-      if (e.key === 'Escape') {
-        setModal(null);
-        setTool('select');
-        if (sceneMode === 'walk') setMode('split');
-        setSceneMode('dollhouse');
-        return;
-      }
-      if (modal) return;
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
-        e.preventDefault();
-        save();
-        return;
-      }
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
-        e.preventDefault();
-        e.shiftKey ? redo() : undo();
-        return;
-      }
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') {
-        e.preventDefault();
-        redo();
-        return;
-      }
-      if (sceneMode === 'walk') return;
-      if (e.key === 'Delete' || e.key === 'Backspace') {
-        if (selected) {
-          e.preventDefault();
-          commit(removeItem(project, selected));
-          setSelected(null);
-        }
-      }
-      if (e.key.toLowerCase() === 'v') setTool('select');
-      if (e.key.toLowerCase() === 'r') setTool('room');
-      if (e.key.toLowerCase() === 'h') setTool('pan');
-    };
-    window.addEventListener('keydown', key);
-    return () => window.removeEventListener('keydown', key);
-  }, [project, selected, save, undo, redo, commit, sceneMode, modal]);
-  const addFloor = () => {
-    const level =
-      floorType === 'upper'
-        ? Math.max(0, ...project.floors.map((f) => f.level)) + 1
-        : Math.min(0, ...project.floors.map((f) => f.level)) - 1;
-    if (level > 8 || level < -3) {
-      notify('This studio supports 8 upper floors and 3 basement levels.');
+  const rotate = () => {
+    if (!selected) return;
+    commit(rotateItem(project, selected));
+  };
+  const remove = () => {
+    if (!selected) return;
+    commit(removeItem(project, selected));
+    setSelected(null);
+  };
+  const changeFloor = (level: number) => {
+    setFloor(level);
+    setSelected((id) => {
+      const i = project.items.find((a) => a.id === id);
+      return i && onLevel(i, level) ? id : null;
+    });
+  };
+  const newLevel = (type: 'upper' | 'basement', opts: { stairId?: string; name?: string } = {}) => {
+    const result = addLevel(project, {
+      type,
+      name: opts.name ?? floorName_,
+      copyFrom: copyFloor && !opts.stairId ? floor : undefined,
+      stairs: opts.stairId ? null : floorStairs,
+      stairId: opts.stairId,
+    });
+    if (!result) {
+      notify('Hearth Studio supports 8 upper floors and 3 basement levels.');
       return;
     }
-    const copies = copyFloor
-      ? project.items
-          .filter((i) => i.floor === floor && !isOutside(i))
-          .map((i) => ({ ...i, id: uid(), floor: level }))
-      : [];
-    const original = project.items.filter((i) => i.floor === floor && !isOutside(i));
-    const openings = copyFloor
-      ? project.openings
-          .filter((o) => original.some((i) => i.id === o.roomId))
-          .map((o) => ({
-            ...o,
-            id: uid(),
-            roomId: copies[original.findIndex((i) => i.id === o.roomId)].id,
-          }))
-      : [];
-    commit({
-      ...project,
-      floors: [
-        ...project.floors,
-        {
-          level,
-          name:
-            floorName.trim() || (level < 0 ? `Basement ${Math.abs(level)}` : `Floor ${level + 1}`),
-        },
-      ].sort((a, b) => a.level - b.level),
-      items: [...project.items, ...copies],
-      openings: [...project.openings, ...openings],
-    });
-    setFloor(level);
+    commit(result.project);
+    setFloor(result.level);
     setSelected(null);
     setModal(null);
-    setSceneMode('dollhouse');
-    notify('New floor ready. Draw rooms or use the floor below as a guide.');
+    setSceneMode((m) => (m === 'walk' ? 'dollhouse' : m));
+    notify(
+      opts.stairId || floorStairs
+        ? `${floorName(result.project, result.level)} is ready, joined by stairs. Draw rooms around the landing.`
+        : `${floorName(result.project, result.level)} is ready. The floor below shows as a dashed guide.`,
+    );
+  };
+  const removeFloor = (level: number) => {
+    const name = floorName(project, level);
+    const count = project.items.filter((i) => i.floor === level).length;
+    if (
+      count &&
+      !window.confirm(`Delete ${name} and the ${count} things on it? You can undo this.`)
+    )
+      return;
+    commit(deleteFloor(project, level));
+    setFloor(0);
+    setSelected(null);
+    notify(`${name} removed. Press Ctrl+Z to bring it back.`);
   };
   const selectTool = (t: Tool) => {
     setTool(t);
     if (mode === '3d') setMode('split');
     if (sceneMode === 'walk') setSceneMode('dollhouse');
+    const e = catalogEntry(t);
+    if (e && isOutside({ kind: e.kind } as Item) && floor !== 0) {
+      setFloor(0);
+      notify('Switched to the ground floor for landscaping.');
+    }
   };
   const changeSceneMode = (m: SceneMode) => {
     setSceneMode(m);
-    if (m === 'walk') setMode('3d');
-    else if (sceneMode === 'walk') setMode('split');
+    if (m === 'walk') {
+      setTool('select');
+      setMode('3d');
+    } else if (sceneMode === 'walk') setMode('split');
   };
+  useEffect(() => {
+    const key = (e: KeyboardEvent) => {
+      if ((e.target as HTMLElement).matches('input,textarea,select')) return;
+      if (e.key === 'Escape') {
+        if (modal) setModal(null);
+        else if (sceneMode === 'walk') changeSceneMode('dollhouse');
+        else if (tool !== 'select') setTool('select');
+        else setSelected(null);
+        return;
+      }
+      if (modal) return;
+      const ctrl = e.ctrlKey || e.metaKey,
+        k = e.key.toLowerCase();
+      if (ctrl && k === 's') {
+        e.preventDefault();
+        save();
+        return;
+      }
+      if (ctrl && k === 'z') {
+        e.preventDefault();
+        if (e.shiftKey) redo();
+        else undo();
+        return;
+      }
+      if (ctrl && k === 'y') {
+        e.preventDefault();
+        redo();
+        return;
+      }
+      if (sceneMode === 'walk') return;
+      if (ctrl && k === 'd') {
+        e.preventDefault();
+        duplicate();
+        return;
+      }
+      if (ctrl || e.altKey) return;
+      if ((e.key === 'Delete' || e.key === 'Backspace') && selected) {
+        e.preventDefault();
+        remove();
+      }
+      if (e.key === '?') setModal('help');
+      if (e.key === 'PageUp' || e.key === 'PageDown') {
+        const levels = project.floors.map((f) => f.level).sort((a, b) => a - b);
+        const at = levels.indexOf(floor) + (e.key === 'PageUp' ? 1 : -1);
+        if (levels[at] !== undefined) changeFloor(levels[at]);
+      }
+      if (k === 'v') setTool('select');
+      if (k === 'r') selectTool('room');
+      if (k === 'h') setTool('pan');
+      if (k === 'e' && selected) rotate();
+    };
+    window.addEventListener('keydown', key);
+    return () => window.removeEventListener('keydown', key);
+  });
   const factor = project.units === 'ft' ? 3.28084 : 1;
+  const u = project.units;
+  const catalogTiles = (entries: typeof catalog) => (
+    <div className="tile-grid">
+      {entries.map((c) => {
+        const Icon = icons[c.kind];
+        return (
+          <button
+            key={c.id}
+            className={`tile ${tool === c.id ? 'chosen' : ''}`}
+            onClick={() => selectTool(tool === c.id ? 'select' : c.id)}
+            title={c.hint}
+          >
+            <span className={`tile-icon ${c.kind}`}>
+              {c.style ? <StairIcon style={c.style} /> : <Icon size={22} strokeWidth={1.5} />}
+            </span>
+            <strong>{c.name}</strong>
+          </button>
+        );
+      })}
+    </div>
+  );
+  const sections = (group: 'Build' | 'Furnish' | 'Landscape') => {
+    const entries = catalog.filter((c) => c.group === group);
+    const names = [...new Set(entries.map((c) => c.section || ''))];
+    return names.map((name) => (
+      <div key={name || group} className="catalog-block">
+        {name && <div className="section-heading">{name.toUpperCase()}</div>}
+        {catalogTiles(entries.filter((c) => (c.section || '') === name))}
+      </div>
+    ));
+  };
+  const stairInfo = (s: Item) => {
+    const { lower, upper } = stairLevels(s);
+    const here = floor === lower || floor === upper ? floor : s.floor;
+    const other = here === lower ? upper : lower;
+    return { lower, upper, here, other, ok: hasFloor(project, lower) && hasFloor(project, upper) };
+  };
+  let inspector: ReactNode;
+  if (selectedItem) {
+    const s = selectedItem;
+    const st = s.kind === 'stairs' ? stairInfo(s) : null;
+    inspector = (
+      <div className="inspector-body">
+        <span className="eyebrow">
+          {s.kind === 'room'
+            ? 'ROOM'
+            : s.kind === 'stairs'
+              ? 'STAIRS'
+              : (catalogEntry(s.kind)?.name || s.kind).toUpperCase()}
+        </span>
+        <label className="field">
+          Name
+          <input
+            key={s.id + s.name}
+            aria-label="Shape name"
+            defaultValue={s.name}
+            maxLength={70}
+            onBlur={(e) => {
+              if (e.target.value.trim() && e.target.value !== s.name)
+                patchItem({ name: e.target.value.trim() });
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') e.currentTarget.blur();
+            }}
+          />
+        </label>
+        {st && (
+          <>
+            <div className="field-label">Stair type</div>
+            <div className="stair-styles">
+              {(['straight', 'l', 'u', 'spiral'] as StairStyle[]).map((style) => (
+                <button
+                  key={style}
+                  className={s.style === style ? 'selected' : ''}
+                  aria-pressed={s.style === style}
+                  title={stairNames[style]}
+                  onClick={() => {
+                    if (s.style === style) return;
+                    const e = stairEntry(style);
+                    const turned = s.rotation % 180 !== 0;
+                    const w = turned ? e.d : e.w,
+                      d = turned ? e.w : e.d;
+                    patchItem({
+                      style,
+                      w,
+                      d,
+                      x: Math.round((s.x + s.w / 2 - w / 2) * 4) / 4,
+                      z: Math.round((s.z + s.d / 2 - d / 2) * 4) / 4,
+                      name: Object.values(stairNames).includes(s.name) ? stairNames[style] : s.name,
+                    });
+                  }}
+                >
+                  <StairIcon style={style} size={30} />
+                  <span>{e_name(style)}</span>
+                </button>
+              ))}
+            </div>
+            <div className="field-label">Direction from {floorName(project, s.floor)}</div>
+            <div className="segmented wide">
+              {(['up', 'down'] as const).map((dir) => (
+                <button
+                  key={dir}
+                  className={s.dir === dir ? 'active' : ''}
+                  onClick={() => s.dir !== dir && patchItem({ dir })}
+                >
+                  {dir === 'up' ? <ArrowUpFromLine size={14} /> : <ArrowDownToLine size={14} />}
+                  {dir === 'up' ? 'Goes up' : 'Goes down'}
+                </button>
+              ))}
+            </div>
+            {st.ok ? (
+              <div className="connects">
+                <Layers size={16} />
+                <span>
+                  Joins <strong>{floorName(project, st.lower)}</strong> ↑{' '}
+                  <strong>{floorName(project, st.upper)}</strong>. Walk onto them in the walkthrough
+                  to change floors.
+                </span>
+              </div>
+            ) : (
+              <div className="connects warn">
+                <Layers size={16} />
+                <span>
+                  There's no floor {s.dir === 'down' ? 'below' : 'above'} yet.
+                  <button
+                    className="text-button"
+                    onClick={() =>
+                      newLevel(s.dir === 'down' ? 'basement' : 'upper', { stairId: s.id, name: '' })
+                    }
+                  >
+                    <Plus size={13} />
+                    Add {s.dir === 'down' ? 'a basement' : 'a floor above'} here
+                  </button>
+                </span>
+              </div>
+            )}
+            <button className="outline-button full" onClick={rotate}>
+              <RotateCw size={15} />
+              Turn 90° <kbd>E</kbd>
+            </button>
+            <p className="hint-text">
+              The arrow on the plan points uphill. UP marks the bottom step; DN marks the top.
+            </p>
+          </>
+        )}
+        <div className="two-fields">
+          <Numeric
+            label={`Width (${u})`}
+            value={s.w * factor}
+            min={0.25 * factor}
+            max={100 * factor}
+            onChange={(n) => patchItem({ w: n / factor })}
+          />
+          <Numeric
+            label={`Depth (${u})`}
+            value={s.d * factor}
+            min={0.25 * factor}
+            max={100 * factor}
+            onChange={(n) => patchItem({ d: n / factor })}
+          />
+        </div>
+        {isRoom(s) && (
+          <div className="area-card">
+            <Ruler size={17} />
+            <strong>{Math.round(s.w * s.d * (u === 'ft' ? 10.7639 : 1))}</strong>
+            <span>{u === 'ft' ? 'square feet' : 'square meters'}</span>
+          </div>
+        )}
+        <label className="field">
+          {isRoom(s) ? 'Floor finish' : 'Color'}
+          <div className="swatches">
+            {(isRoom(s)
+              ? ['#e6ddca', '#d9c3a0', '#b89572', '#8d6e52', '#e2dfea', '#dbe8e4', '#d5d9d7']
+              : ['#e6ddca', '#c9a87c', '#88a79b', '#b3b9cb', '#6d625a', '#d5d9d7', '#f3f3ef']
+            ).map((c) => (
+              <button
+                key={c}
+                aria-label={`Set shape color ${c}`}
+                style={{ background: c }}
+                className={s.color === c ? 'selected' : ''}
+                onClick={() => patchItem({ color: c })}
+              />
+            ))}
+            <input
+              aria-label="Custom shape color"
+              type="color"
+              value={s.color}
+              onChange={(e) => patchItem({ color: e.target.value })}
+            />
+          </div>
+        </label>
+        <div className="shape-actions">
+          {s.kind !== 'stairs' && (
+            <button
+              className="outline-button"
+              aria-label="Rotate shape 90 degrees"
+              title="Rotate 90° (E)"
+              onClick={rotate}
+            >
+              <RotateCw size={14} />
+              Rotate
+            </button>
+          )}
+          <button className="outline-button" onClick={duplicate} title="Duplicate (Ctrl+D)">
+            <Copy size={14} />
+            Duplicate
+          </button>
+          <button
+            className="icon-button danger"
+            aria-label="Delete selected shape"
+            title="Delete (Del)"
+            onClick={remove}
+          >
+            <Trash2 size={16} />
+          </button>
+        </div>
+        {isRoom(s) && (
+          <>
+            <div className="section-heading opening-heading">WINDOWS & DOORS</div>
+            {project.openings
+              .filter((o) => o.roomId === selected)
+              .map((o) => (
+                <div className="opening-row" key={o.id}>
+                  <div>
+                    {o.kind === 'window' ? <Columns3 size={15} /> : <DoorClosed size={15} />}
+                    <strong>{o.kind}</strong>
+                    <button
+                      aria-label={`Delete ${o.kind}`}
+                      onClick={() =>
+                        commit({
+                          ...project,
+                          openings: project.openings.filter((a) => a.id !== o.id),
+                        })
+                      }
+                    >
+                      <X size={13} />
+                    </button>
+                  </div>
+                  <label>
+                    Wall
+                    <select
+                      aria-label={`${o.kind} wall`}
+                      value={o.side}
+                      onChange={(e) =>
+                        commit({
+                          ...project,
+                          openings: project.openings.map((a) =>
+                            a.id === o.id ? { ...a, side: e.target.value as typeof o.side } : a,
+                          ),
+                        })
+                      }
+                    >
+                      {['north', 'south', 'east', 'west'].map((side) => (
+                        <option key={side}>{side}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    Position
+                    <input
+                      aria-label={`${o.kind} position`}
+                      type="range"
+                      min=".1"
+                      max=".9"
+                      step=".05"
+                      value={o.offset}
+                      onChange={(e) =>
+                        commit({
+                          ...project,
+                          openings: project.openings.map((a) =>
+                            a.id === o.id ? { ...a, offset: Number(e.target.value) } : a,
+                          ),
+                        })
+                      }
+                    />
+                  </label>
+                  <Numeric
+                    label={`Opening width (${u})`}
+                    value={o.width * factor}
+                    min={0.3 * factor}
+                    max={10 * factor}
+                    onChange={(n) =>
+                      commit({
+                        ...project,
+                        openings: project.openings.map((a) =>
+                          a.id === o.id ? { ...a, width: n / factor } : a,
+                        ),
+                      })
+                    }
+                  />
+                </div>
+              ))}
+            <div className="opening-add">
+              <button className="text-button" onClick={() => selectTool('door')}>
+                <DoorOpen size={14} />
+                Add door
+              </button>
+              <button className="text-button" onClick={() => selectTool('window')}>
+                <Columns3 size={14} />
+                Add window
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    );
+  } else
+    inspector = (
+      <div className="inspector-body">
+        <div className="floor-summary">
+          <span className="section-heading">FLOORS</span>
+          {[...project.floors].reverse().map((f) => (
+            <div key={f.level} className={`level-row ${floor === f.level ? 'active' : ''}`}>
+              {renamingFloor === f.level ? (
+                <input
+                  autoFocus
+                  aria-label="Floor name"
+                  defaultValue={f.name}
+                  maxLength={60}
+                  onBlur={(e) => {
+                    const name = e.target.value.trim();
+                    if (name && name !== f.name)
+                      commit({
+                        ...project,
+                        floors: project.floors.map((a) =>
+                          a.level === f.level ? { ...a, name } : a,
+                        ),
+                      });
+                    setRenamingFloor(null);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') e.currentTarget.blur();
+                    if (e.key === 'Escape') setRenamingFloor(null);
+                  }}
+                />
+              ) : (
+                <button className="level-pick" onClick={() => changeFloor(f.level)}>
+                  <Layers size={14} />
+                  <span>{f.name}</span>
+                  <small>
+                    {Math.round(area(project, f.level)).toLocaleString()}{' '}
+                    {u === 'ft' ? 'ft²' : 'm²'}
+                  </small>
+                </button>
+              )}
+              <button
+                className="icon-button small"
+                aria-label={`Rename ${f.name}`}
+                title="Rename"
+                onClick={() => setRenamingFloor(f.level)}
+              >
+                <Pencil size={13} />
+              </button>
+              {f.level !== 0 && (
+                <button
+                  className="icon-button small danger"
+                  aria-label={`Delete ${f.name}`}
+                  title="Delete floor"
+                  onClick={() => removeFloor(f.level)}
+                >
+                  <Trash2 size={13} />
+                </button>
+              )}
+            </div>
+          ))}
+          <button
+            className="text-button"
+            onClick={() => {
+              setFloorName('');
+              setCopyFloor(false);
+              setModal('floor');
+            }}
+          >
+            <Plus size={13} />
+            Add a floor or basement
+          </button>
+        </div>
+        <span className="section-heading">FINISHES</span>
+        <label className="field">
+          Exterior walls
+          <div className="swatches">
+            {['#f0e9dc', '#dad4c7', '#a5b0a0', '#b38368', '#586b66', '#3f4446'].map((c) => (
+              <button
+                key={c}
+                aria-label={`Exterior ${c}`}
+                style={{ background: c }}
+                className={project.exterior === c ? 'selected' : ''}
+                onClick={() => commit({ ...project, exterior: c })}
+              />
+            ))}
+            <input
+              type="color"
+              aria-label="Custom exterior color"
+              value={project.exterior}
+              onChange={(e) => commit({ ...project, exterior: e.target.value })}
+            />
+          </div>
+        </label>
+        <label className="field">
+          Interior walls
+          <div className="swatches">
+            {['#f4efe6', '#ffffff', '#e8e2d6', '#dfe6e1', '#e9dcd2', '#d8dde6'].map((c) => (
+              <button
+                key={c}
+                aria-label={`Interior ${c}`}
+                style={{ background: c }}
+                className={(project.interior || '#f4efe6') === c ? 'selected' : ''}
+                onClick={() => commit({ ...project, interior: c })}
+              />
+            ))}
+            <input
+              type="color"
+              aria-label="Custom interior color"
+              value={project.interior || '#f4efe6'}
+              onChange={(e) => commit({ ...project, interior: e.target.value })}
+            />
+          </div>
+        </label>
+        <label className="field">
+          Roof style
+          <select
+            value={project.roofStyle}
+            onChange={(e) => commit({ ...project, roofStyle: e.target.value as 'gable' | 'flat' })}
+          >
+            <option value="gable">Classic gable</option>
+            <option value="flat">Modern flat</option>
+          </select>
+        </label>
+        <label className="field">
+          Roof finish
+          <div className="swatches">
+            {['#586662', '#716456', '#b17759', '#b3ada0', '#2f3335'].map((c) => (
+              <button
+                key={c}
+                aria-label={`Roof ${c}`}
+                style={{ background: c }}
+                className={project.roof === c ? 'selected' : ''}
+                onClick={() => commit({ ...project, roof: c })}
+              />
+            ))}
+            <input
+              aria-label="Custom roof color"
+              type="color"
+              value={project.roof}
+              onChange={(e) => commit({ ...project, roof: e.target.value })}
+            />
+          </div>
+        </label>
+        <button
+          className="outline-button full"
+          onClick={() => {
+            setMode((m) => (m === 'plan' ? 'split' : m));
+            setSceneMode('exterior');
+          }}
+        >
+          <Home size={15} />
+          See the exterior
+        </button>
+        <div className="inspector-tip">
+          <MousePointer2 size={18} />
+          <p>Click any room or piece on the plan to size, turn, recolor, or name it.</p>
+        </div>
+      </div>
+    );
   return (
-    <div className="app">
+    <div className={`app ${walking ? 'is-walking' : ''}`}>
       <header className="app-header">
         <button
           className="brand"
@@ -443,7 +1098,7 @@ export default function App() {
           aria-label="Hearth Studio projects"
         >
           <span className="brand-mark">
-            <Home size={23} />
+            <Home size={19} />
           </span>
           <span>
             hearth<span className="brand-studio">STUDIO</span>
@@ -456,6 +1111,7 @@ export default function App() {
               autoFocus
               maxLength={70}
               defaultValue={project.name}
+              aria-label="Project name"
               onBlur={(e) => {
                 if (e.target.value.trim()) commit({ ...project, name: e.target.value.trim() });
                 setRename(false);
@@ -467,7 +1123,7 @@ export default function App() {
           ) : (
             <button onClick={() => setRename(true)} title="Rename project">
               {project.name}
-              <ChevronDown size={14} />
+              <Pencil size={12} />
             </button>
           )}
           <span className={storageBlocked ? 'save-state warning' : 'save-state'}>
@@ -479,7 +1135,7 @@ export default function App() {
                 All changes saved on this device
               </>
             ) : (
-              'Saving your ideas…'
+              'Saving…'
             )}
           </span>
         </div>
@@ -493,113 +1149,113 @@ export default function App() {
             Export project
           </button>
           <button
-            className="primary-button"
-            onClick={() => changeSceneMode(sceneMode === 'walk' ? 'dollhouse' : 'walk')}
-          >
-            <Footprints size={16} />
-            {sceneMode === 'walk' ? 'Back to editing' : 'Walk through'}
-          </button>
-          <button
             className="icon-button"
             aria-label="Help and shortcuts"
+            title="Help (?)"
             onClick={() => setModal('help')}
           >
             <HelpCircle size={20} />
+          </button>
+          <button
+            className="primary-button walk-button"
+            onClick={() => changeSceneMode(walking ? 'dollhouse' : 'walk')}
+          >
+            <Footprints size={17} />
+            {walking ? 'Back to editing' : 'Walk through'}
           </button>
         </div>
       </header>
       <div className="workspace">
         <aside className="library-panel">
-          <div className="sidebar-intro">
-            <span className="eyebrow">YOUR NEXT CHAPTER</span>
-            <h1>
-              Make yourself
-              <br />
-              at home.
-            </h1>
-            <p>
-              A little imagination.
-              <br />A place that's entirely you.
-            </p>
-          </div>
-          <div className="library-tabs">
+          <div className="library-tabs" role="tablist">
             {(['Build', 'Furnish', 'Landscape'] as const).map((t, index) => {
               const Icon = [Home, Armchair, TreePine][index];
               return (
-                <button key={t} className={tab === t ? 'active' : ''} onClick={() => setTab(t)}>
+                <button
+                  key={t}
+                  role="tab"
+                  aria-selected={tab === t}
+                  className={tab === t ? 'active' : ''}
+                  onClick={() => setTab(t)}
+                >
                   <Icon size={17} />
-                  <span>{t === 'Landscape' ? 'Outside' : t}</span>
+                  <span>{TILE_GROUPS[t]}</span>
                 </button>
               );
             })}
           </div>
           <div className="catalog-section">
-            <div className="section-heading">
-              {tab === 'Build'
-                ? 'ROOM TO DREAM'
-                : tab === 'Furnish'
-                  ? 'THE PERSONAL TOUCH'
-                  : 'BEYOND YOUR WALLS'}
-            </div>
-            <div className="catalog">
-              {catalog
-                .filter((c) => c.group === tab)
-                .map((c) => {
-                  const Icon = icons[c.kind];
-                  return (
-                    <button
-                      key={c.kind}
-                      className={`catalog-card ${tool === c.kind ? 'chosen' : ''}`}
-                      onClick={() => selectTool(c.kind)}
-                    >
-                      <span className={`catalog-icon ${c.kind}`}>
-                        <Icon size={25} strokeWidth={1.4} />
-                      </span>
-                      <span>
-                        <strong>{c.name}</strong>
-                        <small>{c.hint}</small>
-                      </span>
-                      <Plus size={14} />
-                    </button>
-                  );
-                })}
-            </div>
             {tab === 'Build' && (
               <>
-                <div className="section-heading opening-heading">LET THE OUTSIDE IN</div>
-                <div className="opening-tools">
-                  <button
-                    className={tool === 'door' ? 'chosen' : ''}
-                    onClick={() => selectTool('door')}
-                  >
-                    <DoorOpen size={25} strokeWidth={1.4} />
-                    <strong>Door</strong>
-                    <small>Click a wall</small>
-                  </button>
-                  <button
-                    className={tool === 'window' ? 'chosen' : ''}
-                    onClick={() => selectTool('window')}
-                  >
-                    <Columns3 size={25} strokeWidth={1.4} />
-                    <strong>Window</strong>
-                    <small>Click a wall</small>
-                  </button>
+                <div className="catalog-block">
+                  <div className="section-heading">SPACES</div>
+                  <div className="tile-grid">
+                    {catalog
+                      .filter((c) => c.kind === 'room' || c.kind === 'garage')
+                      .map((c) => {
+                        const Icon = icons[c.kind];
+                        return (
+                          <button
+                            key={c.id}
+                            className={`tile ${tool === c.id ? 'chosen' : ''}`}
+                            onClick={() => selectTool(tool === c.id ? 'select' : c.id)}
+                          >
+                            <span className={`tile-icon ${c.kind}`}>
+                              <Icon size={22} strokeWidth={1.5} />
+                            </span>
+                            <strong>{c.name}</strong>
+                            <small>Drag to draw</small>
+                          </button>
+                        );
+                      })}
+                    <button
+                      className={`tile ${tool === 'door' ? 'chosen' : ''}`}
+                      onClick={() => selectTool(tool === 'door' ? 'select' : 'door')}
+                    >
+                      <span className="tile-icon">
+                        <DoorOpen size={22} strokeWidth={1.5} />
+                      </span>
+                      <strong>Door</strong>
+                      <small>Click a wall</small>
+                    </button>
+                    <button
+                      className={`tile ${tool === 'window' ? 'chosen' : ''}`}
+                      onClick={() => selectTool(tool === 'window' ? 'select' : 'window')}
+                    >
+                      <span className="tile-icon">
+                        <Columns3 size={22} strokeWidth={1.5} />
+                      </span>
+                      <strong>Window</strong>
+                      <small>Click a wall</small>
+                    </button>
+                  </div>
                 </div>
+                <div className="catalog-block">
+                  <div className="section-heading">STAIRS</div>
+                  {catalogTiles(catalog.filter((c) => c.kind === 'stairs'))}
+                  <p className="hint-text">
+                    Click the plan to place. Stairs go up when there's a floor above, otherwise down
+                    — change it on the right.
+                  </p>
+                </div>
+              </>
+            )}
+            {tab === 'Furnish' && sections('Furnish')}
+            {tab === 'Landscape' && (
+              <>
+                {sections('Landscape')}
+                {floor !== 0 && <p className="hint-text">Landscaping lives on the ground floor.</p>}
               </>
             )}
           </div>
           <div className="sidebar-bottom">
-            <div className="tip-icon">
-              <Sparkles size={18} />
-            </div>
-            <strong>Start with a feeling.</strong>
+            <Sparkles size={16} />
             <p>
-              A sunny kitchen? A quiet nook?
-              <br />
-              Draw a room and see it take shape.
+              <strong>Tip:</strong> Rooms carry their furniture when you move them. Press{' '}
+              <kbd>E</kbd> to turn anything.
             </p>
             <button onClick={() => setModal('help')}>
-              A quick tour <ChevronRight size={13} />
+              How it works <ChevronRight size={13} />
             </button>
           </div>
         </aside>
@@ -610,17 +1266,15 @@ export default function App() {
               <select
                 aria-label="Active floor"
                 value={floor}
-                onChange={(e) => {
-                  setFloor(Number(e.target.value));
-                  setSelected(null);
-                }}
+                onChange={(e) => changeFloor(Number(e.target.value))}
               >
-                {project.floors.map((f) => (
+                {[...project.floors].reverse().map((f) => (
                   <option key={f.level} value={f.level}>
                     {f.name}
                   </option>
                 ))}
               </select>
+              <ChevronDown size={14} className="select-caret" />
               <button
                 className="icon-button small"
                 title="Add floor or basement"
@@ -632,6 +1286,32 @@ export default function App() {
                 }}
               >
                 <Plus size={16} />
+              </button>
+            </div>
+            <div className="drawing-tools">
+              <button
+                className={tool === 'select' ? 'active' : ''}
+                title="Select / move (V)"
+                onClick={() => selectTool('select')}
+              >
+                <MousePointer2 size={16} />
+                <span>Select</span>
+              </button>
+              <button
+                className={tool === 'room' ? 'active' : ''}
+                title="Draw room (R)"
+                onClick={() => selectTool('room')}
+              >
+                <Square size={16} />
+                <span>Draw room</span>
+              </button>
+              <button
+                className={tool === 'pan' ? 'active' : ''}
+                title="Pan (H) — or drag empty space"
+                onClick={() => selectTool('pan')}
+              >
+                <Hand size={16} />
+                <span>Pan</span>
               </button>
             </div>
             <div className="view-tabs">
@@ -649,7 +1329,7 @@ export default function App() {
                 className={mode === 'split' ? 'active' : ''}
                 onClick={() => {
                   setMode('split');
-                  setSceneMode('dollhouse');
+                  if (walking) setSceneMode('dollhouse');
                 }}
               >
                 <PanelLeftClose size={14} />
@@ -659,6 +1339,25 @@ export default function App() {
                 <Maximize2 size={14} />
                 3D view
               </button>
+            </div>
+            <div className="canvas-options">
+              <button
+                className={snapping ? 'snap active' : 'snap'}
+                aria-pressed={snapping}
+                onClick={() => setSnapping((s) => !s)}
+                title="Snap to the grid and to walls"
+              >
+                <Grid2X2 size={14} />
+                <span>Snap {snapping ? 'on' : 'off'}</span>
+              </button>
+              <select
+                aria-label="Measurement units"
+                value={project.units}
+                onChange={(e) => commit({ ...project, units: e.target.value as 'ft' | 'm' })}
+              >
+                <option value="ft">Feet</option>
+                <option value="m">Meters</option>
+              </select>
             </div>
             <div className="undo-group">
               <button
@@ -681,78 +1380,8 @@ export default function App() {
               </button>
             </div>
           </div>
-          <div className="design-heading">
-            <div>
-              <span className="eyebrow">DREAM IT. DRAW IT. WALK RIGHT IN.</span>
-              <h2>
-                Your home, taking shape<span>.</span>
-              </h2>
-            </div>
-            <div className="project-stats">
-              <strong>
-                {Math.round(area(project)).toLocaleString()}
-                <small>{project.units === 'ft' ? 'sq ft' : 'm²'}</small>
-              </strong>
-              <span />
-              <strong>
-                {project.items.filter((i) => i.kind === 'room').length}
-                <small>rooms</small>
-              </strong>
-              <span />
-              <strong>
-                {project.floors.length}
-                <small>{project.floors.length === 1 ? 'floor' : 'floors'}</small>
-              </strong>
-            </div>
-          </div>
-          <div className="canvas-toolbar">
-            <div className="drawing-tools">
-              <button
-                className={tool === 'select' ? 'active' : ''}
-                title="Select / move (V)"
-                onClick={() => selectTool('select')}
-              >
-                <MousePointer2 size={16} />
-                <span>Select</span>
-              </button>
-              <button
-                className={tool === 'room' ? 'active' : ''}
-                title="Draw room (R)"
-                onClick={() => selectTool('room')}
-              >
-                <Square size={16} />
-                <span>Draw room</span>
-              </button>
-              <button
-                className={tool === 'pan' ? 'active' : ''}
-                title="Pan (H)"
-                onClick={() => selectTool('pan')}
-              >
-                <Hand size={16} />
-                <span>Pan</span>
-              </button>
-            </div>
-            <div className="canvas-options">
-              <button
-                className={snapping ? 'snap active' : 'snap'}
-                aria-pressed={snapping}
-                onClick={() => setSnapping((s) => !s)}
-              >
-                <Grid2X2 size={14} />
-                <span>Snap {snapping ? 'on' : 'off'}</span>
-              </button>
-              <select
-                aria-label="Measurement units"
-                value={project.units}
-                onChange={(e) => commit({ ...project, units: e.target.value as 'ft' | 'm' })}
-              >
-                <option value="ft">Feet</option>
-                <option value="m">Meters</option>
-              </select>
-            </div>
-          </div>
           <div className={`canvases view-${mode}`}>
-            {mode !== '3d' && (
+            {mode !== '3d' && !walking && (
               <Plan
                 project={project}
                 floor={floor}
@@ -763,8 +1392,11 @@ export default function App() {
                 onChange={commit}
                 onTool={setTool}
                 onNotice={notify}
+                onRotate={rotate}
+                onDuplicate={duplicate}
+                onDelete={remove}
               />
-            )}{' '}
+            )}
             {mode !== 'plan' && (
               <Scene
                 project={project}
@@ -772,14 +1404,24 @@ export default function App() {
                 mode={sceneMode}
                 onMode={changeSceneMode}
                 onNotice={notify}
+                onLevel={setFloor}
               />
             )}
           </div>
           <div className="workspace-footer">
-            <span>
-              <span className="live-dot" />
-              Your imagination. In every dimension.
-            </span>
+            <div className="project-stats">
+              <span>
+                <strong>{Math.round(area(project)).toLocaleString()}</strong>{' '}
+                {u === 'ft' ? 'sq ft' : 'm²'}
+              </span>
+              <span>
+                <strong>{project.items.filter((i) => i.kind === 'room').length}</strong> rooms
+              </span>
+              <span>
+                <strong>{project.floors.length}</strong>{' '}
+                {project.floors.length === 1 ? 'floor' : 'floors'}
+              </span>
+            </div>
             <button onClick={() => setModal('help')}>
               Keyboard shortcuts <kbd>?</kbd>
             </button>
@@ -787,324 +1429,19 @@ export default function App() {
         </main>
         <aside className="inspector">
           <div className="inspector-title">
-            <Settings2 size={17} />
-            <strong>{selectedItem ? 'Make it yours' : 'Finishing touches'}</strong>
+            <strong>{selectedItem ? selectedItem.name : 'Your home'}</strong>
             {selectedItem && (
               <button
                 className="icon-button small"
                 aria-label="Deselect shape"
+                title="Done (Esc)"
                 onClick={() => setSelected(null)}
               >
                 <X size={15} />
               </button>
             )}
           </div>
-          {selectedItem ? (
-            <div className="inspector-body">
-              <span className="eyebrow">
-                {selectedItem.kind === 'room' ? 'YOUR ROOM' : selectedItem.kind.toUpperCase()}
-              </span>
-              <label className="field">
-                Name
-                <input
-                  key={selectedItem.id + selectedItem.name}
-                  aria-label="Shape name"
-                  defaultValue={selectedItem.name}
-                  maxLength={70}
-                  onBlur={(e) => {
-                    if (e.target.value.trim() && e.target.value !== selectedItem.name)
-                      patchItem({ name: e.target.value.trim() });
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') e.currentTarget.blur();
-                  }}
-                />
-              </label>
-              <div className="two-fields">
-                <Numeric
-                  label={`Width (${project.units})`}
-                  value={selectedItem.w * factor}
-                  min={0.25 * factor}
-                  max={100 * factor}
-                  onChange={(n) => patchItem({ w: n / factor })}
-                />
-                <Numeric
-                  label={`Depth (${project.units})`}
-                  value={selectedItem.d * factor}
-                  min={0.25 * factor}
-                  max={100 * factor}
-                  onChange={(n) => patchItem({ d: n / factor })}
-                />
-              </div>
-              <div className="area-card">
-                <Ruler size={17} />
-                <strong>
-                  {Math.round(
-                    selectedItem.w * selectedItem.d * (project.units === 'ft' ? 10.7639 : 1),
-                  )}
-                </strong>
-                <span>{project.units === 'ft' ? 'square feet' : 'square meters'}</span>
-              </div>
-              <label className="field">
-                {isRoom(selectedItem) ? 'Floor finish' : 'Color'}
-                <div className="swatches">
-                  {[
-                    '#e6ddca',
-                    '#e2dfea',
-                    '#dbe8e4',
-                    '#e3e6d7',
-                    '#c9a87c',
-                    '#88a79b',
-                    '#d5d9d7',
-                  ].map((c) => (
-                    <button
-                      key={c}
-                      aria-label={`Set shape color ${c}`}
-                      style={{ background: c }}
-                      className={selectedItem.color === c ? 'selected' : ''}
-                      onClick={() => patchItem({ color: c })}
-                    />
-                  ))}
-                  <input
-                    aria-label="Custom shape color"
-                    type="color"
-                    value={selectedItem.color}
-                    onChange={(e) => patchItem({ color: e.target.value })}
-                  />
-                </div>
-              </label>
-              <div className="shape-actions">
-                <button className="outline-button" onClick={duplicate}>
-                  <Copy size={14} />
-                  Duplicate
-                </button>
-                <button
-                  className="icon-button"
-                  aria-label="Rotate shape 90 degrees"
-                  title="Rotate 90° (swap width and depth)"
-                  onClick={() => {
-                    const i = selectedItem;
-                    const o = project.openings.map((o) =>
-                      o.roomId === i.id
-                        ? {
-                            ...o,
-                            side: (
-                              {
-                                north: 'east',
-                                east: 'south',
-                                south: 'west',
-                                west: 'north',
-                              } as const
-                            )[o.side],
-                            offset:
-                              o.side === 'south' || o.side === 'north' ? o.offset : 1 - o.offset,
-                          }
-                        : o,
-                    );
-                    commit({
-                      ...project,
-                      items: project.items.map((a) =>
-                        a.id === i.id ? { ...a, w: i.d, d: i.w } : a,
-                      ),
-                      openings: o,
-                    });
-                  }}
-                >
-                  <RotateCw size={17} />
-                </button>
-                <button
-                  className="icon-button danger"
-                  aria-label="Delete selected shape"
-                  onClick={() => {
-                    commit(removeItem(project, selectedItem.id));
-                    setSelected(null);
-                  }}
-                >
-                  <Trash2 size={16} />
-                </button>
-              </div>
-              {isRoom(selectedItem) && (
-                <>
-                  <div className="section-heading opening-heading">WINDOWS & DOORS</div>
-                  {project.openings
-                    .filter((o) => o.roomId === selected)
-                    .map((o) => (
-                      <div className="opening-row" key={o.id}>
-                        <div>
-                          {o.kind === 'window' ? <Columns3 size={15} /> : <DoorClosed size={15} />}
-                          <strong>{o.kind}</strong>
-                          <button
-                            aria-label={`Delete ${o.kind}`}
-                            onClick={() =>
-                              commit({
-                                ...project,
-                                openings: project.openings.filter((a) => a.id !== o.id),
-                              })
-                            }
-                          >
-                            <X size={13} />
-                          </button>
-                        </div>
-                        <label>
-                          Wall
-                          <select
-                            aria-label={`${o.kind} wall`}
-                            value={o.side}
-                            onChange={(e) =>
-                              commit({
-                                ...project,
-                                openings: project.openings.map((a) =>
-                                  a.id === o.id
-                                    ? { ...a, side: e.target.value as typeof o.side }
-                                    : a,
-                                ),
-                              })
-                            }
-                          >
-                            {['north', 'south', 'east', 'west'].map((s) => (
-                              <option key={s}>{s}</option>
-                            ))}
-                          </select>
-                        </label>
-                        <label>
-                          Position
-                          <input
-                            aria-label={`${o.kind} position`}
-                            type="range"
-                            min=".1"
-                            max=".9"
-                            step=".05"
-                            value={o.offset}
-                            onChange={(e) =>
-                              commit({
-                                ...project,
-                                openings: project.openings.map((a) =>
-                                  a.id === o.id ? { ...a, offset: Number(e.target.value) } : a,
-                                ),
-                              })
-                            }
-                          />
-                        </label>
-                        <Numeric
-                          label={`Opening width (${project.units})`}
-                          value={o.width * factor}
-                          min={0.3 * factor}
-                          max={10 * factor}
-                          onChange={(n) =>
-                            commit({
-                              ...project,
-                              openings: project.openings.map((a) =>
-                                a.id === o.id ? { ...a, width: n / factor } : a,
-                              ),
-                            })
-                          }
-                        />
-                      </div>
-                    ))}
-                  <button className="text-button" onClick={() => selectTool('window')}>
-                    <Plus size={13} />
-                    Add an opening on the plan
-                  </button>
-                </>
-              )}
-            </div>
-          ) : (
-            <div className="inspector-body">
-              <div className="exterior-illustration">
-                <Home size={56} strokeWidth={1} />
-                <TreePine size={30} strokeWidth={1} />
-                <span>GOOD DESIGN FEELS LIKE HOME</span>
-              </div>
-              <p className="inspector-description">
-                Give your home a look you love. See your finishes in the exterior view.
-              </p>
-              <label className="field">
-                Exterior walls
-                <div className="swatches">
-                  {['#f0e9dc', '#dad4c7', '#a5b0a0', '#b38368', '#586b66'].map((c) => (
-                    <button
-                      key={c}
-                      aria-label={`Exterior ${c}`}
-                      style={{ background: c }}
-                      className={project.exterior === c ? 'selected' : ''}
-                      onClick={() => commit({ ...project, exterior: c })}
-                    />
-                  ))}
-                  <input
-                    type="color"
-                    aria-label="Custom exterior color"
-                    value={project.exterior}
-                    onChange={(e) => commit({ ...project, exterior: e.target.value })}
-                  />
-                </div>
-              </label>
-              <label className="field">
-                Roof style
-                <select
-                  value={project.roofStyle}
-                  onChange={(e) =>
-                    commit({ ...project, roofStyle: e.target.value as 'gable' | 'flat' })
-                  }
-                >
-                  <option value="gable">Classic gable</option>
-                  <option value="flat">Modern flat</option>
-                </select>
-              </label>
-              <label className="field">
-                Roof finish
-                <div className="swatches">
-                  {['#586662', '#716456', '#b17759', '#b3ada0'].map((c) => (
-                    <button
-                      key={c}
-                      aria-label={`Roof ${c}`}
-                      style={{ background: c }}
-                      className={project.roof === c ? 'selected' : ''}
-                      onClick={() => commit({ ...project, roof: c })}
-                    />
-                  ))}
-                  <input
-                    aria-label="Custom roof color"
-                    type="color"
-                    value={project.roof}
-                    onChange={(e) => commit({ ...project, roof: e.target.value })}
-                  />
-                </div>
-              </label>
-              <button
-                className="outline-button full"
-                onClick={() => {
-                  setMode('3d');
-                  setSceneMode('exterior');
-                }}
-              >
-                <Home size={15} />
-                See the exterior
-              </button>
-              <div className="inspector-tip">
-                <MousePointer2 size={18} />
-                <p>Select any shape to adjust its size, color, and details.</p>
-              </div>
-              <div className="floor-summary">
-                <span className="section-heading">YOUR LEVELS</span>
-                {project.floors.map((f) => (
-                  <button
-                    key={f.level}
-                    className={floor === f.level ? 'active' : ''}
-                    onClick={() => {
-                      setFloor(f.level);
-                      setSelected(null);
-                    }}
-                  >
-                    <Layers size={14} />
-                    {f.name}
-                    <small>
-                      {Math.round(area(project, f.level))} {project.units === 'ft' ? 'ft²' : 'm²'}
-                    </small>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
+          {inspector}
         </aside>
       </div>
       <input
@@ -1169,7 +1506,7 @@ export default function App() {
               <>
                 <span className="eyebrow">ROOM FOR EVERY POSSIBILITY</span>
                 <h2>Your dream homes.</h2>
-                <p>Try a new idea. Keep your favorites. Come back anytime.</p>
+                <p>Try a new idea. Keep your favorites. Make a copy before a big change.</p>
                 <div className="project-modal-actions">
                   <button className="primary-button" onClick={() => switchProject(blankProject())}>
                     <Plus size={16} />
@@ -1186,10 +1523,16 @@ export default function App() {
                 </div>
                 <div className="project-grid">
                   {[project, ...library.filter((p) => p.id !== project.id)].map((p) => (
-                    <div className="project-card" key={p.id}>
-                      <button className="project-open" onClick={() => switchProject(p)}>
+                    <div
+                      className={`project-card ${p.id === project.id ? 'current' : ''}`}
+                      key={p.id}
+                    >
+                      <button
+                        className="project-open"
+                        onClick={() => (p.id === project.id ? setModal(null) : switchProject(p))}
+                      >
                         <div className="project-thumbnail">
-                          <Home size={42} strokeWidth={1} />
+                          <Thumbnail p={p} />
                           <span>
                             {p.floors.length} {p.floors.length === 1 ? 'floor' : 'floors'}
                           </span>
@@ -1197,32 +1540,43 @@ export default function App() {
                         <strong>{p.name}</strong>
                         <small>
                           {Math.round(area(p)).toLocaleString()} {p.units === 'ft' ? 'sq ft' : 'm²'}{' '}
-                          · {new Date(p.updated).toLocaleDateString()}
+                          ·{' '}
+                          {p.id === project.id
+                            ? 'Open now'
+                            : new Date(p.updated).toLocaleDateString()}
                         </small>
                       </button>
-                      <button
-                        className="project-copy"
-                        aria-label={`Duplicate project ${p.name}`}
-                        onClick={() =>
-                          switchProject({
-                            ...structuredClone(p),
-                            id: uid(),
-                            name: `${p.name} copy`,
-                            updated: new Date().toISOString(),
-                          })
-                        }
-                      >
-                        <Copy size={14} />
-                        Make a copy
-                      </button>
+                      <div className="project-card-actions">
+                        <button
+                          aria-label={`Duplicate project ${p.name}`}
+                          onClick={() =>
+                            switchProject({
+                              ...structuredClone(p),
+                              id: uid(),
+                              name: `${p.name} copy`,
+                              updated: new Date().toISOString(),
+                            })
+                          }
+                        >
+                          <Copy size={13} />
+                          Make a copy
+                        </button>
+                        <button
+                          className="danger"
+                          aria-label={`Delete project ${p.name}`}
+                          onClick={() => deleteProject(p)}
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>
                 <div className="modal-note">
                   <Save size={16} />
                   <span>
-                    Projects autosave on this device. Export a .hearth file for a backup or to move
-                    between computers. GitHub stores the app's code, not your private designs.
+                    Projects autosave in this browser on this device. Export a .hearth file for a
+                    backup or to move between computers.
                   </span>
                 </div>
               </>
@@ -1231,7 +1585,6 @@ export default function App() {
               <>
                 <span className="eyebrow">MORE ROOM FOR YOUR IDEAS</span>
                 <h2>Build another level.</h2>
-                <p>Keep your floors together in one project.</p>
                 <div className="floor-options">
                   <button
                     className={floorType === 'upper' ? 'selected' : ''}
@@ -1252,21 +1605,54 @@ export default function App() {
                   Floor name (optional)
                   <input
                     autoFocus
-                    value={floorName}
+                    value={floorName_}
                     onChange={(e) => setFloorName(e.target.value)}
                     maxLength={60}
-                    placeholder={floorType === 'upper' ? 'Upstairs retreat' : 'Basement'}
+                    placeholder={defaultFloorName(nextLevel(project, floorType))}
                   />
                 </label>
+                <div className="field-label">Connect it with stairs</div>
+                <div className="stair-styles in-modal">
+                  {(['straight', 'l', 'u', 'spiral'] as StairStyle[]).map((style) => (
+                    <button
+                      key={style}
+                      className={floorStairs === style ? 'selected' : ''}
+                      onClick={() => setFloorStairs(style)}
+                    >
+                      <StairIcon style={style} size={30} />
+                      <span>{e_name(style)}</span>
+                    </button>
+                  ))}
+                  <button
+                    className={floorStairs === null ? 'selected' : ''}
+                    onClick={() => setFloorStairs(null)}
+                  >
+                    <X size={24} strokeWidth={1.4} />
+                    <span>None</span>
+                  </button>
+                </div>
+                {floorStairs && (
+                  <p className="hint-text">
+                    Stairs go on{' '}
+                    {floorName(
+                      project,
+                      floorType === 'upper'
+                        ? Math.max(0, ...project.floors.map((f) => f.level))
+                        : Math.min(0, ...project.floors.map((f) => f.level)),
+                    )}{' '}
+                    {floorType === 'upper' ? 'heading up' : 'heading down'}, with a landing on the
+                    new floor to start from. Move or turn them any time.
+                  </p>
+                )}
                 <label className="checkbox-label">
                   <input
                     type="checkbox"
                     checked={copyFloor}
                     onChange={(e) => setCopyFloor(e.target.checked)}
                   />
-                  Copy rooms and furniture from the current floor
+                  Copy rooms and furniture from {floorName(project, floor)}
                 </label>
-                <button className="primary-button full" onClick={addFloor}>
+                <button className="primary-button full" onClick={() => newLevel(floorType)}>
                   <Plus size={16} />
                   Create floor
                 </button>
@@ -1274,48 +1660,46 @@ export default function App() {
             )}
             {modal === 'help' && (
               <>
-                <span className="eyebrow">WELCOME TO YOUR HAPPY PLACE</span>
-                <h2>A home starts with an idea.</h2>
-                <p>Here's how to bring yours to life.</p>
+                <span className="eyebrow">WELCOME TO HEARTH STUDIO</span>
+                <h2>Design it. Then walk right in.</h2>
                 <div className="tour-steps">
                   <div>
                     <span>01</span>
                     <section>
                       <strong>Draw your spaces</strong>
                       <p>
-                        Choose Draw room and drag on the grid. Select and move shapes, or drag the
-                        amber corner to resize. Use the detail panel for exact dimensions.
+                        Choose Draw room and drag on the grid. Drag rooms to move them — their
+                        furniture comes along. Drag any amber corner to resize.
                       </p>
                     </section>
                   </div>
                   <div>
                     <span>02</span>
                     <section>
-                      <strong>Make it feel like you</strong>
+                      <strong>Doors, windows, and furniture</strong>
                       <p>
-                        Add doors and windows by clicking a wall. Furnish your rooms, then head
-                        Outside for trees, a pool, a terrace, or a driveway.
+                        Pick Door or Window, then click a wall. Furnish from the Furnish tab; a
+                        preview follows your cursor. Press E (or ↻) to turn the selected piece.
                       </p>
                     </section>
                   </div>
                   <div>
                     <span>03</span>
                     <section>
-                      <strong>See the bigger picture</strong>
+                      <strong>Go up a level</strong>
                       <p>
-                        Switch between dollhouse and exterior views. Choose Walk through, use WASD
-                        to move, and drag to look around. Escape returns to editing. Use the floor
-                        menu to visit another level; stairs are visual markers.
+                        Use + beside the floor menu. Pick a stair style and Hearth lays the stairs
+                        and a landing for you. On the plan, UP marks the bottom step and DN the top.
                       </p>
                     </section>
                   </div>
                   <div>
                     <span>04</span>
                     <section>
-                      <strong>Keep your possibilities</strong>
+                      <strong>Walk through it together</strong>
                       <p>
-                        Changes save automatically on this device. Export project saves a portable
-                        backup. My projects lets you start fresh, open a file, or duplicate an idea.
+                        Walk through starts at your front door. Use W A S D or the on-screen arrows,
+                        drag to look around, and walk up the stairs. Esc comes back to editing.
                       </p>
                     </section>
                   </div>
@@ -1328,22 +1712,31 @@ export default function App() {
                     <kbd>R</kbd>Draw room
                   </span>
                   <span>
-                    <kbd>H</kbd>Pan
+                    <kbd>E</kbd>Turn 90°
                   </span>
                   <span>
-                    <kbd>Del</kbd>Delete shape
+                    <kbd>Del</kbd>Delete
+                  </span>
+                  <span>
+                    <kbd>Ctrl D</kbd>Duplicate
                   </span>
                   <span>
                     <kbd>Ctrl Z</kbd>Undo
                   </span>
                   <span>
-                    <kbd>Ctrl S</kbd>Export
+                    <kbd>PgUp</kbd>
+                    <kbd>PgDn</kbd>Change floor
+                  </span>
+                  <span>
+                    <kbd>Scroll</kbd>Zoom plan
+                  </span>
+                  <span>
+                    <kbd>Shift</kbd>+drag Pan
                   </span>
                 </div>
                 <p className="small-note">
-                  A creative concept studio. Rooms use rectangular shapes, roofs are simplified
-                  envelopes, and stairs don't automatically cut floor openings. This is for
-                  exploring ideas, not construction drawings.
+                  A concept studio for dreaming, not construction drawings. Rooms are rectangles and
+                  roofs are simplified.
                 </p>
                 <button className="primary-button" onClick={() => setModal(null)}>
                   Let's make room <ChevronRight size={15} />
@@ -1355,4 +1748,7 @@ export default function App() {
       )}
     </div>
   );
+}
+function e_name(style: StairStyle) {
+  return stairEntry(style).name;
 }
