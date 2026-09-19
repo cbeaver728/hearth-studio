@@ -19,6 +19,7 @@ import {
 import {
   buildWalls,
   floorName,
+  isPassable,
   FLOOR_H,
   isOutside,
   isRoom,
@@ -28,7 +29,7 @@ import {
   type Project,
 } from './model';
 import { layoutFor, localSize, RISE, subtractRects, toWorld, type Rect } from './stairs';
-import { buildWalkWorld, EYE, stairHoles, type WalkWorld } from './walk';
+import { buildWalkWorld, EYE, landingRails, stairHoles, type WalkWorld } from './walk';
 import { furniture, tone, type Mat } from './furniture3d';
 
 export type SceneMode = 'dollhouse' | 'exterior' | 'walk';
@@ -360,14 +361,19 @@ function buildContent(p: Project, mode: SceneMode, floor: number, evening: boole
       const a = cuts[n],
         b = cuts[n + 1];
       const openings = wall.openings.filter((o) => o.start <= a + 0.001 && o.end >= b - 0.001);
-      const open = openings.find((o) => o.kind === 'door') || openings[0];
+      // A removed wall wins over anything else sharing the span.
+      const open =
+        openings.find((o) => o.kind === 'open') ||
+        openings.find((o) => isPassable(o.kind)) ||
+        openings[0];
       if (!open) {
         piece(a, b, 0, height);
         piece(a, b, 0, 0.09, '#d2caba', thick + 0.02);
         continue;
       }
+      if (open.kind === 'open') continue; // The wall is gone here.
       const bottom = open.kind === 'window' ? 0.95 : 0,
-        top = open.kind === 'window' ? 2.25 : 2.2;
+        top = open.kind === 'window' ? 2.25 : open.kind === 'slider' ? 2.15 : 2.2;
       if (bottom > 0) piece(a, b, 0, Math.min(bottom, height));
       if (height > top) piece(a, b, top, height);
       if (open.kind === 'window' && height > bottom) {
@@ -390,47 +396,56 @@ function buildContent(p: Project, mode: SceneMode, floor: number, evening: boole
         if (height >= top) piece(a, b, top - 0.05, top, '#52675f', 0.06);
       }
     }
-    // Door casings.
-    for (const o of wall.openings.filter((o) => o.kind === 'door')) {
-      if (height < 1) continue;
-      piece(o.start - 0.06, o.start, 0, 2.2, trim, thick + 0.04);
-      piece(o.end, o.end + 0.06, 0, 2.2, trim, thick + 0.04);
-      if (height > 2.2) piece(o.start - 0.06, o.end + 0.06, 2.2, 2.28, trim, thick + 0.04);
+    // Casings, door leaves, sliding glass, and garage panels.
+    for (const o of wall.openings) {
+      if (height < 1 || o.kind === 'window' || o.kind === 'open') continue;
+      // No casing where the wall itself was taken out.
+      if (wall.openings.some((x) => x.kind === 'open' && x.start <= o.start && x.end >= o.end))
+        continue;
+      const headTop = o.kind === 'slider' ? 2.15 : 2.2;
+      piece(o.start - 0.06, o.start, 0, headTop, trim, thick + 0.04);
+      piece(o.end, o.end + 0.06, 0, headTop, trim, thick + 0.04);
+      if (height > headTop)
+        piece(o.start - 0.06, o.end + 0.06, headTop, headTop + 0.08, trim, thick + 0.04);
       const width = o.end - o.start;
-      if (width > 1.8 && !o.garage) continue; // A wide opening between rooms: just the casing.
-      if (height >= 2.2 && width > 1.8) {
-        // Wide garage doors: a closed sectional panel with grooves.
+      if (height < headTop || o.kind === 'arch') continue;
+      if (o.kind === 'garage') {
         const panel = mat(tone(p.exterior, 10), { rough: 0.6 });
         piece(o.start, o.end, 0.02, 2.2, panel, 0.05);
         for (let g = 1; g < 4; g++)
           piece(o.start, o.end, g * 0.55, g * 0.55 + 0.02, tone(p.exterior, -25), 0.07);
         continue;
       }
-      if (height < 2.2) continue;
-      // An open door leaf, swung into a room (the one on the negative side when both are rooms).
+      if (o.kind === 'slider') {
+        // Two glass panels in a frame; one slides behind the other.
+        const glass = mat('#a9d0d6', { opacity: 0.32, rough: 0.08, metal: 0.1 });
+        const frame = '#52675f';
+        piece(o.start, o.start + width / 2, 0.06, 2.1, glass, 0.03);
+        piece(o.start + width / 2, o.end, 0.06, 2.1, glass, 0.03);
+        for (const xx of [o.start, o.start + width / 2, o.end])
+          piece(xx - 0.035, xx + 0.035, 0.06, 2.1, frame, 0.07);
+        piece(o.start, o.end, 0.06, 0.12, frame, 0.09);
+        piece(o.start, o.end, 2.04, 2.1, frame, 0.09);
+        continue;
+      }
+      // Door leaves, swung open into a room (the negative side when both are rooms).
       const dir = sideA ? -1 : 1;
       const leaf = mat(tone(interior, -14));
       const t = 0.04;
-      if (wall.axis === 'x')
-        box(
-          o.start + t / 2 + 0.01,
-          y + 1.05,
-          wall.line + dir * (thick / 2 + width / 2),
-          t,
-          2.1,
-          width,
-          leaf,
-        );
-      else
-        box(
-          wall.line + dir * (thick / 2 + width / 2),
-          y + 1.05,
-          o.start + t / 2 + 0.01,
-          width,
-          2.1,
-          t,
-          leaf,
-        );
+      const leaves: [number, number][] =
+        o.kind === 'double'
+          ? [
+              [o.start + t / 2 + 0.01, width / 2],
+              [o.end - t / 2 - 0.01, width / 2],
+            ]
+          : [[o.start + t / 2 + 0.01, width]];
+      for (const [hinge, leafWidth] of leaves) {
+        const away = hinge > (o.start + o.end) / 2 ? -1 : 1;
+        const center = wall.line + dir * (thick / 2 + leafWidth / 2);
+        if (wall.axis === 'x') box(hinge, y + 1.05, center, t, 2.1, leafWidth, leaf);
+        else box(center, y + 1.05, hinge, leafWidth, 2.1, t, leaf);
+        void away;
+      }
     }
     if (mode === 'dollhouse' && wall.floor === floor)
       piece(wall.start, wall.end, height, height + 0.02, '#f5f0e5', thick + 0.005);
@@ -443,9 +458,44 @@ function buildContent(p: Project, mode: SceneMode, floor: number, evening: boole
     buildStairs(s, lower, upper, shown.includes(upper), group, mat, interior);
   }
 
+  // Landings and balconies.
+  for (const l of p.items.filter((i) => i.kind === 'landing' && shown.includes(i.floor))) {
+    const y = l.floor * FLOOR_H;
+    slab({ x0: l.x, z0: l.z, x1: l.x + l.w, z1: l.z + l.d }, y - 0.2, y, l.color)!.userData.itemId =
+      l.id;
+    for (let dx = 0.2; dx < l.w; dx += 0.2)
+      box(l.x + dx, y + 0.002, l.z + l.d / 2, 0.012, 0.006, l.d, tone(l.color, -25));
+    if (l.floor > 0)
+      for (const r of landingRails(p, l)) {
+        const cx = (r.x0 + r.x1) / 2,
+          cz = (r.z0 + r.z1) / 2,
+          rw = Math.max(0.06, r.x1 - r.x0),
+          rd = Math.max(0.06, r.z1 - r.z0);
+        box(cx, y + 0.45, cz, rw, 0.9, rd, mat('#d6e8ea', { opacity: 0.3, rough: 0.05 }));
+        box(cx, y + 0.95, cz, rw + 0.04, 0.06, rd + 0.04, '#6b5a45');
+      }
+    if (l.covered) {
+      for (const [cx, cz] of [
+        [l.x + 0.12, l.z + 0.12],
+        [l.x + l.w - 0.12, l.z + 0.12],
+        [l.x + 0.12, l.z + l.d - 0.12],
+        [l.x + l.w - 0.12, l.z + l.d - 0.12],
+      ])
+        box(cx, y + 1.3, cz, 0.14, 2.6, 0.14, tone(l.color, 15));
+      box(l.x + l.w / 2, y + 2.7, l.z + l.d / 2, l.w + 0.3, 0.18, l.d + 0.3, p.roof);
+    }
+  }
+
   // Furniture.
   for (const i of p.items) {
-    if (isRoom(i) || isOutside(i) || i.kind === 'stairs' || !shown.includes(i.floor)) continue;
+    if (
+      isRoom(i) ||
+      isOutside(i) ||
+      i.kind === 'stairs' ||
+      i.kind === 'landing' ||
+      !shown.includes(i.floor)
+    )
+      continue;
     const g = furniture(i, i.floor * FLOOR_H, mat);
     if (g) {
       g.userData.itemId = i.id;

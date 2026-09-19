@@ -9,6 +9,7 @@ import {
   Check,
   ChevronDown,
   ChevronRight,
+  Columns2,
   Columns3,
   Copy,
   DoorClosed,
@@ -39,6 +40,7 @@ import {
   Sparkles,
   Sprout,
   Square,
+  SquareDashedBottom,
   Table2,
   Trash2,
   TreePine,
@@ -76,6 +78,8 @@ import {
   isOutside,
   isRoom,
   onLevel,
+  openingKinds,
+  openingName,
   removeItem,
   rotateItem,
   sampleProject,
@@ -87,6 +91,7 @@ import {
   type FloorFinish,
   type Item,
   type Kind,
+  type OpeningKind,
   type Project,
   type StairStyle,
 } from './model';
@@ -115,6 +120,7 @@ const icons: Record<Kind, typeof Home> = {
   desk: Lamp,
   table: Table2,
   coffee: RectangleHorizontal,
+  landing: Grid2X2,
   counter: Columns3,
   kitchen: CookingPot,
   fridge: Refrigerator,
@@ -389,6 +395,15 @@ function Compare({
     </section>
   );
 }
+const OPENING_ICONS: Record<OpeningKind, typeof Home> = {
+  door: DoorOpen,
+  double: DoorClosed,
+  slider: Columns2,
+  garage: Car,
+  window: Columns3,
+  arch: RectangleVertical,
+  open: SquareDashedBottom,
+};
 const TILE_GROUPS: Record<'Build' | 'Furnish' | 'Landscape', string> = {
   Build: 'Build',
   Furnish: 'Furnish',
@@ -1043,6 +1058,16 @@ export default function App() {
             <span>{u === 'ft' ? 'square feet' : 'square meters'}</span>
           </div>
         )}
+        {s.kind === 'landing' && (
+          <label className="checkbox-label tight">
+            <input
+              type="checkbox"
+              checked={!!s.covered}
+              onChange={(e) => patchItem({ covered: e.target.checked || undefined })}
+            />
+            Covered — a porch roof on posts
+          </label>
+        )}
         {s.kind === 'room' && (
           <>
             <div className="field-label">Flooring</div>
@@ -1116,8 +1141,11 @@ export default function App() {
               .map((o) => (
                 <div className="opening-row" key={o.id}>
                   <div>
-                    {o.kind === 'window' ? <Columns3 size={15} /> : <DoorClosed size={15} />}
-                    <strong>{o.kind}</strong>
+                    {(() => {
+                      const Icon = OPENING_ICONS[o.kind];
+                      return <Icon size={15} />;
+                    })()}
+                    <strong>{openingName(o.kind)}</strong>
                     <button
                       aria-label={`Delete ${o.kind}`}
                       onClick={() =>
@@ -1130,6 +1158,29 @@ export default function App() {
                       <X size={13} />
                     </button>
                   </div>
+                  <label>
+                    Type
+                    <select
+                      aria-label={`${o.kind} type`}
+                      value={o.kind}
+                      onChange={(e) => {
+                        const kind = e.target.value as OpeningKind;
+                        const preset = openingKinds.find((k) => k.kind === kind)!;
+                        commit({
+                          ...project,
+                          openings: project.openings.map((a) =>
+                            a.id === o.id ? { ...a, kind, width: preset.width } : a,
+                          ),
+                        });
+                      }}
+                    >
+                      {openingKinds.map((k) => (
+                        <option key={k.kind} value={k.kind}>
+                          {k.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
                   <label>
                     Wall
                     <select
@@ -1168,21 +1219,23 @@ export default function App() {
                       }
                     />
                   </label>
-                  <Numeric
-                    label={`Opening width (${u})`}
-                    value={o.width * factor}
-                    min={0.3 * factor}
-                    max={10 * factor}
-                    feet={u === 'ft'}
-                    onChange={(n) =>
-                      commit({
-                        ...project,
-                        openings: project.openings.map((a) =>
-                          a.id === o.id ? { ...a, width: n / factor } : a,
-                        ),
-                      })
-                    }
-                  />
+                  {o.kind !== 'open' && (
+                    <Numeric
+                      label={`Opening width (${u})`}
+                      value={o.width * factor}
+                      min={0.3 * factor}
+                      max={10 * factor}
+                      feet={u === 'ft'}
+                      onChange={(n) =>
+                        commit({
+                          ...project,
+                          openings: project.openings.map((a) =>
+                            a.id === o.id ? { ...a, width: n / factor } : a,
+                          ),
+                        })
+                      }
+                    />
+                  )}
                 </div>
               ))}
             <div className="opening-add">
@@ -1541,37 +1594,28 @@ export default function App() {
                           </button>
                         );
                       })}
-                    <button
-                      className={`tile ${tool === 'door' ? 'chosen' : ''}`}
-                      onClick={() => selectTool(tool === 'door' ? 'select' : 'door')}
-                    >
-                      <span className="tile-icon">
-                        <DoorOpen size={22} strokeWidth={1.5} />
-                      </span>
-                      <strong>Door</strong>
-                      <small>Click a wall</small>
-                    </button>
-                    <button
-                      className={`tile ${tool === 'arch' ? 'chosen' : ''}`}
-                      onClick={() => selectTool(tool === 'arch' ? 'select' : 'arch')}
-                      title="A wide doorless opening, for open-concept rooms"
-                    >
-                      <span className="tile-icon">
-                        <RectangleVertical size={22} strokeWidth={1.5} />
-                      </span>
-                      <strong>Wide opening</strong>
-                      <small>Open two rooms</small>
-                    </button>
-                    <button
-                      className={`tile ${tool === 'window' ? 'chosen' : ''}`}
-                      onClick={() => selectTool(tool === 'window' ? 'select' : 'window')}
-                    >
-                      <span className="tile-icon">
-                        <Columns3 size={22} strokeWidth={1.5} />
-                      </span>
-                      <strong>Window</strong>
-                      <small>Click a wall</small>
-                    </button>
+                  </div>
+                </div>
+                <div className="catalog-block">
+                  <div className="section-heading">DOORS & OPENINGS</div>
+                  <div className="tile-grid">
+                    {openingKinds.map((o) => {
+                      const Icon = OPENING_ICONS[o.kind];
+                      return (
+                        <button
+                          key={o.kind}
+                          className={`tile ${tool === o.kind ? 'chosen' : ''}`}
+                          onClick={() => selectTool(tool === o.kind ? 'select' : o.kind)}
+                          title={o.hint}
+                        >
+                          <span className="tile-icon">
+                            <Icon size={22} strokeWidth={1.5} />
+                          </span>
+                          <strong>{o.name}</strong>
+                          <small>{o.kind === 'open' ? 'Click a wall' : o.hint}</small>
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
                 <div className="catalog-block">
@@ -1601,6 +1645,14 @@ export default function App() {
                       ? floorName(project, floor + (stairDir === 'up' ? 1 : -1))
                       : `a new ${stairDir === 'up' ? 'floor' : 'basement'}`}
                     .
+                  </p>
+                </div>
+                <div className="catalog-block">
+                  <div className="section-heading">DECKS & LANDINGS</div>
+                  {catalogTiles(catalog.filter((c) => c.section === 'Decks & landings'))}
+                  <p className="hint-text">
+                    A landing sits at this floor's level: a porch by the front door, or a balcony
+                    upstairs. Above the ground it gets a rail, and it can take a porch roof.
                   </p>
                 </div>
               </>

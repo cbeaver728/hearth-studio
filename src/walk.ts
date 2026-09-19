@@ -1,5 +1,13 @@
 // Walkthrough physics: which surface you stand on, and what blocks you.
-import { buildWalls, FLOOR_H, isRoom, stairLevels, type Item, type Project } from './model';
+import {
+  buildWalls,
+  FLOOR_H,
+  isPassable,
+  isRoom,
+  stairLevels,
+  type Item,
+  type Project,
+} from './model';
 import { layoutFor, rectToWorld, stairHeightAt, subtractRects, toWorld, type Rect } from './stairs';
 
 export const EYE = 1.62;
@@ -27,12 +35,57 @@ export function stairHoles(p: Project, level: number): Rect[] {
     .flatMap((i) => layoutFor(i).holes.map((h) => rectToWorld(i, h)));
 }
 
-/** Room floors on a level, minus stair openings. */
+/** Room floors and landings on a level, minus stair openings. */
 export function floorRects(p: Project, level: number): Rect[] {
   const holes = stairHoles(p, level);
   return p.items
-    .filter((i) => isRoom(i) && i.floor === level)
+    .filter((i) => (isRoom(i) || i.kind === 'landing') && i.floor === level)
     .flatMap((i) => subtractRects({ x0: i.x, z0: i.z, x1: i.x + i.w, z1: i.z + i.d }, holes));
+}
+/** Which edges of a landing need a rail: those not butted up against a room. */
+export function landingRails(p: Project, l: Item) {
+  const rooms = p.items.filter((i) => isRoom(i) && i.floor === l.floor);
+  const e = 0.06;
+  // An edge counts as attached only where a room runs along a real length of it,
+  // not where one merely reaches the same corner.
+  const attached = (along: 'x' | 'z', line: number, from: number, to: number) =>
+    rooms.some((r) => {
+      const across = along === 'x' ? [r.z, r.z + r.d] : [r.x, r.x + r.w];
+      const span = along === 'x' ? [r.x, r.x + r.w] : [r.z, r.z + r.d];
+      const overlap = Math.min(to, span[1]) - Math.max(from, span[0]);
+      return across[0] <= line + 0.12 && across[1] >= line - 0.12 && overlap >= 0.6;
+    });
+  const edges: { rect: Rect; along: 'x' | 'z'; line: number; from: number; to: number }[] = [
+    {
+      rect: { x0: l.x, z0: l.z - e, x1: l.x + l.w, z1: l.z + e },
+      along: 'x',
+      line: l.z,
+      from: l.x,
+      to: l.x + l.w,
+    },
+    {
+      rect: { x0: l.x, z0: l.z + l.d - e, x1: l.x + l.w, z1: l.z + l.d + e },
+      along: 'x',
+      line: l.z + l.d,
+      from: l.x,
+      to: l.x + l.w,
+    },
+    {
+      rect: { x0: l.x - e, z0: l.z, x1: l.x + e, z1: l.z + l.d },
+      along: 'z',
+      line: l.x,
+      from: l.z,
+      to: l.z + l.d,
+    },
+    {
+      rect: { x0: l.x + l.w - e, z0: l.z, x1: l.x + l.w + e, z1: l.z + l.d },
+      along: 'z',
+      line: l.x + l.w,
+      from: l.z,
+      to: l.z + l.d,
+    },
+  ];
+  return edges.filter((e) => !attached(e.along, e.line, e.from, e.to)).map((e) => e.rect);
 }
 
 const segBox = (a: [number, number], b: [number, number], t: number, y0: number, y1: number) => ({
@@ -49,10 +102,7 @@ export function wallBoxes(p: Project): Box[] {
   const boxes: Box[] = [];
   for (const w of buildWalls(p)) {
     const y = w.floor * FLOOR_H;
-    // Wide doors are closed garage doors.
-    const doors = w.openings
-      .filter((o) => o.kind === 'door' && !(o.garage && o.end - o.start > 1.8))
-      .sort((a, b) => a.start - b.start);
+    const doors = w.openings.filter((o) => isPassable(o.kind)).sort((a, b) => a.start - b.start);
     let at = w.start;
     const push = (a: number, b: number) => {
       if (b - a < 0.02) return;
@@ -105,6 +155,26 @@ export function buildWalkWorld(p: Project): WalkWorld {
         cz = i.z + i.d / 2;
       boxes.push({ x0: cx - 0.15, z0: cz - 0.15, x1: cx + 0.15, z1: cz + 0.15, y0: 0, y1: 3 });
     }
+  }
+  // Landing rails and porch posts.
+  for (const l of p.items.filter((i) => i.kind === 'landing')) {
+    const y = l.floor * FLOOR_H;
+    if (l.floor > 0) for (const r of landingRails(p, l)) boxes.push({ ...r, y0: y, y1: y + 1 });
+    if (l.covered)
+      for (const [cx, cz] of [
+        [l.x + 0.1, l.z + 0.1],
+        [l.x + l.w - 0.1, l.z + 0.1],
+        [l.x + 0.1, l.z + l.d - 0.1],
+        [l.x + l.w - 0.1, l.z + l.d - 0.1],
+      ])
+        boxes.push({
+          x0: cx - 0.08,
+          z0: cz - 0.08,
+          x1: cx + 0.08,
+          z1: cz + 0.08,
+          y0: y,
+          y1: y + 2.6,
+        });
   }
   for (const s of stairs) {
     const layout = layoutFor(s),

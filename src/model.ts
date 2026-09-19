@@ -25,7 +25,8 @@ export type Kind =
   | 'toilet'
   | 'vanity'
   | 'plant'
-  | 'coffee';
+  | 'coffee'
+  | 'landing';
 export type StairStyle = 'straight' | 'l' | 'u' | 'spiral';
 export type Side = 'north' | 'south' | 'east' | 'west';
 /** Floor-to-floor height in meters. */
@@ -50,16 +51,40 @@ export interface Item {
   dir?: 'up' | 'down';
   /** Rooms only: what the floor is made of (wood when unset). */
   finish?: FloorFinish;
+  /** Landings only: a roof on posts over the platform. */
+  covered?: boolean;
 }
 export type FloorFinish = 'wood' | 'tile' | 'carpet' | 'stone';
+/** Ways through (or into) a wall. 'open' takes the wall away entirely. */
+export type OpeningKind = 'door' | 'double' | 'slider' | 'garage' | 'window' | 'arch' | 'open';
 export interface Opening {
   id: string;
   roomId: string;
   side: Side;
   offset: number;
   width: number;
-  kind: 'window' | 'door';
+  kind: OpeningKind;
 }
+export const openingKinds: {
+  kind: OpeningKind;
+  name: string;
+  hint: string;
+  width: number;
+}[] = [
+  { kind: 'door', name: 'Door', hint: 'A single swinging door', width: 0.9 },
+  { kind: 'double', name: 'Double doors', hint: 'A pair that swing open', width: 1.8 },
+  { kind: 'slider', name: 'Sliding glass', hint: 'Out to a deck or patio', width: 2.4 },
+  { kind: 'garage', name: 'Garage door', hint: 'Wide and closed', width: 3 },
+  { kind: 'window', name: 'Window', hint: 'Let the light in', width: 1.5 },
+  { kind: 'arch', name: 'Wide opening', hint: 'A cased opening, no door', width: 2.4 },
+  { kind: 'open', name: 'Remove wall', hint: 'Open two rooms right up', width: 12 },
+];
+export const openingName = (k: OpeningKind) =>
+  openingKinds.find((o) => o.kind === k)?.name ?? 'Opening';
+/** Whether you can walk through it. Windows and closed garage doors stop you. */
+export const isPassable = (k: OpeningKind) => k !== 'window' && k !== 'garage';
+/** A removed wall spans its whole side rather than a set width. */
+export const spansWall = (k: OpeningKind) => k === 'open';
 export interface Floor {
   level: number;
   name: string;
@@ -292,6 +317,17 @@ export const catalog: CatalogEntry[] = [
     'Bathroom',
   ),
   entry('deck', 'deck', 'Patio / deck', 'Take life outside', 5, 3, '#c2a781', 'Landscape'),
+  entry(
+    'landing',
+    'landing',
+    'Landing / balcony',
+    'A platform on any floor',
+    3,
+    1.8,
+    '#c2a781',
+    'Build',
+    'Decks & landings',
+  ),
   entry('driveway', 'driveway', 'Driveway', 'A warm welcome', 4, 6, '#bcbeb8', 'Landscape'),
   entry('grass', 'grass', 'Lawn', 'A little more green', 5, 4, '#9ab580', 'Landscape'),
   entry('pool', 'pool', 'Pool', 'Your own blue escape', 3, 6, '#80c9cc', 'Landscape'),
@@ -447,21 +483,21 @@ export function sampleProject(): Project {
   up('bathtub', 'Bathtub', 4.15, -3.9, 1.75, 0.8);
   up('vanity', 'Vanity', 3.08, -2.7, 0.5, 1, undefined, 270);
   up('toilet', 'Toilet', 5.2, -2.3, 0.7, 0.45, undefined, 90);
-  const opening = (r: Item, side: Side, offset: number, width: number, kind: 'window' | 'door') =>
+  const opening = (r: Item, side: Side, offset: number, width: number, kind: OpeningKind) =>
     p.openings.push({ id: uid(), roomId: r.id, side, offset, width, kind });
   opening(landing, 'east', 0.5, 1.2, 'window');
   opening(suite, 'west', 0.35, 1.8, 'window');
   opening(suite, 'north', 0.5, 1.6, 'window');
-  opening(suite, 'east', 0.28, 0.9, 'door');
+  opening(suite, 'east', 0.28, 1.6, 'double');
   opening(loft, 'north', 0.5, 2.2, 'window');
   opening(loft, 'east', 0.8, 0.9, 'door');
   opening(kids, 'south', 0.5, 1.4, 'window');
   opening(kids, 'east', 0.5, 0.9, 'door');
   opening(upBath, 'north', 0.5, 0.8, 'window');
   opening(upBath, 'south', 0.5, 0.8, 'door');
-  opening(living, 'north', 0.45, 2.8, 'window');
+  opening(living, 'north', 0.45, 2.6, 'slider');
   opening(living, 'west', 0.55, 2, 'window');
-  opening(living, 'east', 0.5, 1.4, 'door');
+  opening(living, 'east', 0.5, 2.2, 'arch');
   opening(living, 'south', 0.7, 1, 'door');
   opening(kitchen, 'north', 0.5, 2.3, 'window');
   opening(kitchen, 'east', 0.8, 1, 'door');
@@ -475,7 +511,7 @@ export function sampleProject(): Project {
   opening(study, 'south', 0.5, 1.7, 'window');
   opening(study, 'east', 0.5, 1, 'door');
   opening(hall, 'south', 0.25, 1, 'door');
-  opening(garage, 'south', 0.5, 3, 'door');
+  opening(garage, 'south', 0.5, 3, 'garage');
   return p;
 }
 export function formatLength(n: number, units: Project['units']) {
@@ -541,7 +577,8 @@ export function validateProject(raw: unknown): Project {
       !color(i.color) ||
       (i.style !== undefined && !['straight', 'l', 'u', 'spiral'].includes(i.style)) ||
       (i.dir !== undefined && !['up', 'down'].includes(i.dir)) ||
-      (i.finish !== undefined && !['wood', 'tile', 'carpet', 'stone'].includes(i.finish))
+      (i.finish !== undefined && !['wood', 'tile', 'carpet', 'stone'].includes(i.finish)) ||
+      (i.covered !== undefined && typeof i.covered !== 'boolean')
     )
       throw new Error('Invalid shape in project.');
     ids.add(i.id);
@@ -555,9 +592,9 @@ export function validateProject(raw: unknown): Project {
       !room ||
       !isRoom(room) ||
       !['north', 'south', 'east', 'west'].includes(o.side) ||
-      !['window', 'door'].includes(o.kind) ||
+      !openingKinds.some((k) => k.kind === o.kind) ||
       !num(o.offset, 0, 1) ||
-      !num(o.width, 0.3, 10)
+      !num(o.width, 0.3, 12)
     )
       throw new Error('Invalid window or door.');
     openingIds.add(o.id);
@@ -583,7 +620,7 @@ export interface Wall {
   end: number;
   floor: number;
   /** Garage doors are marked so they can be drawn closed; other wide doors are open archways. */
-  openings: { start: number; end: number; kind: 'window' | 'door'; garage?: true }[];
+  openings: { start: number; end: number; kind: OpeningKind }[];
 }
 export function buildWalls(p: Project): Wall[] {
   const segments: Wall[] = [];
@@ -595,14 +632,11 @@ export function buildWalls(p: Project): Wall[] {
       const openings = p.openings
         .filter((o) => o.roomId === r.id && o.side === side)
         .map((o) => {
+          // Taking a wall out opens the whole side; everything else is centered on its offset.
+          if (spansWall(o.kind)) return { start, end: start + len, kind: o.kind };
           const width = Math.min(o.width, len - 0.2);
           const c = Math.max(width / 2 + 0.1, Math.min(len - width / 2 - 0.1, len * o.offset));
-          return {
-            start: start + c - width / 2,
-            end: start + c + width / 2,
-            kind: o.kind,
-            ...(r.kind === 'garage' && o.kind === 'door' ? { garage: true as const } : {}),
-          };
+          return { start: start + c - width / 2, end: start + c + width / 2, kind: o.kind };
         });
       segments.push({
         axis: horizontal ? 'x' : 'z',

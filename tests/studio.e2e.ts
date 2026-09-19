@@ -116,7 +116,7 @@ test('wall openings, drag resize, and keyboard shape movement work together', as
   const room = page.getByTestId('shape-room').first();
   const rect = room.locator('rect').first();
   const b = (await rect.boundingBox())!;
-  await page.getByRole('button', { name: 'Window Click a wall' }).click();
+  await page.getByRole('button', { name: /^Window/ }).click();
   await page.mouse.click(b.x + b.width * 0.8, b.y);
   await expect(page.locator('.opening-row')).toHaveCount(5);
   await page.getByRole('button', { name: 'Select', exact: true }).click();

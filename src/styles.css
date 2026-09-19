@@ -1570,6 +1570,9 @@ kbd {
   color: #56664f;
   margin: 16px 0 18px;
 }
+.checkbox-label.tight {
+  margin: 10px 0 4px;
+}
 .tour-steps {
   display: grid;
   grid-template-columns: 1fr 1fr;

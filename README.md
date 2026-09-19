@@ -24,14 +24,15 @@ Other ways to run it:
 ## Designing
 
 1. **Rooms.** Choose **Draw room** (R) and drag on the grid. Drag a room to move it; its furniture comes along (hold Alt to move the room alone). Drag any amber corner to resize, or type exact sizes on the right.
-2. **Doors and windows.** Choose Door, Window, or Wide opening (for open-concept rooms) and click a wall. Drag a door or window along its wall to reposition it.
-3. **Furniture.** The Furnish tab has living, kitchen, bedroom, and bathroom pieces. A preview follows your cursor, and pieces snap flush to walls. Press **E** (or ↻ on the selection bar) to turn the selected piece; arrow keys nudge it. **Ctrl+C** then **Ctrl+V** on another floor pastes it in the same spot, handy for stacking bathrooms.
-4. **Floors.** Use **+** beside the floor menu. Pick a stair style and Hearth lays connecting stairs on the floor below (or above, for a basement) plus a landing on the new floor to build around. Rename or delete floors in the right panel.
-5. **Stairs.** Straight, L-shaped, switchback, and spiral. Choose **Up** or **Down** before placing, or change it later on the right. On the plan, **UP** marks the bottom step and **DN** the top; the floor above shows the opening with a guard rail. Stairs with no floor at the other end offer to create it.
-6. **Sizes.** In feet, sizes read as feet and inches; type `12 6`, `12'6"`, or `12.5`.
+2. **Doors and openings.** Seven kinds: door, double doors, sliding glass, garage door, window, wide opening, and **Remove wall** — which takes a whole wall out so two rooms become one (click it again to put the wall back). Click a wall to place one, drag it along the wall to move it, and change its type in the right panel.
+3. **Landings and balconies.** A landing is a platform at the current floor level: a porch by the front door, or a balcony upstairs, where it gets a rail. Tick **Covered** for a porch roof on posts.
+4. **Furniture.** The Furnish tab has living, kitchen, bedroom, and bathroom pieces. A preview follows your cursor, and pieces snap flush to walls. Press **E** (or ↻ on the selection bar) to turn the selected piece; arrow keys nudge it. **Ctrl+C** then **Ctrl+V** on another floor pastes it in the same spot, handy for stacking bathrooms.
+5. **Floors.** Use **+** beside the floor menu. Pick a stair style and Hearth lays connecting stairs on the floor below (or above, for a basement) plus a landing on the new floor to build around. Rename or delete floors in the right panel.
+6. **Stairs.** Straight, L-shaped, switchback, and spiral. Choose **Up** or **Down** before placing, or change it later on the right. On the plan, **UP** marks the bottom step and **DN** the top; the floor above shows the opening with a guard rail. Stairs with no floor at the other end offer to create it.
+7. **Sizes.** In feet, sizes read as feet and inches; type `12 6`, `12'6"`, or `12.5`.
    **Measure** (M) drags a tape between any two points; hold Shift to keep it straight.
-7. **Share the plan.** The picture button under the plan saves the current floor as a PNG with the house name and floor as a title.
-8. **Outside.** Patios, driveways, lawns, pools, trees, and fences live on the ground floor. Pick exterior and interior wall colors and a roof on the right, then choose **See the exterior**.
+8. **Share the plan.** The picture button under the plan saves the current floor as a PNG with the house name and floor as a title.
+9. **Outside.** Patios, driveways, lawns, pools, trees, and fences live on the ground floor. Pick exterior and interior wall colors and a roof on the right, then choose **See the exterior**.
 
 ### Versions, notes, and budget
 

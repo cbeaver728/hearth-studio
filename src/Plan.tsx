@@ -2,6 +2,9 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Compass, Copy, Crosshair, ImageDown, Minus, Plus, RotateCw, Trash2 } from 'lucide-react';
 import {
   catalogEntry,
+  openingKinds,
+  openingName,
+  type OpeningKind,
   contentsOf,
   createItem,
   formatLength,
@@ -46,8 +49,9 @@ interface Gesture {
   carried?: Item[];
   moved?: boolean;
 }
+const OPENING_TOOLS = openingKinds.map((o) => o.kind) as string[];
 const placing = (tool: Tool) =>
-  !['select', 'pan', 'window', 'door', 'arch', 'room', 'garage'].includes(tool);
+  !['select', 'pan', 'measure', 'room', 'garage', ...OPENING_TOOLS].includes(tool);
 
 export default function Plan({
   project: p,
@@ -190,8 +194,7 @@ export default function Plan({
     return out;
   };
 
-  const placeOpening = (a: { x: number; z: number }, tool: 'window' | 'door' | 'arch') => {
-    const kind = tool === 'window' ? 'window' : 'door';
+  const placeOpening = (a: { x: number; z: number }, kind: OpeningKind) => {
     let best: { r: Item; side: Side; dist: number; offset: number } | undefined;
     for (const r of roomsHere) {
       const candidates: { side: Side; dist: number; offset: number }[] = [
@@ -219,23 +222,34 @@ export default function Plan({
       for (const c of candidates) if (!best || c.dist < best.dist) best = { r, ...c };
     }
     if (best && best.dist < 0.8) {
+      const onThisWall = p.openings.filter((o) => o.roomId === best!.r.id && o.side === best!.side);
+      if (kind === 'open' && onThisWall.some((o) => o.kind === 'open')) {
+        // Clicking an opened-up wall again puts it back.
+        onChange({ ...p, openings: p.openings.filter((o) => !onThisWall.includes(o)) });
+        onSelect(best.r.id);
+        onNotice('Wall put back. Click it again to open it up.');
+        return;
+      }
       onChange({
         ...p,
+        // Taking a wall out replaces whatever was in it.
         openings: [
-          ...p.openings,
+          ...(kind === 'open' ? p.openings.filter((o) => !onThisWall.includes(o)) : p.openings),
           {
             id: uid(),
             roomId: best.r.id,
             side: best.side,
             offset: Math.round(Math.max(0.1, Math.min(0.9, best.offset)) * 100) / 100,
-            width: tool === 'window' ? 1.5 : tool === 'arch' ? 2.4 : 0.9,
+            width: openingKinds.find((o) => o.kind === kind)!.width,
             kind,
           },
         ],
       });
       onSelect(best.r.id);
       onNotice(
-        `${tool === 'window' ? 'Window' : tool === 'arch' ? 'Wide opening' : 'Door'} added. Click another wall for more, or press Esc.`,
+        kind === 'open'
+          ? 'Wall removed. Click another wall to open it up, or press Esc.'
+          : `${openingName(kind)} added. Click another wall for more, or press Esc.`,
       );
     } else onNotice('Click right on a room wall to place an opening.');
   };
@@ -256,8 +270,8 @@ export default function Plan({
       setPanning(true);
       return;
     }
-    if (tool === 'window' || tool === 'door' || tool === 'arch') {
-      placeOpening(a, tool);
+    if (OPENING_TOOLS.includes(tool)) {
+      placeOpening(a, tool as OpeningKind);
       return;
     }
     if (tool === 'measure') {
@@ -738,34 +752,53 @@ export default function Plan({
                 gesture.current = { kind: 'opening', x: a.x, z: a.z, item: r, opening: o.id };
               }}
             >
-              <title>{`${o.kind === 'door' ? 'Door' : 'Window'} · drag along the wall to move it`}</title>
+              <title>{`${openingName(o.kind)} · drag along the wall to move it`}</title>
               <path d={`M0 0H${width}`} stroke="transparent" strokeWidth=".45" />
               <path
                 d={`M0 0H${width}`}
-                stroke={o.kind === 'window' ? '#8ac0c2' : '#f7f6f1'}
-                strokeWidth=".2"
+                stroke={o.kind === 'window' ? '#8ac0c2' : r.color}
+                strokeWidth={o.kind === 'open' ? 0.24 : 0.2}
               />
-              {o.kind === 'door' && width > 1.8 && r.kind !== 'garage' ? (
-                // A wide opening between rooms: casing marks at each side, no swing.
+              {o.kind === 'window' && (
+                <path d={`M0 -.075H${width}M0 .075H${width}`} stroke="#49868d" strokeWidth=".025" />
+              )}
+              {(o.kind === 'arch' || o.kind === 'open') && (
                 <path d={`M0 -.14V.14M${width} -.14V.14`} stroke="#9b8970" strokeWidth=".04" />
-              ) : o.kind === 'door' && width > 1.8 ? (
-                // Wide doors (garages) roll up, so show the overhead track instead of a swing.
+              )}
+              {o.kind === 'garage' && (
                 <path
                   d={`M0 ${into * (h ? 1 : -1) * 0.35}H${width}`}
                   stroke="#9b8970"
                   strokeWidth=".03"
                   strokeDasharray=".15 .1"
                 />
-              ) : o.kind === 'window' ? (
-                <path d={`M0 -.075H${width}M0 .075H${width}`} stroke="#49868d" strokeWidth=".025" />
-              ) : (
-                <path
-                  d={`M0 0V${into * width * (h ? 1 : -1)}M0 ${into * width * (h ? 1 : -1)}A${width} ${width} 0 0 ${into > 0 === h ? 0 : 1} ${width} 0`}
-                  fill="none"
-                  stroke="#9b8970"
-                  strokeWidth=".03"
-                />
               )}
+              {o.kind === 'slider' && (
+                <>
+                  <path d={`M0 -.05H${width / 2 + 0.05}`} stroke="#49868d" strokeWidth=".05" />
+                  <path
+                    d={`M${width / 2 - 0.05} .05H${width}`}
+                    stroke="#49868d"
+                    strokeWidth=".05"
+                  />
+                </>
+              )}
+              {(o.kind === 'door' || o.kind === 'double') &&
+                (o.kind === 'double' ? [0, 1] : [0]).map((n) => {
+                  const leaf = o.kind === 'double' ? width / 2 : width;
+                  const from = n === 0 ? 0 : width;
+                  const sweepIn = into > 0 === h ? 0 : 1;
+                  const to = n === 0 ? leaf : width - leaf;
+                  return (
+                    <path
+                      key={n}
+                      d={`M${from} 0V${into * leaf * (h ? 1 : -1)}M${from} ${into * leaf * (h ? 1 : -1)}A${leaf} ${leaf} 0 0 ${n === 0 ? sweepIn : 1 - sweepIn} ${to} 0`}
+                      fill="none"
+                      stroke="#9b8970"
+                      strokeWidth=".03"
+                    />
+                  );
+                })}
             </g>
           );
         })}
@@ -950,8 +983,8 @@ export default function Plan({
       <div className="canvas-hint">
         {tool === 'room' || tool === 'garage'
           ? 'Click and drag to draw. Release to build.'
-          : tool === 'window' || tool === 'door' || tool === 'arch'
-            ? `Click a wall to add ${tool === 'arch' ? 'a wide opening between rooms' : `a ${tool}`} · Esc when done`
+          : OPENING_TOOLS.includes(tool)
+            ? `Click a wall to add ${openingName(tool as OpeningKind).toLowerCase()} · Esc when done`
             : tool === 'measure'
               ? 'Drag to measure any distance · Shift keeps it straight'
               : tool === 'pan'
@@ -987,7 +1020,7 @@ function Shape({ item: i, floor }: { item: Item; floor: number }) {
         />
       </>
     );
-  if (isRoom(i) || isOutside(i))
+  if (isRoom(i) || isOutside(i) || i.kind === 'landing')
     return (
       <>
         <rect
@@ -997,10 +1030,14 @@ function Shape({ item: i, floor }: { item: Item; floor: number }) {
           height={i.d}
           rx={isRoom(i) ? 0 : i.kind === 'pool' ? 0.3 : 0.06}
           fill={i.color}
-          stroke={isRoom(i) ? '#56645d' : i.kind === 'pool' ? '#ebede4' : '#788276'}
-          strokeWidth={isRoom(i) ? 0.16 : i.kind === 'pool' ? 0.16 : 0.035}
+          stroke={isRoom(i) ? '#56645d' : i.kind === 'pool' ? '#ebede4' : '#8a7a62'}
+          strokeWidth={
+            isRoom(i) ? 0.16 : i.kind === 'landing' ? 0.07 : i.kind === 'pool' ? 0.16 : 0.035
+          }
         />
-        {i.kind === 'deck' && <rect x={i.x} y={i.z} width={i.w} height={i.d} fill="url(#deck)" />}
+        {(i.kind === 'deck' || i.kind === 'landing') && (
+          <rect x={i.x} y={i.z} width={i.w} height={i.d} fill="url(#deck)" />
+        )}
         {(i.finish === 'tile' || i.finish === 'stone') && (
           <rect x={i.x} y={i.z} width={i.w} height={i.d} fill={`url(#${i.finish})`} />
         )}
