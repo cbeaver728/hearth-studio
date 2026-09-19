@@ -8,7 +8,7 @@ Design your dream home, then walk through it. Draw rooms, add doors, windows, fu
 
 ## Open Hearth Studio
 
-**Double-click `Hearth Studio.html`.** That's the whole app in one file. Download it from this repository's Releases page, save it anywhere (the Desktop is fine), and it opens in Edge or Chrome. There is nothing to install, no command window, and no `.exe` for Windows security to block. It works offline.
+**Double-click `Hearth-Studio.html`.** That's the whole app in one file. Download it from this repository's Releases page, save it anywhere (the Desktop is fine), and it opens in Edge or Chrome. There is nothing to install, no command window, and no `.exe` for Windows security to block. It works offline.
 
 Designs save automatically in that browser. Keep opening the same file in the same browser to find them again, and use **Export project** for backups or to move a design to another computer.
 
