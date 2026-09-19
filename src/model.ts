@@ -26,7 +26,10 @@ export type Kind =
   | 'vanity'
   | 'plant'
   | 'coffee'
-  | 'landing';
+  | 'landing'
+  | 'laundry'
+  | 'bunk'
+  | 'utility';
 export type StairStyle = 'straight' | 'l' | 'u' | 'spiral';
 export type Side = 'north' | 'south' | 'east' | 'west';
 /** Floor-to-floor height in meters. */
@@ -271,6 +274,17 @@ export const catalog: CatalogEntry[] = [
     'Bedroom & office',
   ),
   entry(
+    'bunk',
+    'bunk',
+    'Bunk beds',
+    'Two beds, one footprint',
+    1.05,
+    2.05,
+    '#b59d80',
+    'Furnish',
+    'Bedroom & office',
+  ),
+  entry(
     'wardrobe',
     'wardrobe',
     'Wardrobe',
@@ -315,6 +329,39 @@ export const catalog: CatalogEntry[] = [
     '#b9a58a',
     'Furnish',
     'Bathroom',
+  ),
+  entry(
+    'laundry',
+    'laundry',
+    'Washer & dryer',
+    'Side by side',
+    1.4,
+    0.68,
+    '#e4e7e6',
+    'Furnish',
+    'Laundry & utility',
+  ),
+  entry(
+    'laundry-stacked',
+    'laundry',
+    'Stacked laundry',
+    'One on top of the other',
+    0.7,
+    0.68,
+    '#e4e7e6',
+    'Furnish',
+    'Laundry & utility',
+  ),
+  entry(
+    'utility',
+    'utility',
+    'Utility sink',
+    'For the messy jobs',
+    0.6,
+    0.55,
+    '#dfe2e0',
+    'Furnish',
+    'Laundry & utility',
   ),
   entry('deck', 'deck', 'Patio / deck', 'Take life outside', 5, 3, '#c2a781', 'Landscape'),
   entry(
@@ -448,6 +495,7 @@ export function sampleProject(): Project {
   add('wardrobe', 'Wardrobe', -2.8, 4.35, 1.6, 0.6, undefined, 180);
   add('desk', 'Writing desk', -0.3, 1.2, 2, 0.8);
   add('plant', 'Fiddle-leaf fig', 1.9, 4.1, 0.6, 0.6);
+  add('laundry-stacked', 'Laundry', 3.2, 1.1, 0.7, 0.68);
   add('stairs', 'Stairs', 4.8, 1.05, 1.1, 3.4);
   // Upstairs: bedrooms around a landing at the top of the stairs.
   p.floors.push({ level: 1, name: 'Upstairs' });
@@ -478,7 +526,7 @@ export function sampleProject(): Project {
   up('armchair', 'Chair', -2.2, 3.6, 0.9, 0.9, undefined, 270);
   up('sofa', 'Loft sofa', -0.4, -3.9, 2.4, 1, '#b8a58a');
   up('rug', 'Rug', -0.2, -2.6, 2.4, 1.7);
-  up('bed', 'Twin bed', 0.8, 3.7, 2.1, 1.1, '#d9b9a5', 90);
+  up('bunk', 'Bunk beds', 0.85, 3.6, 2.05, 1.05, '#c08f6a', 90);
   up('desk', 'Homework desk', -0.9, 1.1, 1.3, 0.6);
   up('bathtub', 'Bathtub', 4.15, -3.9, 1.75, 0.8);
   up('vanity', 'Vanity', 3.08, -2.7, 0.5, 1, undefined, 270);

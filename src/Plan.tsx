@@ -1169,6 +1169,45 @@ function Shape({ item: i, floor }: { item: Item; floor: number }) {
         </>
       );
       break;
+    case 'laundry': {
+      const stacked = W < 1.05;
+      body = (
+        <>
+          {r(0, 0, W, D, c, 0.03)}
+          {stacked
+            ? circle(W / 2, D / 2, Math.min(W, D) * 0.28, '#c9d2d2')
+            : [0, 1].map((n) => (
+                <g key={n}>
+                  {circle(W * (0.25 + n * 0.5), D / 2, Math.min(W / 2, D) * 0.3, '#c9d2d2')}
+                </g>
+              ))}
+        </>
+      );
+      break;
+    }
+    case 'utility':
+      body = (
+        <>
+          {r(0, 0, W, D, c, 0.03)}
+          {r(W * 0.12, D * 0.12, W * 0.76, D * 0.76, '#c9d2d2', 0.04)}
+        </>
+      );
+      break;
+    case 'bunk':
+      body = (
+        <>
+          {r(0, 0, W, D, c, 0.05)}
+          {r(0.05, 0.05, W - 0.1, D - 0.1, '#ffffff55', 0.04)}
+          {r(W * 0.12, 0.14, W * 0.76, 0.36, '#f5f2ed', 0.05)}
+          {/* The ladder at the foot of the bed. */}
+          {[0, 1, 2].map((n) => (
+            <g key={n}>{line(W * 0.25, D - 0.07 - n * 0.09, W * 0.75, D - 0.07 - n * 0.09)}</g>
+          ))}
+          {line(W * 0.25, D - 0.25, W * 0.25, D - 0.04)}
+          {line(W * 0.75, D - 0.25, W * 0.75, D - 0.04)}
+        </>
+      );
+      break;
     case 'desk':
       body = (
         <>

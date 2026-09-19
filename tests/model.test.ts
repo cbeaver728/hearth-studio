@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   blankProject,
   buildWalls,
+  catalogEntry,
   createItem,
   removeItem,
   sampleProject,
@@ -13,6 +14,7 @@ import {
   snap,
   validateProject,
 } from '../src/model';
+import { buildWalkWorld } from '../src/walk';
 describe('project integrity', () => {
   it('round trips a furnished house and preserves every opening', () => {
     const p = sampleProject();
@@ -115,4 +117,19 @@ it('counts bedrooms and baths from room names', () => {
   powder.name = 'Powder room';
   p.items = [powder];
   expect(bedsAndBaths(p)).toEqual({ beds: 0, baths: 0.5 });
+});
+it('adds laundry and bunk beds you can walk around', () => {
+  for (const id of ['laundry', 'laundry-stacked', 'utility', 'bunk']) {
+    const entry = catalogEntry(id)!;
+    expect(entry, id).toBeTruthy();
+    const p = blankProject();
+    const room = createItem('room', 0, 0, 0);
+    Object.assign(room, { w: 6, d: 6 });
+    const piece = createItem(id, 0, 2, 2);
+    p.items = [room, piece];
+    expect(() => validateProject(JSON.parse(JSON.stringify(p)))).not.toThrow();
+    const world = buildWalkWorld(p);
+    expect(world.free(piece.x + piece.w / 2, piece.z + piece.d / 2, 0), id).toBe(false);
+    expect(world.free(room.x + 5, room.z + 5, 0), id).toBe(true);
+  }
 });
