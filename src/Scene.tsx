@@ -624,6 +624,8 @@ export default function Scene({ project: p, floor, mode, onMode, onNotice, onLev
   const [walkLevel, setWalkLevel] = useState(floor);
   // Until you orbit, the camera re-frames the house when the panel changes size.
   const framing = useRef({ touched: false, frame: () => {} });
+  // Frames are drawn only when something changed, so an idle view costs nothing.
+  const dirty = useRef(true);
   const [roomName, setRoomName] = useState('');
   const mapFrame = useRef<{
     minX: number;
@@ -695,6 +697,7 @@ export default function Scene({ project: p, floor, mode, onMode, onNotice, onLev
       renderer.setSize(w, h);
       camera.aspect = w / h;
       camera.updateProjectionMatrix();
+      dirty.current = true;
       if (!framing.current.touched && live.current.mode !== 'walk') framing.current.frame();
     });
     resize.observe(node);
@@ -757,7 +760,8 @@ export default function Scene({ project: p, floor, mode, onMode, onNotice, onLev
 
     let frame = 0,
       last = performance.now(),
-      tickCount = 0;
+      tickCount = 0,
+      seen = '';
     const tick = (now: number) => {
       frame = requestAnimationFrame(tick);
       const dt = Math.min((now - last) / 1000, 0.05);
@@ -794,6 +798,10 @@ export default function Scene({ project: p, floor, mode, onMode, onNotice, onLev
           w.fall = Math.min(w.fall + dt * 14, 9);
           w.feet = Math.max(ground, w.feet - Math.max(w.fall, 3) * dt);
         }
+        const pose = [w.x, w.z, w.feet, w.yaw, w.pitch].map((n) => n.toFixed(4)).join();
+        const force = dirty.current;
+        if (pose === seen && !force) return;
+        seen = pose;
         camera.position.set(w.x, w.feet + EYE, w.z);
         camera.rotation.set(w.pitch, w.yaw, 0);
         const level = e.world.levelOf(w.feet);
@@ -802,8 +810,8 @@ export default function Scene({ project: p, floor, mode, onMode, onNotice, onLev
           setWalkLevel(level);
           live.current.onLevel?.(level);
         }
-        if (++tickCount % 3 === 0) drawMap();
-        if (tickCount % 12 === 0) {
+        if (++tickCount % 3 === 0 || force) drawMap();
+        if (tickCount % 12 === 0 || force) {
           const here = live.current.p.items.find(
             (i) =>
               isRoom(i) &&
@@ -815,7 +823,8 @@ export default function Scene({ project: p, floor, mode, onMode, onNotice, onLev
           );
           setRoomName(here ? here.name : w.level === 0 && w.feet < 0.5 ? 'Outside' : '');
         }
-      } else controls.update();
+      } else if (!controls.update() && !dirty.current) return;
+      dirty.current = false;
       renderer.render(scene, camera);
     };
     frame = requestAnimationFrame(tick);
@@ -967,6 +976,7 @@ export default function Scene({ project: p, floor, mode, onMode, onNotice, onLev
     });
     setWalkLevel(level);
     setHint(true);
+    dirty.current = true;
   };
 
   // Rebuild the house whenever the design or view changes.
@@ -980,6 +990,7 @@ export default function Scene({ project: p, floor, mode, onMode, onNotice, onLev
     e.dispose = built.dispose;
     e.bounds = built.bounds;
     e.scene.add(built.group);
+    dirty.current = true;
     e.world = mode === 'walk' ? buildWalkWorld(p) : null;
     // A wider lens indoors keeps rooms from feeling cramped.
     const fov = mode === 'walk' ? 68 : 45;
@@ -1016,6 +1027,7 @@ export default function Scene({ project: p, floor, mode, onMode, onNotice, onLev
     e.controls.target.set(c.x, targetY, c.z);
     e.camera.position.copy(e.controls.target).addScaledVector(dir, distance);
     framing.current.touched = false;
+    dirty.current = true;
     e.camera.rotation.order = 'YXZ';
     e.controls.enabled = true;
     e.controls.update();
