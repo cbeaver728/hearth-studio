@@ -8,7 +8,9 @@ Design your dream home, then walk through it. Draw rooms, add doors, windows, fu
 
 ## Open Hearth Studio
 
-**Double-click `Hearth-Studio.html`.** That's the whole app in one file. Download it from this repository's Releases page, save it anywhere (the Desktop is fine), and it opens in Edge or Chrome. There is nothing to install, no command window, and no `.exe` for Windows security to block. It works offline.
+**Open https://cbeaver728.github.io/hearth-studio/** in Edge or Chrome. Choose **Install app** in the address bar to get a desktop icon that opens in its own window and works offline. It works on phones and tablets too.
+
+Or, without the internet: **Double-click `Hearth-Studio.html`.** That's the whole app in one file. Download it from this repository's Releases page, save it anywhere (the Desktop is fine), and it opens in Edge or Chrome. There is nothing to install, no command window, and no `.exe` for Windows security to block. It works offline.
 
 Designs save automatically in that browser. Keep opening the same file in the same browser to find them again, and use **Export project** for backups or to move a design to another computer.
 
@@ -16,7 +18,6 @@ Designs save automatically in that browser. Keep opening the same file in the sa
 
 Other ways to run it:
 
-- **Hosted:** if GitHub Pages is turned on for this repository, open the site in Edge or Chrome and choose **Install app** in the address bar for a desktop icon that opens in its own window, offline included.
 - **Windows executable:** `Hearth-Studio-*-Windows.exe` on Releases is an unsigned portable Electron build. Windows Device Guard / Smart App Control blocks unsigned executables on some PCs; use the HTML file there.
 - **Local server:** the older `Hearth-Studio-Browser.zip` edition still works (`Start Hearth Studio.cmd`, needs Node.js 22+).
 
