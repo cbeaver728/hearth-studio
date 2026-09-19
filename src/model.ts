@@ -32,6 +32,10 @@ export type Kind =
   | 'utility'
   | 'shelf';
 export type StairStyle = 'straight' | 'l' | 'u' | 'spiral';
+/** Ceiling height: the usual 10 ft, a taller 12 ft, or open all the way to the floor above. */
+export type Ceiling = 'standard' | 'tall' | 'open';
+export const WALL_H = 3;
+export const TALL_H = 3.7;
 export type Side = 'north' | 'south' | 'east' | 'west';
 /** Floor-to-floor height in meters. */
 export const FLOOR_H = 3.2;
@@ -57,6 +61,8 @@ export interface Item {
   finish?: FloorFinish;
   /** Landings only: a roof on posts over the platform. */
   covered?: boolean;
+  /** Rooms only: how high the ceiling goes (standard when unset). */
+  ceiling?: Ceiling;
 }
 export type FloorFinish = 'wood' | 'tile' | 'carpet' | 'stone';
 /** Ways through (or into) a wall. 'open' takes the wall away entirely. */
@@ -446,6 +452,35 @@ export function onLevel(i: Item, level: number) {
   const { lower, upper } = stairLevels(i);
   return level === lower || level === upper;
 }
+/** Rooms directly over this one. */
+export const roomsAbove = (p: Project, r: Item) =>
+  p.items.filter(
+    (i) =>
+      isRoom(i) &&
+      i.floor === r.floor + 1 &&
+      i.x < r.x + r.w - 0.01 &&
+      i.x + i.w > r.x + 0.01 &&
+      i.z < r.z + r.d - 0.01 &&
+      i.z + i.d > r.z + 0.01,
+  );
+/** How tall this room's walls stand. Open rooms reach through the floor above. */
+export function ceilingHeight(p: Project, r: Item) {
+  if (r.ceiling === 'open' && hasFloor(p, r.floor + 1)) return FLOOR_H + WALL_H;
+  // A taller ceiling only fits where nothing is built on top.
+  if (r.ceiling === 'tall' && !roomsAbove(p, r).length) return TALL_H;
+  return WALL_H;
+}
+/** Footprints of rooms whose ceiling is open, cut out of the floor above. */
+export const openCeilings = (p: Project, level: number) =>
+  p.items
+    .filter(
+      (i) =>
+        isRoom(i) &&
+        i.floor === level - 1 &&
+        ceilingHeight(p, i) > WALL_H + 0.1 &&
+        i.ceiling === 'open',
+    )
+    .map((i) => ({ x0: i.x, z0: i.z, x1: i.x + i.w, z1: i.z + i.d }));
 export const hasFloor = (p: Project, level: number) => p.floors.some((f) => f.level === level);
 export const floorName = (p: Project, level: number) =>
   p.floors.find((f) => f.level === level)?.name ||
@@ -540,6 +575,7 @@ export function sampleProject(): Project {
   const landing = up('room', 'Landing', 3, -1, 3, 6, '#eae0d1');
   const suite = up('room', 'Primary suite', -6, -4, 5, 9, '#e2dfea');
   suite.finish = 'carpet';
+  suite.ceiling = 'tall';
   const loft = up('room', 'Reading loft', -1, -4, 4, 5, '#e6ddca');
   const kids = up('room', "Kids' room", -1, 1, 4, 4, '#e3e6d7');
   kids.finish = 'carpet';
@@ -651,7 +687,8 @@ export function validateProject(raw: unknown): Project {
       (i.style !== undefined && !['straight', 'l', 'u', 'spiral'].includes(i.style)) ||
       (i.dir !== undefined && !['up', 'down'].includes(i.dir)) ||
       (i.finish !== undefined && !['wood', 'tile', 'carpet', 'stone'].includes(i.finish)) ||
-      (i.covered !== undefined && typeof i.covered !== 'boolean')
+      (i.covered !== undefined && typeof i.covered !== 'boolean') ||
+      (i.ceiling !== undefined && !['standard', 'tall', 'open'].includes(i.ceiling))
     )
       throw new Error('Invalid shape in project.');
     ids.add(i.id);
@@ -692,6 +729,8 @@ export interface Wall {
   start: number;
   end: number;
   floor: number;
+  /** How tall this piece stands, from the room with the highest ceiling beside it. */
+  height: number;
   /** Garage doors are marked so they can be drawn closed; other wide doors are open archways. */
   openings: { start: number; end: number; kind: OpeningKind }[];
 }
@@ -718,6 +757,7 @@ export function buildWalls(p: Project): Wall[] {
         start,
         end: start + len,
         floor: r.floor,
+        height: ceilingHeight(p, r),
         openings,
       });
     }
@@ -738,6 +778,7 @@ export function buildWalls(p: Project): Wall[] {
         ...cover[0],
         start,
         end,
+        height: Math.max(...cover.map((s) => s.height)),
         openings: cover
           .flatMap((s) => s.openings)
           .filter((o) => o.start < end && o.end > start)

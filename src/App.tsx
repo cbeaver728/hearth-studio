@@ -68,6 +68,7 @@ import {
   blankProject,
   catalog,
   catalogEntry,
+  ceilingHeight,
   contentsOf,
   bedBathLabel,
   deleteFloor,
@@ -84,6 +85,7 @@ import {
   openingKinds,
   openingName,
   removeItem,
+  roomsAbove,
   rotateItem,
   sampleProject,
   stairEntry,
@@ -93,6 +95,7 @@ import {
   validateProject,
   type FloorFinish,
   type Item,
+  type Ceiling,
   type Kind,
   type OpeningKind,
   type Project,
@@ -1074,6 +1077,60 @@ export default function App() {
             />
             Covered — a porch roof on posts
           </label>
+        )}
+        {isRoom(s) && (
+          <>
+            <div className="field-label">Ceiling</div>
+            <div className="segmented wide" role="group" aria-label="Ceiling">
+              {(
+                [
+                  ['standard', 'Standard'],
+                  ['tall', 'Tall'],
+                  ['open', 'Open above'],
+                ] as [Ceiling, string][]
+              ).map(([c, label]) => (
+                <button
+                  key={c}
+                  className={(s.ceiling || 'standard') === c ? 'active' : ''}
+                  aria-pressed={(s.ceiling || 'standard') === c}
+                  title={
+                    c === 'tall'
+                      ? 'A taller ceiling, where nothing is built on top'
+                      : c === 'open'
+                        ? 'Open all the way to the floor above — a two-storey entry or stairway'
+                        : 'The usual ceiling height'
+                  }
+                  onClick={() => patchItem({ ceiling: c === 'standard' ? undefined : c })}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <p className="hint-text">
+              {formatLength(ceilingHeight(project, s), u)} to the ceiling
+              {s.ceiling === 'tall' && roomsAbove(project, s).length
+                ? ' — a tall ceiling needs nothing built on top, and this room has ' +
+                  roomsAbove(project, s)[0].name +
+                  ' above it.'
+                : s.ceiling === 'open' && !hasFloor(project, s.floor + 1)
+                  ? ' — add a floor above and this room will open up into it.'
+                  : '.'}
+            </p>
+            {s.ceiling === 'open' && !!roomsAbove(project, s).length && (
+              <div className="connects warn">
+                <Layers size={16} />
+                <span>
+                  {roomsAbove(project, s)
+                    .map((r) => r.name)
+                    .join(', ')}{' '}
+                  {roomsAbove(project, s).length === 1 ? 'sits' : 'sit'} over this room, so the
+                  floor there is cut away. Move{' '}
+                  {roomsAbove(project, s).length === 1 ? 'it' : 'them'} aside to keep the opening
+                  safe to walk around.
+                </span>
+              </div>
+            )}
+          </>
         )}
         {s.kind === 'room' && (
           <>

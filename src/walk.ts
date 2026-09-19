@@ -4,6 +4,7 @@ import {
   FLOOR_H,
   isPassable,
   isRoom,
+  openCeilings,
   stairLevels,
   type Item,
   type Project,
@@ -37,7 +38,7 @@ export function stairHoles(p: Project, level: number): Rect[] {
 
 /** Room floors and landings on a level, minus stair openings. */
 export function floorRects(p: Project, level: number): Rect[] {
-  const holes = stairHoles(p, level);
+  const holes = [...stairHoles(p, level), ...openCeilings(p, level)];
   return p.items
     .filter((i) => (isRoom(i) || i.kind === 'landing') && i.floor === level)
     .flatMap((i) => subtractRects({ x0: i.x, z0: i.z, x1: i.x + i.w, z1: i.z + i.d }, holes));
@@ -108,8 +109,8 @@ export function wallBoxes(p: Project): Box[] {
       if (b - a < 0.02) return;
       boxes.push(
         w.axis === 'x'
-          ? { x0: a, x1: b, z0: w.line - 0.08, z1: w.line + 0.08, y0: y, y1: y + 3 }
-          : { x0: w.line - 0.08, x1: w.line + 0.08, z0: a, z1: b, y0: y, y1: y + 3 },
+          ? { x0: a, x1: b, z0: w.line - 0.08, z1: w.line + 0.08, y0: y, y1: y + w.height }
+          : { x0: w.line - 0.08, x1: w.line + 0.08, z0: a, z1: b, y0: y, y1: y + w.height },
       );
     };
     for (const d of doors) {

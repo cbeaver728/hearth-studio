@@ -2,12 +2,15 @@ import { describe, it, expect } from 'vitest';
 import {
   blankProject,
   buildWalls,
+  ceilingHeight,
   createItem,
   FLOOR_H,
   isPassable,
   openingKinds,
   sampleProject,
+  TALL_H,
   validateProject,
+  WALL_H,
   type OpeningKind,
 } from '../src/model';
 import { buildWalkWorld, floorRects, landingRails, wallBoxes } from '../src/walk';
@@ -91,5 +94,55 @@ describe('landings', () => {
     expect(back.items.find((i) => i.kind === 'landing')!.covered).toBe(true);
     const world = buildWalkWorld(p);
     expect(world.free(landing.x + 0.1, landing.z + 0.1, 0)).toBe(false);
+  });
+});
+
+describe('ceilings', () => {
+  const twoFloors = (ceiling?: 'tall' | 'open', roomAbove = true) => {
+    const p = blankProject();
+    p.floors.push({ level: 1, name: 'Upstairs' });
+    const entry = createItem('room', 0, 0, 0);
+    Object.assign(entry, { w: 4, d: 4, name: 'Entry', ceiling });
+    const over = createItem('room', 1, 0, 0);
+    Object.assign(over, { w: 4, d: 4, name: 'Landing' });
+    const beside = createItem('room', 1, 4, 0);
+    Object.assign(beside, { w: 4, d: 4, name: 'Bedroom' });
+    p.items = roomAbove ? [entry, over, beside] : [entry, beside];
+    return { p, entry, over, beside };
+  };
+  it('stands walls at the usual height by default', () => {
+    const { p, entry } = twoFloors();
+    expect(ceilingHeight(p, entry)).toBe(WALL_H);
+    expect(buildWalls(p).every((w) => w.height === WALL_H)).toBe(true);
+  });
+  it('runs an open room right up through the floor above', () => {
+    const { p, entry } = twoFloors('open', false);
+    expect(ceilingHeight(p, entry)).toBeCloseTo(FLOOR_H + WALL_H);
+    const wall = buildWalls(p).find((w) => w.floor === 0)!;
+    expect(wall.height).toBeCloseTo(FLOOR_H + WALL_H);
+    // Walking upstairs, the entry is a void, not a floor.
+    expect(floorRects(p, 1).some((r) => r.x0 < 2 && r.x1 > 2 && r.z0 < 2 && r.z1 > 2)).toBe(false);
+    const world = buildWalkWorld(p);
+    // Nothing to stand on up there; the room's own walls keep you out of the void.
+    expect(world.support(2, 2, FLOOR_H + 0.1)).toBeCloseTo(0);
+    expect(world.free(4, 2, FLOOR_H)).toBe(false);
+  });
+  it('raises a tall ceiling only where nothing is built on top', () => {
+    expect(ceilingHeight(twoFloors('tall').p, twoFloors('tall').entry)).toBe(WALL_H);
+    const open = twoFloors('tall', false);
+    expect(ceilingHeight(open.p, open.entry)).toBeCloseTo(TALL_H);
+  });
+  it('keeps a shared wall as tall as the taller room beside it', () => {
+    const { p, entry } = twoFloors('open', false);
+    const neighbour = createItem('room', 0, 4, 0);
+    Object.assign(neighbour, { w: 4, d: 4 });
+    p.items.push(neighbour);
+    const shared = buildWalls(p).find((w) => w.floor === 0 && w.axis === 'z' && w.line === 4)!;
+    expect(shared.height).toBeCloseTo(ceilingHeight(p, entry));
+  });
+  it('saves and reloads the setting', () => {
+    const { p } = twoFloors('open', false);
+    const back = validateProject(JSON.parse(JSON.stringify(p)));
+    expect(back.items.find((i) => i.name === 'Entry')!.ceiling).toBe('open');
   });
 });

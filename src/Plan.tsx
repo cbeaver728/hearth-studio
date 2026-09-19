@@ -106,6 +106,14 @@ export default function Plan({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Some pointers (and scripted clicks) can't be captured; dragging still works without it.
+  const capture = (id: number) => {
+    try {
+      svg.current!.setPointerCapture(id);
+    } catch {
+      /* not capturable */
+    }
+  };
   const point = (e: { clientX: number; clientY: number }) => {
     const pt = svg.current!.createSVGPoint();
     pt.x = e.clientX;
@@ -258,7 +266,7 @@ export default function Plan({
     if (e.button !== 0 && e.button !== 1 && e.button !== 2) return;
     e.preventDefault();
     const a = point(e);
-    svg.current!.setPointerCapture(e.pointerId);
+    capture(e.pointerId);
     const item = p.items.find((i) => i.id === id);
     if (
       tool === 'pan' ||
@@ -746,7 +754,7 @@ export default function Plan({
                 if (tool !== 'select' || e.button !== 0) return;
                 e.stopPropagation();
                 e.preventDefault();
-                svg.current!.setPointerCapture(e.pointerId);
+                capture(e.pointerId);
                 onSelect(r.id);
                 const a = point(e);
                 gesture.current = { kind: 'opening', x: a.x, z: a.z, item: r, opening: o.id };

@@ -18,8 +18,12 @@ import {
 } from 'lucide-react';
 import {
   buildWalls,
+  ceilingHeight,
   floorName,
+  hasFloor,
+  WALL_H,
   isPassable,
+  openCeilings,
   FLOOR_H,
   isOutside,
   isRoom,
@@ -212,9 +216,23 @@ function buildContent(p: Project, mode: SceneMode, floor: number, evening: boole
           ? levels.filter((l) => l >= 0 && l <= floor)
           : [floor];
   const showsOutside = mode !== 'dollhouse' || floor >= 0;
-  const wallHeight = (level: number) => (mode === 'dollhouse' && level === floor ? 1.15 : 3);
   const interior = p.interior || '#f4efe6';
   const roomsOn = (level: number) => p.items.filter((i) => isRoom(i) && i.floor === level);
+  // Where the roof sits on a level: as high as that level's tallest ceiling.
+  const topLevel = Math.max(0, ...levels.filter((l) => l >= 0));
+  const roofBase = (level: number) => {
+    const rooms = roomsOn(level);
+    return rooms.length ? Math.max(...rooms.map((r) => ceilingHeight(p, r))) : WALL_H;
+  };
+  /** Outside walls carry on up to the roof, so a tall room next door leaves no gap. */
+  const wallHeight = (w: { floor: number; height: number }, outside: boolean) => {
+    if (mode === 'dollhouse' && w.floor === floor) return 1.15;
+    if (!outside) return w.height;
+    const opensUp = w.height > WALL_H + 0.1 && hasFloor(p, w.floor + 1);
+    const level = w.floor + (opensUp ? 1 : 0);
+    if (level !== topLevel) return w.height;
+    return Math.max(w.height, (opensUp ? FLOOR_H : 0) + roofBase(level));
+  };
   const insideRoom = (level: number, x: number, z: number) =>
     roomsOn(level).some((r) => x > r.x && x < r.x + r.w && z > r.z && z < r.z + r.d);
 
@@ -282,7 +300,7 @@ function buildContent(p: Project, mode: SceneMode, floor: number, evening: boole
   // Floors, with openings where stairs arrive.
   for (const level of shown) {
     const y = level * FLOOR_H,
-      holes = stairHoles(p, level);
+      holes = [...stairHoles(p, level), ...openCeilings(p, level)];
     for (const r of roomsOn(level))
       for (const piece of subtractRects(
         { x0: r.x, z0: r.z, x1: r.x + r.w, z1: r.z + r.d },
@@ -326,7 +344,6 @@ function buildContent(p: Project, mode: SceneMode, floor: number, evening: boole
   const trim = '#fbf8f1';
   for (const wall of buildWalls(p).filter((w) => shown.includes(w.floor))) {
     const y = wall.floor * FLOOR_H,
-      height = wallHeight(wall.floor),
       thick = 0.16;
     const mid = (wall.start + wall.end) / 2;
     const sideA =
@@ -337,6 +354,7 @@ function buildContent(p: Project, mode: SceneMode, floor: number, evening: boole
       wall.axis === 'x'
         ? insideRoom(wall.floor, mid, wall.line + 0.25)
         : insideRoom(wall.floor, wall.line + 0.25, mid);
+    const height = wallHeight(wall, !sideA || !sideB);
     const neg = mat(sideA ? interior : p.exterior),
       pos = mat(sideB ? interior : p.exterior),
       edge = mat(mode === 'dollhouse' ? '#f5f0e5' : interior);
@@ -510,7 +528,7 @@ function buildContent(p: Project, mode: SceneMode, floor: number, evening: boole
       for (const kind of ['room', 'garage'] as const) {
         const rooms = p.items.filter((i) => i.floor === level && i.kind === kind);
         if (!rooms.length) continue;
-        const y = level * FLOOR_H + 3.0;
+        const y = level * FLOOR_H + Math.max(...rooms.map((r) => ceilingHeight(p, r)));
         const above = p.items.filter(
           (i) =>
             isRoom(i) &&
