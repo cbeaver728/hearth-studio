@@ -1,0 +1,57 @@
+{
+  "name": "hearth-studio",
+  "version": "1.0.0",
+  "private": true,
+  "description": "A playful, local-first home design studio with 2D plans and 3D walkthroughs.",
+  "author": "cbeaver728",
+  "type": "module",
+  "main": "electron/main.cjs",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview --host 127.0.0.1",
+    "desktop": "npm run build && electron .",
+    "package": "node node_modules/electron/install.js && npm run build && electron-builder --win portable --config.electronDist=node_modules/electron/dist",
+    "test": "vitest run",
+    "test:e2e": "playwright test",
+    "format": "prettier --write src tests electron *.ts *.json *.html *.md",
+    "test:desktop": "npm run build && node tests/desktop-smoke.cjs"
+  },
+  "dependencies": {
+    "lucide-react": "^0.577.0",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "three": "^0.186.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "latest",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "@types/three": "^0.183.0",
+    "@vitejs/plugin-react": "latest",
+    "electron": "^44.4.3",
+    "electron-builder": "latest",
+    "prettier": "^3.9.8",
+    "typescript": "^5.9.3",
+    "vite": "^8.3.0",
+    "vitest": "latest"
+  },
+  "build": {
+    "appId": "com.hearthstudio.app",
+    "productName": "Hearth Studio",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "package.json",
+      "build/icon.png"
+    ],
+    "win": {
+      "target": "portable",
+      "artifactName": "Hearth-Studio-${version}-Windows.${ext}",
+      "icon": "build/icon.ico"
+    }
+  }
+}

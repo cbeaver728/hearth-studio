@@ -1,0 +1,420 @@
+{
+  "version": 1,
+  "id": "f133bd04-717f-444f-a270-da8db4cda9e7",
+  "name": "The Sunday House",
+  "updated": "2026-09-19T00:15:38.369Z",
+  "floors": [
+    {
+      "level": 0,
+      "name": "Ground floor"
+    }
+  ],
+  "items": [
+    {
+      "id": "c79edd52-6aa3-4889-b35e-91b0454320c2",
+      "kind": "room",
+      "name": "Living room",
+      "x": -6,
+      "z": -4,
+      "w": 6,
+      "d": 5,
+      "color": "#e6ddca",
+      "floor": 0,
+      "rotation": 0
+    },
+    {
+      "id": "43cedff1-08af-45ff-ab9c-50a098579fbc",
+      "kind": "room",
+      "name": "Kitchen & dining",
+      "x": 0,
+      "z": -4,
+      "w": 4,
+      "d": 5,
+      "color": "#e9e2d5",
+      "floor": 0,
+      "rotation": 0
+    },
+    {
+      "id": "f5b6cfa3-1b83-44a5-b075-b0c1e3aabb45",
+      "kind": "room",
+      "name": "Bathroom",
+      "x": 4,
+      "z": -4,
+      "w": 2,
+      "d": 3,
+      "color": "#dbe8e4",
+      "floor": 0,
+      "rotation": 0
+    },
+    {
+      "id": "b7e524e1-a26c-4eb9-99b6-33a9afbfc53b",
+      "kind": "room",
+      "name": "Entry",
+      "x": 4,
+      "z": -1,
+      "w": 2,
+      "d": 2,
+      "color": "#eae0d1",
+      "floor": 0,
+      "rotation": 0
+    },
+    {
+      "id": "52387888-4d90-40fe-8477-b83b35c2576e",
+      "kind": "room",
+      "name": "Bedroom",
+      "x": -6,
+      "z": 1,
+      "w": 5,
+      "d": 4,
+      "color": "#e2dfea",
+      "floor": 0,
+      "rotation": 0
+    },
+    {
+      "id": "1c9c0ea1-a6a7-4c46-aadd-eaaf28d894b6",
+      "kind": "room",
+      "name": "Creative studio",
+      "x": -1,
+      "z": 1,
+      "w": 4,
+      "d": 4,
+      "color": "#e3e6d7",
+      "floor": 0,
+      "rotation": 0
+    },
+    {
+      "id": "b4c0ff40-26fc-440d-9082-22b1aaeb93b2",
+      "kind": "room",
+      "name": "Hallway",
+      "x": 3,
+      "z": 1,
+      "w": 3,
+      "d": 4,
+      "color": "#eae0d1",
+      "floor": 0,
+      "rotation": 0
+    },
+    {
+      "id": "32a19d01-4d18-4dc1-b544-9c5f4541dcd8",
+      "kind": "garage",
+      "name": "Garage",
+      "x": 6,
+      "z": -1,
+      "w": 4,
+      "d": 6,
+      "color": "#d5d9d7",
+      "floor": 0,
+      "rotation": 0
+    },
+    {
+      "id": "5fbc0704-6e2d-479e-b72e-1c2060458ead",
+      "kind": "deck",
+      "name": "Evening terrace",
+      "x": -6,
+      "z": -7,
+      "w": 10,
+      "d": 3,
+      "color": "#c2a781",
+      "floor": 0,
+      "rotation": 0
+    },
+    {
+      "id": "2d4bc1b5-4196-4658-864e-b68b3115e732",
+      "kind": "driveway",
+      "name": "Driveway",
+      "x": 6,
+      "z": 5,
+      "w": 4,
+      "d": 6,
+      "color": "#bcbeb8",
+      "floor": 0,
+      "rotation": 0
+    },
+    {
+      "id": "7f675ca9-4262-483c-b355-c3d38d444141",
+      "kind": "pool",
+      "name": "Plunge pool",
+      "x": -11,
+      "z": -4,
+      "w": 3,
+      "d": 6,
+      "color": "#80c9cc",
+      "floor": 0,
+      "rotation": 0
+    },
+    {
+      "id": "6d9a3540-a45c-472c-aebc-568b9696cdff",
+      "kind": "tree",
+      "name": "Japanese maple",
+      "x": -9,
+      "z": 5,
+      "w": 2,
+      "d": 2,
+      "color": "#6f9569",
+      "floor": 0,
+      "rotation": 0
+    },
+    {
+      "id": "c07a69d2-25f6-4909-b9eb-7c684e2f109b",
+      "kind": "tree",
+      "name": "Garden tree",
+      "x": 3,
+      "z": -9,
+      "w": 2.5,
+      "d": 2.5,
+      "color": "#6f9569",
+      "floor": 0,
+      "rotation": 0
+    },
+    {
+      "id": "fa793f3d-7724-46e6-8c40-30070f27e514",
+      "kind": "tree",
+      "name": "Garden tree",
+      "x": -10,
+      "z": -8,
+      "w": 2,
+      "d": 2,
+      "color": "#6f9569",
+      "floor": 0,
+      "rotation": 0
+    },
+    {
+      "id": "68af0b3e-22aa-4bea-8e1f-7b92ce909fa9",
+      "kind": "tree",
+      "name": "Garden tree",
+      "x": 10,
+      "z": -5,
+      "w": 2.5,
+      "d": 2.5,
+      "color": "#6f9569",
+      "floor": 0,
+      "rotation": 0
+    },
+    {
+      "id": "3211ada2-bad6-4f2f-bb7a-d723b1cdb3de",
+      "kind": "sofa",
+      "name": "Linen sofa",
+      "x": -5,
+      "z": -2.6,
+      "w": 2.8,
+      "d": 1.1,
+      "color": "#88a79b",
+      "floor": 0,
+      "rotation": 0
+    },
+    {
+      "id": "4c8f9a95-e09d-4ad5-a921-fc2d1327fc14",
+      "kind": "table",
+      "name": "Coffee table",
+      "x": -4.6,
+      "z": -0.9,
+      "w": 1.8,
+      "d": 0.8,
+      "color": "#c9a87c",
+      "floor": 0,
+      "rotation": 0
+    },
+    {
+      "id": "5d802b9a-bdb9-4278-b473-f08fc4169bf9",
+      "kind": "counter",
+      "name": "Kitchen island",
+      "x": 0.5,
+      "z": -3,
+      "w": 2.6,
+      "d": 0.9,
+      "color": "#d4c7b5",
+      "floor": 0,
+      "rotation": 0
+    },
+    {
+      "id": "78d25922-ce00-409a-947c-2342213d9710",
+      "kind": "table",
+      "name": "Dining table",
+      "x": 0.8,
+      "z": -1.1,
+      "w": 2,
+      "d": 1.2,
+      "color": "#c9a87c",
+      "floor": 0,
+      "rotation": 0
+    },
+    {
+      "id": "74971828-0c08-484d-b519-66487310d9a2",
+      "kind": "bed",
+      "name": "King bed",
+      "x": -5.2,
+      "z": 1.6,
+      "w": 2,
+      "d": 2.2,
+      "color": "#b3b9cb",
+      "floor": 0,
+      "rotation": 0
+    },
+    {
+      "id": "252bec25-bb98-47e4-bca1-eb176b5e3161",
+      "kind": "table",
+      "name": "Writing desk",
+      "x": -0.3,
+      "z": 1.5,
+      "w": 2,
+      "d": 0.8,
+      "color": "#c9a87c",
+      "floor": 0,
+      "rotation": 0
+    },
+    {
+      "id": "60fcf8d0-827b-44b6-94b1-97e21a084522",
+      "kind": "stairs",
+      "name": "Stairs",
+      "x": 4.2,
+      "z": 1.5,
+      "w": 1.1,
+      "d": 2.8,
+      "color": "#c7b59e",
+      "floor": 0,
+      "rotation": 0
+    }
+  ],
+  "openings": [
+    {
+      "id": "ca00a502-2942-4e39-b718-b83d09c1889f",
+      "roomId": "c79edd52-6aa3-4889-b35e-91b0454320c2",
+      "side": "north",
+      "offset": 0.45,
+      "width": 2.8,
+      "kind": "window"
+    },
+    {
+      "id": "22943085-3e35-40b3-a957-0be8bc97ff54",
+      "roomId": "c79edd52-6aa3-4889-b35e-91b0454320c2",
+      "side": "west",
+      "offset": 0.55,
+      "width": 2,
+      "kind": "window"
+    },
+    {
+      "id": "bce801ac-f810-4b13-b28e-ca3e249cb1d5",
+      "roomId": "c79edd52-6aa3-4889-b35e-91b0454320c2",
+      "side": "east",
+      "offset": 0.5,
+      "width": 1.4,
+      "kind": "door"
+    },
+    {
+      "id": "6f874f06-7915-44c9-949c-f50d51afc66b",
+      "roomId": "c79edd52-6aa3-4889-b35e-91b0454320c2",
+      "side": "south",
+      "offset": 0.7,
+      "width": 1,
+      "kind": "door"
+    },
+    {
+      "id": "346bf2ee-35bc-4bfc-943d-d92e5140038b",
+      "roomId": "43cedff1-08af-45ff-ab9c-50a098579fbc",
+      "side": "north",
+      "offset": 0.5,
+      "width": 2.3,
+      "kind": "window"
+    },
+    {
+      "id": "a442d6d9-1f0b-47fc-bc6e-5dfa421a14ee",
+      "roomId": "43cedff1-08af-45ff-ab9c-50a098579fbc",
+      "side": "east",
+      "offset": 0.8,
+      "width": 1,
+      "kind": "door"
+    },
+    {
+      "id": "82761910-3f2b-4cfb-bd40-10334579c739",
+      "roomId": "43cedff1-08af-45ff-ab9c-50a098579fbc",
+      "side": "south",
+      "offset": 0.7,
+      "width": 1,
+      "kind": "door"
+    },
+    {
+      "id": "a6f3406a-c91b-4c46-878d-8fbdba252e8f",
+      "roomId": "f5b6cfa3-1b83-44a5-b075-b0c1e3aabb45",
+      "side": "north",
+      "offset": 0.5,
+      "width": 0.9,
+      "kind": "window"
+    },
+    {
+      "id": "c01a416e-931f-4cb1-bc8c-93c5fca64155",
+      "roomId": "f5b6cfa3-1b83-44a5-b075-b0c1e3aabb45",
+      "side": "south",
+      "offset": 0.5,
+      "width": 0.9,
+      "kind": "door"
+    },
+    {
+      "id": "75523178-1f9f-4fa3-9883-f1507a81c420",
+      "roomId": "b7e524e1-a26c-4eb9-99b6-33a9afbfc53b",
+      "side": "east",
+      "offset": 0.5,
+      "width": 1,
+      "kind": "door"
+    },
+    {
+      "id": "8966ee01-9f5a-4140-b375-f6587a861f91",
+      "roomId": "b7e524e1-a26c-4eb9-99b6-33a9afbfc53b",
+      "side": "south",
+      "offset": 0.5,
+      "width": 1,
+      "kind": "door"
+    },
+    {
+      "id": "7cf6132f-4660-4157-be32-57b032d1a802",
+      "roomId": "52387888-4d90-40fe-8477-b83b35c2576e",
+      "side": "west",
+      "offset": 0.5,
+      "width": 1.5,
+      "kind": "window"
+    },
+    {
+      "id": "a78727c9-4c9a-47ec-8f52-d1cff5b62475",
+      "roomId": "52387888-4d90-40fe-8477-b83b35c2576e",
+      "side": "east",
+      "offset": 0.5,
+      "width": 1,
+      "kind": "door"
+    },
+    {
+      "id": "a42a9a0d-c893-4aaa-bee5-5e89500f2684",
+      "roomId": "1c9c0ea1-a6a7-4c46-aadd-eaaf28d894b6",
+      "side": "south",
+      "offset": 0.5,
+      "width": 1.7,
+      "kind": "window"
+    },
+    {
+      "id": "687d9bcb-38fa-41fc-99a4-7fd5ff483ab7",
+      "roomId": "1c9c0ea1-a6a7-4c46-aadd-eaaf28d894b6",
+      "side": "east",
+      "offset": 0.5,
+      "width": 1,
+      "kind": "door"
+    },
+    {
+      "id": "b261bf81-5fa3-4e7a-892c-dde9bd2be9bf",
+      "roomId": "b4c0ff40-26fc-440d-9082-22b1aaeb93b2",
+      "side": "east",
+      "offset": 0.5,
+      "width": 1,
+      "kind": "door"
+    },
+    {
+      "id": "aa01366d-aa1f-48d5-839d-40296f1cde60",
+      "roomId": "32a19d01-4d18-4dc1-b544-9c5f4541dcd8",
+      "side": "south",
+      "offset": 0.5,
+      "width": 3,
+      "kind": "door"
+    }
+  ],
+  "exterior": "#f0e9dc",
+  "roof": "#586662",
+  "roofStyle": "gable",
+  "units": "ft"
+}
