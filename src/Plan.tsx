@@ -840,7 +840,7 @@ export default function Plan({
               strokeDasharray=".12 .08"
               pointerEvents="none"
             />
-            {(['nw', 'ne', 'sw', 'se'] as Corner[]).map((c) => (
+            {(tool === 'select' ? (['nw', 'ne', 'sw', 'se'] as Corner[]) : []).map((c) => (
               <rect
                 key={c}
                 data-testid={c === 'se' ? 'resize-handle' : `resize-${c}`}
