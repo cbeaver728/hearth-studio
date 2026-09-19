@@ -703,6 +703,22 @@ export function contentsOf(p: Project, room: Item) {
 /** Total heated floor area (rooms, not garages) in square feet. */
 export const squareFeet = (p: Project) => area({ ...p, units: 'ft' });
 export const DEFAULT_COST = 250;
+/** Bedrooms and bathrooms, read from room names ("Primary suite", "Powder room" = half bath). */
+export function bedsAndBaths(p: Project) {
+  let beds = 0,
+    baths = 0;
+  for (const r of p.items.filter((i) => i.kind === 'room')) {
+    const n = r.name.toLowerCase();
+    if (/powder|half bath/.test(n)) baths += 0.5;
+    else if (/bath|ensuite|en-suite/.test(n)) baths += 1;
+    else if (/bed|suite|nursery|guest room|kids/.test(n)) beds += 1;
+  }
+  return { beds, baths };
+}
+export const bedBathLabel = (p: Project) => {
+  const { beds, baths } = bedsAndBaths(p);
+  return `${beds} bed · ${baths} bath`;
+};
 /** "$581k" style money. */
 export function money(n: number) {
   if (n >= 1e6) return `$${(n / 1e6).toFixed(n >= 1e7 ? 0 : 2)}M`;

@@ -64,6 +64,7 @@ import {
   catalog,
   catalogEntry,
   contentsOf,
+  bedBathLabel,
   deleteFloor,
   DEFAULT_COST,
   money,
@@ -271,8 +272,8 @@ export function StairIcon({ style, size = 34 }: { style: StairStyle; size?: numb
   );
 }
 /** A small plan drawing of a project's ground floor, for the project list. */
-function Thumbnail({ p }: { p: Project }) {
-  const rooms = p.items.filter((i) => isRoom(i) && i.floor === 0);
+function Thumbnail({ p, level = 0 }: { p: Project; level?: number }) {
+  const rooms = p.items.filter((i) => isRoom(i) && i.floor === level);
   if (!rooms.length) return <Home size={42} strokeWidth={1} />;
   const minX = Math.min(...rooms.map((i) => i.x)),
     maxX = Math.max(...rooms.map((i) => i.x + i.w)),
@@ -316,6 +317,71 @@ const ROOM_NAMES: [string, string][] = [
   ['Hallway', '#eae0d1'],
   ['Playroom', '#e3e6d7'],
 ];
+/** Two designs side by side: plans for each floor and the numbers that matter. */
+function Compare({
+  pair,
+  onClear,
+  onOpen,
+}: {
+  pair: Project[];
+  onClear: () => void;
+  onOpen: (p: Project) => void;
+}) {
+  if (pair.length < 2) return null;
+  const rows: [string, (p: Project) => string][] = [
+    ['Finished area', (p) => `${Math.round(squareFeet(p)).toLocaleString()} sq ft`],
+    ['Bedrooms & baths', (p) => bedBathLabel(p)],
+    ['Rooms', (p) => String(p.items.filter((i) => i.kind === 'room').length)],
+    ['Floors', (p) => p.floors.map((f) => f.name).join(', ')],
+    ['Rough estimate', (p) => money(squareFeet(p) * (p.costPerSqFt ?? DEFAULT_COST))],
+    ['Last changed', (p) => new Date(p.updated).toLocaleDateString()],
+  ];
+  return (
+    <section className="compare" aria-label="Compare designs">
+      <div className="compare-head">
+        <strong>Side by side</strong>
+        <button className="text-button" onClick={onClear}>
+          <X size={13} /> Clear
+        </button>
+      </div>
+      <div className="compare-grid">
+        {pair.map((p) => (
+          <div key={p.id} className="compare-col">
+            <strong>{p.name}</strong>
+            <div className="compare-plans">
+              {[...p.floors]
+                .filter((f) => p.items.some((i) => isRoom(i) && i.floor === f.level))
+                .map((f) => (
+                  <figure key={f.level}>
+                    <Thumbnail p={p} level={f.level} />
+                    <figcaption>{f.name}</figcaption>
+                  </figure>
+                ))}
+              {!p.items.some(isRoom) && (
+                <figure className="compare-empty">
+                  <Home size={32} strokeWidth={1} />
+                  <figcaption>No rooms yet</figcaption>
+                </figure>
+              )}
+            </div>
+            <dl>
+              {rows.map(([label, value]) => (
+                <div key={label}>
+                  <dt>{label}</dt>
+                  <dd>{value(p)}</dd>
+                </div>
+              ))}
+            </dl>
+            {p.notes && <p className="compare-notes">{p.notes}</p>}
+            <button className="outline-button" onClick={() => onOpen(p)}>
+              Open this one
+            </button>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
 const TILE_GROUPS: Record<'Build' | 'Furnish' | 'Landscape', string> = {
   Build: 'Build',
   Furnish: 'Furnish',
@@ -335,6 +401,8 @@ export default function App() {
   const [mode, setMode] = useState<'split' | 'plan' | '3d'>('split');
   const [sceneMode, setSceneMode] = useState<SceneMode>('dollhouse');
   const [snapping, setSnapping] = useState(true);
+  // Up to two designs picked for side-by-side comparison in My projects.
+  const [compare, setCompare] = useState<string[]>([]);
   const [modal, setModal] = useState<'projects' | 'help' | 'floor' | null>(
     start.fresh ? 'help' : null,
   );
@@ -1684,6 +1752,7 @@ export default function App() {
                 <strong>{project.floors.length}</strong>{' '}
                 {project.floors.length === 1 ? 'floor' : 'floors'}
               </span>
+              <span>{bedBathLabel(project)}</span>
               <span title="Rough build estimate — set the cost per square foot on the right">
                 ≈{' '}
                 <strong>
@@ -1802,6 +1871,15 @@ export default function App() {
                     Open project file
                   </button>
                 </div>
+                {compare.length === 2 && (
+                  <Compare
+                    pair={compare
+                      .map((id) => [project, ...library].find((p) => p.id === id))
+                      .filter((p): p is Project => !!p)}
+                    onClear={() => setCompare([])}
+                    onOpen={(p) => (p.id === project.id ? setModal(null) : switchProject(p))}
+                  />
+                )}
                 <div className="project-grid">
                   {[project, ...library.filter((p) => p.id !== project.id)].map((p) => (
                     <div
@@ -1829,6 +1907,21 @@ export default function App() {
                         </small>
                       </button>
                       <div className="project-card-actions">
+                        <button
+                          aria-pressed={compare.includes(p.id)}
+                          className={compare.includes(p.id) ? 'on' : ''}
+                          title="Pick two designs to compare side by side"
+                          onClick={() =>
+                            setCompare((c) =>
+                              c.includes(p.id)
+                                ? c.filter((id) => id !== p.id)
+                                : [...c, p.id].slice(-2),
+                            )
+                          }
+                        >
+                          <Columns3 size={13} />
+                          Compare
+                        </button>
                         <button
                           aria-label={`Duplicate project ${p.name}`}
                           onClick={() =>

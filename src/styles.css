@@ -1429,6 +1429,97 @@ kbd {
 .project-card-actions .danger {
   color: #b0614f;
 }
+.project-card-actions button.on {
+  background: var(--green-soft);
+  color: var(--green);
+  font-weight: 600;
+}
+.compare {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fff;
+  padding: 14px 16px 16px;
+  margin-bottom: 16px;
+}
+.compare-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+.compare-head strong {
+  font:
+    18px Georgia,
+    serif;
+  color: #2e4539;
+}
+.compare-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+}
+.compare-col > strong {
+  font-size: 15px;
+}
+.compare-plans {
+  display: flex;
+  gap: 8px;
+  margin: 8px 0;
+}
+.compare-plans figure {
+  flex: 1;
+  margin: 0;
+  background: linear-gradient(135deg, #eef1e5, #dbe3cc);
+  border-radius: 8px;
+  padding: 8px;
+  height: 130px;
+  display: flex;
+  flex-direction: column;
+}
+.compare-plans figure svg {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+}
+.compare-plans figcaption {
+  font-size: 11.5px;
+  color: #50663f;
+  text-align: center;
+  margin-top: 4px;
+}
+.compare-plans .compare-empty {
+  align-items: center;
+  justify-content: center;
+  color: #899c73;
+}
+.compare dl {
+  margin: 0 0 10px;
+}
+.compare dl > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 5px 0;
+  border-bottom: 1px solid #eef0e8;
+  font-size: 13px;
+}
+.compare dt {
+  color: var(--muted);
+}
+.compare dd {
+  margin: 0;
+  font-weight: 600;
+  text-align: right;
+}
+.compare-notes {
+  font-size: 12.5px;
+  color: #5d6f58;
+  background: #f5f6ef;
+  border-radius: 8px;
+  padding: 8px 10px;
+  margin-bottom: 10px;
+  white-space: pre-wrap;
+}
 .modal-note {
   display: flex;
   gap: 12px;

@@ -6,6 +6,7 @@ import {
   removeItem,
   sampleProject,
   readFeet,
+  bedsAndBaths,
   area,
   money,
   squareFeet,
@@ -106,4 +107,12 @@ it('estimates cost from finished square footage', () => {
   const withNotes = { ...p, notes: 'Bigger pantry', costPerSqFt: 300 };
   expect(validateProject(JSON.parse(JSON.stringify(withNotes))).notes).toBe('Bigger pantry');
   expect(() => validateProject({ ...p, costPerSqFt: -5 })).toThrow();
+});
+it('counts bedrooms and baths from room names', () => {
+  expect(bedsAndBaths(sampleProject())).toEqual({ beds: 3, baths: 2 });
+  const p = blankProject();
+  const powder = createItem('room', 0, 0, 0);
+  powder.name = 'Powder room';
+  p.items = [powder];
+  expect(bedsAndBaths(p)).toEqual({ beds: 0, baths: 0.5 });
 });

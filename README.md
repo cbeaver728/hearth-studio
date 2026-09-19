@@ -34,7 +34,7 @@ Other ways to run it:
 
 ### Versions, notes, and budget
 
-With nothing selected, the right panel holds **Notes for this version** (shown on the project card, handy for "what we liked about this one") and a **rough build estimate** from finished square footage and an editable cost per square foot. Use **My projects → Make a copy** before trying a big change so you can compare versions.
+With nothing selected, the right panel holds **Notes for this version** (shown on the project card, handy for "what we liked about this one") and a **rough build estimate** from finished square footage and an editable cost per square foot. Use **My projects → Make a copy** before trying a big change, then pick **Compare** on two cards to see their plans, bed/bath count, square footage, and estimate side by side.
 
 ## Walking through
 
