@@ -74,6 +74,10 @@ export interface Project {
   roof: string;
   roofStyle: 'gable' | 'flat';
   units: 'ft' | 'm';
+  /** Free-form notes about this version of the design. */
+  notes?: string;
+  /** Rough building cost per square foot, for the estimate. */
+  costPerSqFt?: number;
 }
 export const uid = () => crypto.randomUUID();
 export const snap = (n: number, enabled = true) =>
@@ -501,7 +505,9 @@ export function validateProject(raw: unknown): Project {
     (p.interior !== undefined && !color(p.interior)) ||
     !color(p.roof) ||
     !['gable', 'flat'].includes(p.roofStyle) ||
-    !['ft', 'm'].includes(p.units)
+    !['ft', 'm'].includes(p.units) ||
+    (p.notes !== undefined && (typeof p.notes !== 'string' || p.notes.length > 4000)) ||
+    (p.costPerSqFt !== undefined && !num(p.costPerSqFt, 0, 5000))
   )
     throw new Error('Unsupported or damaged project file.');
   const levels = new Set<number>();
@@ -693,6 +699,15 @@ export function contentsOf(p: Project, room: Item) {
       i.x + i.w <= room.x + room.w + 0.01 &&
       i.z + i.d <= room.z + room.d + 0.01,
   );
+}
+/** Total heated floor area (rooms, not garages) in square feet. */
+export const squareFeet = (p: Project) => area({ ...p, units: 'ft' });
+export const DEFAULT_COST = 250;
+/** "$581k" style money. */
+export function money(n: number) {
+  if (n >= 1e6) return `$${(n / 1e6).toFixed(n >= 1e7 ? 0 : 2)}M`;
+  if (n >= 1e3) return `$${Math.round(n / 1e3)}k`;
+  return `$${Math.round(n)}`;
 }
 /** Reads 12'6", 12′ 6″, 12 6, 12ft 6in, or 12.5 as feet; NaN if it can't. */
 export function readFeet(text: string) {

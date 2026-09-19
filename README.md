@@ -32,9 +32,13 @@ Other ways to run it:
 7. **Share the plan.** The picture button under the plan saves the current floor as a PNG with the house name and floor as a title.
 8. **Outside.** Patios, driveways, lawns, pools, trees, and fences live on the ground floor. Pick exterior and interior wall colors and a roof on the right, then choose **See the exterior**.
 
+### Versions, notes, and budget
+
+With nothing selected, the right panel holds **Notes for this version** (shown on the project card, handy for "what we liked about this one") and a **rough build estimate** from finished square footage and an editable cost per square foot. Use **My projects → Make a copy** before trying a big change so you can compare versions.
+
 ## Walking through
 
-Choose **Walk through**. You start outside the front door, full screen.
+Choose **Walk through**. You start outside the front door, full screen. Or double-click any room in the 3D view to start right there (a single click selects things in 3D, too).
 
 - **W A S D** or the on-screen arrows to walk, **drag** to look around, **Q/E** or ←/→ to turn, **Shift** to hurry.
 - Walk onto the stairs to climb to the next floor. Walls, rails, and furniture block you; doorways don't.

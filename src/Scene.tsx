@@ -39,6 +39,8 @@ interface Props {
   onNotice: (s: string) => void;
   /** Walkthrough only: the level the walker is standing on changed. */
   onLevel?: (level: number) => void;
+  /** Clicking something in the dollhouse or exterior view selects it. */
+  onPick?: (id: string | null) => void;
 }
 interface Engine {
   renderer: T.WebGLRenderer;
@@ -248,12 +250,13 @@ function buildContent(p: Project, mode: SceneMode, floor: number, evening: boole
         { x0: r.x, z0: r.z, x1: r.x + r.w, z1: r.z + r.d },
         holes,
       )) {
-        slab(
+        const base = slab(
           piece,
           y - 0.18,
           y - 0.01,
           level === levels[0] || mode !== 'walk' ? tone(r.color, -20) : '#f3f0ea',
         );
+        if (base) base.userData.itemId = r.id;
         const w = piece.x1 - piece.x0,
           d = piece.z1 - piece.z0;
         const top = new T.PlaneGeometry(w, d);
@@ -273,6 +276,7 @@ function buildContent(p: Project, mode: SceneMode, floor: number, evening: boole
           false,
         );
         m.position.set((piece.x0 + piece.x1) / 2, y, (piece.z0 + piece.z1) / 2);
+        m.userData.itemId = r.id;
       }
   }
 
@@ -402,7 +406,10 @@ function buildContent(p: Project, mode: SceneMode, floor: number, evening: boole
   for (const i of p.items) {
     if (isRoom(i) || isOutside(i) || i.kind === 'stairs' || !shown.includes(i.floor)) continue;
     const g = furniture(i, i.floor * FLOOR_H, mat);
-    if (g) group.add(g);
+    if (g) {
+      g.userData.itemId = i.id;
+      group.add(g);
+    }
   }
 
   // Roofs: a gable (or flat) roof over the top of each stack, flat roofs over lower parts.
@@ -505,6 +512,7 @@ function buildStairs(
   const { LW, LD } = localSize(s);
   const g = new T.Group();
   g.position.set(s.x + s.w / 2, lower * FLOOR_H, s.z + s.d / 2);
+  g.userData.itemId = s.id;
   g.rotation.y = (-s.rotation * Math.PI) / 180;
   group.add(g);
   const put = (m: T.Mesh) => {
@@ -631,7 +639,15 @@ function frontDoor(p: Project) {
   return doors[0];
 }
 
-export default function Scene({ project: p, floor, mode, onMode, onNotice, onLevel }: Props) {
+export default function Scene({
+  project: p,
+  floor,
+  mode,
+  onMode,
+  onNotice,
+  onLevel,
+  onPick,
+}: Props) {
   const host = useRef<HTMLDivElement>(null);
   const map = useRef<HTMLCanvasElement>(null);
   const engine = useRef<Engine | null>(null);
@@ -650,8 +666,10 @@ export default function Scene({ project: p, floor, mode, onMode, onNotice, onLev
     const t = setTimeout(() => setFading(false), 700);
     return () => clearTimeout(t);
   }, [stop, touring]);
-  const live = useRef({ mode, floor, p, onLevel });
-  live.current = { mode, floor, p, onLevel };
+  const live = useRef({ mode, floor, p, onLevel, onPick, onMode });
+  live.current = { mode, floor, p, onLevel, onPick, onMode };
+  // Double-clicking the house starts the walkthrough at that spot.
+  const walkFrom = useRef<{ x: number; z: number; level: number; yaw: number } | null>(null);
   const [error, setError] = useState(false);
   const [evening, setEvening] = useState(false);
   const [hint, setHint] = useState(true);
@@ -758,6 +776,51 @@ export default function Scene({ project: p, floor, mode, onMode, onNotice, onLev
       lastY = e.clientY;
     };
     const up = () => (dragging = false);
+    const ray = new T.Raycaster();
+    const pick = (e: MouseEvent) => {
+      const r = renderer.domElement.getBoundingClientRect();
+      ray.setFromCamera(
+        new T.Vector2(
+          ((e.clientX - r.left) / r.width) * 2 - 1,
+          -((e.clientY - r.top) / r.height) * 2 + 1,
+        ),
+        camera,
+      );
+      const content = engine.current?.content;
+      if (!content) return null;
+      for (const hit of ray.intersectObject(content, true)) {
+        let o: T.Object3D | null = hit.object;
+        while (o && !o.userData.itemId) o = o.parent;
+        if (o) return { id: o.userData.itemId as string, point: hit.point };
+      }
+      return null;
+    };
+    let pressX = 0,
+      pressY = 0;
+    const press = (e: PointerEvent) => {
+      pressX = e.clientX;
+      pressY = e.clientY;
+    };
+    const release = (e: PointerEvent) => {
+      if (live.current.mode === 'walk' || e.button !== 0) return;
+      if (Math.hypot(e.clientX - pressX, e.clientY - pressY) > 4) return;
+      live.current.onPick?.(pick(e)?.id ?? null);
+    };
+    const dblclick = (e: MouseEvent) => {
+      if (live.current.mode === 'walk') return;
+      const hit = pick(e);
+      if (!hit) return;
+      const item = live.current.p.items.find((i) => i.id === hit.id);
+      if (!item || isOutside(item)) return;
+      const level = item.kind === 'stairs' ? stairLevels(item).lower : item.floor;
+      const dx = hit.point.x - camera.position.x,
+        dz = hit.point.z - camera.position.z;
+      walkFrom.current = { x: hit.point.x, z: hit.point.z, level, yaw: Math.atan2(-dx, -dz) };
+      live.current.onMode?.('walk');
+    };
+    renderer.domElement.addEventListener('pointerdown', press);
+    renderer.domElement.addEventListener('pointerup', release);
+    renderer.domElement.addEventListener('dblclick', dblclick);
     renderer.domElement.addEventListener('pointerdown', down);
     renderer.domElement.addEventListener('pointermove', move);
     renderer.domElement.addEventListener('pointerup', up);
@@ -1030,7 +1093,7 @@ export default function Scene({ project: p, floor, mode, onMode, onNotice, onLev
     setHint(false);
     dirty.current = true;
   };
-  const spawn = (level: number) => {
+  const spawn = (level: number, at?: { x: number; z: number; yaw: number }) => {
     endTour.current();
     const e = engine.current;
     if (!e?.world) return;
@@ -1041,7 +1104,12 @@ export default function Scene({ project: p, floor, mode, onMode, onNotice, onLev
       yaw = Math.PI,
       found = false;
     const face = (dx: number, dz: number) => Math.atan2(-dx, -dz);
-    if (level === 0) {
+    if (at) {
+      x = at.x;
+      z = at.z;
+      yaw = at.yaw;
+      found = true;
+    } else if (level === 0) {
       const d = frontDoor(p);
       if (d) {
         x = d.x + d.nx * 2.2;
@@ -1080,7 +1148,7 @@ export default function Scene({ project: p, floor, mode, onMode, onNotice, onLev
     // Nudge to the nearest open spot if furniture or a wall is in the way. Indoors, stay inside.
     const feet0 = level * FLOOR_H;
     const rooms = p.items.filter((i) => isRoom(i) && i.floor === level);
-    const indoors = !(level === 0 && found && frontDoor(p)) && rooms.length > 0;
+    const indoors = !at && !(level === 0 && found && frontDoor(p)) && rooms.length > 0;
     const inRoom = (tx: number, tz: number) =>
       !indoors ||
       rooms.some(
@@ -1171,8 +1239,14 @@ export default function Scene({ project: p, floor, mode, onMode, onNotice, onLev
     const e = engine.current;
     if (!e) return;
     e.controls.enabled = mode !== 'walk';
-    if (mode === 'walk') spawn(floor);
-    else frameCamera();
+    if (mode === 'walk') {
+      const from = walkFrom.current;
+      walkFrom.current = null;
+      if (from) {
+        spawn(from.level, from);
+        if (from.level !== floor) onLevel?.(from.level);
+      } else spawn(floor);
+    } else frameCamera();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode]);
   // Choosing another floor during a walkthrough takes you there; in the dollhouse it refocuses.
@@ -1270,7 +1344,7 @@ export default function Scene({ project: p, floor, mode, onMode, onNotice, onLev
             >
               <RotateCcw size={17} />
             </button>
-            <span>Drag to orbit · Right-drag to pan · Scroll to zoom</span>
+            <span>Drag to orbit · Click to select · Double-click to walk in</span>
             <button
               className="icon-button glass"
               aria-label="Export 3D image"

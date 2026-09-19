@@ -65,6 +65,9 @@ import {
   catalogEntry,
   contentsOf,
   deleteFloor,
+  DEFAULT_COST,
+  money,
+  squareFeet,
   floorName,
   formatLength,
   readFeet,
@@ -1171,6 +1174,51 @@ export default function App() {
             Add a floor or basement
           </button>
         </div>
+        <span className="section-heading">NOTES FOR THIS VERSION</span>
+        <textarea
+          key={project.id}
+          className="notes"
+          aria-label="Notes for this version"
+          placeholder="What we love, what to change, ideas to try…"
+          defaultValue={project.notes || ''}
+          maxLength={4000}
+          rows={3}
+          onBlur={(e) => {
+            const notes = e.target.value.trim();
+            if (notes !== (project.notes || '')) commit({ ...project, notes: notes || undefined });
+          }}
+        />
+        <div className="estimate">
+          <span className="section-heading">ROUGH BUILD ESTIMATE</span>
+          <strong>{money(squareFeet(project) * (project.costPerSqFt ?? DEFAULT_COST))}</strong>
+          <label>
+            at $
+            <input
+              key={`${project.id}-${project.costPerSqFt}`}
+              aria-label="Cost per square foot"
+              type="number"
+              min={0}
+              max={5000}
+              step={5}
+              defaultValue={project.costPerSqFt ?? DEFAULT_COST}
+              onBlur={(e) => {
+                const n = Number(e.target.value);
+                if (
+                  Number.isFinite(n) &&
+                  n >= 0 &&
+                  n <= 5000 &&
+                  n !== (project.costPerSqFt ?? DEFAULT_COST)
+                )
+                  commit({ ...project, costPerSqFt: n });
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') e.currentTarget.blur();
+              }}
+            />
+            per sq ft × {Math.round(squareFeet(project)).toLocaleString()} sq ft
+          </label>
+          <small>Finished rooms only. A ballpark for conversations, not a quote.</small>
+        </div>
         <span className="section-heading">FINISHES</span>
         <label className="field">
           Exterior walls
@@ -1615,6 +1663,11 @@ export default function App() {
                 onMode={changeSceneMode}
                 onNotice={notify}
                 onLevel={setFloor}
+                onPick={(id) => {
+                  setSelected(id);
+                  const item = project.items.find((i) => i.id === id);
+                  if (item && !onLevel(item, floor) && !isOutside(item)) setFloor(item.floor);
+                }}
               />
             )}
           </div>
@@ -1630,6 +1683,12 @@ export default function App() {
               <span>
                 <strong>{project.floors.length}</strong>{' '}
                 {project.floors.length === 1 ? 'floor' : 'floors'}
+              </span>
+              <span title="Rough build estimate — set the cost per square foot on the right">
+                ≈{' '}
+                <strong>
+                  {money(squareFeet(project) * (project.costPerSqFt ?? DEFAULT_COST))}
+                </strong>
               </span>
             </div>
             <button onClick={() => setModal('help')}>
@@ -1760,6 +1819,7 @@ export default function App() {
                           </span>
                         </div>
                         <strong>{p.name}</strong>
+                        {p.notes && <em className="project-note">{p.notes.split(/\n/)[0]}</em>}
                         <small>
                           {Math.round(area(p)).toLocaleString()} {p.units === 'ft' ? 'sq ft' : 'm²'}{' '}
                           ·{' '}

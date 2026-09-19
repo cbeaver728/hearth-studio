@@ -6,6 +6,9 @@ import {
   removeItem,
   sampleProject,
   readFeet,
+  area,
+  money,
+  squareFeet,
   snap,
   validateProject,
 } from '../src/model';
@@ -93,4 +96,14 @@ it('reads lengths typed in feet and inches', () => {
   expect(readFeet('12 6')).toBe(12.5);
   expect(readFeet('12ft 3in')).toBe(12.25);
   expect(readFeet('twelve')).toBeNaN();
+});
+it('estimates cost from finished square footage', () => {
+  const p = sampleProject();
+  expect(Math.round(squareFeet(p))).toBe(Math.round(area({ ...p, units: 'ft' })));
+  expect(money(581234)).toBe('$581k');
+  expect(money(1250000)).toBe('$1.25M');
+  expect(money(950)).toBe('$950');
+  const withNotes = { ...p, notes: 'Bigger pantry', costPerSqFt: 300 };
+  expect(validateProject(JSON.parse(JSON.stringify(withNotes))).notes).toBe('Bigger pantry');
+  expect(() => validateProject({ ...p, costPerSqFt: -5 })).toThrow();
 });
