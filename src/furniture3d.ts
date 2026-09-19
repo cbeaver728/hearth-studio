@@ -154,6 +154,40 @@ export function furniture(item: Item, y: number, mat: Mat): T.Group | null {
         b(u - 0.03, u + 0.03, 0.3, 1.5, D + 0.02, D + 0.1, tone(c, -10));
       break;
     }
+    case 'shelf': {
+      const back = 0.03,
+        side = 0.04,
+        h = 2.05,
+        shelves = 5;
+      b(0, side, 0, h, 0, D, c);
+      b(W - side, W, 0, h, 0, D, c);
+      b(0, W, 0, 0.08, 0, D, c);
+      b(0, W, h - 0.06, h, 0, D, c);
+      b(0, W, 0, h, 0, back, tone(c, -18));
+      const spine = ['#8a5a4a', '#5e7460', '#4a5b74', '#8a7a4a', '#6d4f66', '#a3653f', '#556b6e'];
+      for (let n = 1; n < shelves; n++) {
+        const y = 0.08 + ((h - 0.2) / shelves) * n;
+        b(side, W - side, y, y + 0.03, back, D - 0.01, tone(c, 10));
+      }
+      // Books: a run of spines of slightly different heights and widths per shelf.
+      for (let n = 0; n < shelves; n++) {
+        const y = 0.08 + ((h - 0.2) / shelves) * n + 0.03;
+        const top = 0.08 + ((h - 0.2) / shelves) * (n + 1);
+        let u = side + 0.03;
+        let k = n * 7;
+        while (u < W - side - 0.06) {
+          const wide = 0.03 + ((k * 37) % 5) * 0.012;
+          const tall = (top - y) * (0.62 + ((k * 53) % 4) * 0.08);
+          if (u + wide > W - side - 0.03) break;
+          b(u, u + wide, y, y + tall, back + 0.02, D - 0.04, spine[(k * 3) % spine.length]);
+          u += wide + 0.005;
+          k++;
+          // Leave the odd gap, as shelves really look.
+          if ((k * 29) % 11 === 0) u += 0.05;
+        }
+      }
+      break;
+    }
     case 'desk':
       b(0, W, 0.72, 0.76, 0, D, c);
       b(0, 0.05, 0, 0.72, 0, D, c);

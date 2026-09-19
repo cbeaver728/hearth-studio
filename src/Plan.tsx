@@ -1208,6 +1208,14 @@ function Shape({ item: i, floor }: { item: Item; floor: number }) {
         </>
       );
       break;
+    case 'shelf':
+      body = (
+        <>
+          {r(0, 0, W, D, c, 0.02)}
+          {line(0.04, D * 0.55, W - 0.04, D * 0.55)}
+        </>
+      );
+      break;
     case 'desk':
       body = (
         <>

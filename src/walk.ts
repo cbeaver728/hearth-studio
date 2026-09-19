@@ -133,6 +133,7 @@ const SOLID = new Set([
   'laundry',
   'bunk',
   'utility',
+  'shelf',
   'coffee',
   'media',
   'fireplace',

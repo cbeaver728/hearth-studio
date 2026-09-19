@@ -29,7 +29,8 @@ export type Kind =
   | 'landing'
   | 'laundry'
   | 'bunk'
-  | 'utility';
+  | 'utility'
+  | 'shelf';
 export type StairStyle = 'straight' | 'l' | 'u' | 'spiral';
 export type Side = 'north' | 'south' | 'east' | 'west';
 /** Floor-to-floor height in meters. */
@@ -214,6 +215,28 @@ export const catalog: CatalogEntry[] = [
     1.6,
     0.6,
     '#b9b2a6',
+    'Furnish',
+    'Living',
+  ),
+  entry(
+    'shelf',
+    'shelf',
+    'Bookshelf',
+    'Room for a library',
+    0.9,
+    0.32,
+    '#a8845c',
+    'Furnish',
+    'Living',
+  ),
+  entry(
+    'shelf-wall',
+    'shelf',
+    'Built-in shelves',
+    'A whole wall of books',
+    2.4,
+    0.35,
+    '#a8845c',
     'Furnish',
     'Living',
   ),
@@ -494,6 +517,7 @@ export function sampleProject(): Project {
   add('bed', 'King bed', -5.2, 1.1, 2, 2.2);
   add('wardrobe', 'Wardrobe', -2.8, 4.35, 1.6, 0.6, undefined, 180);
   add('desk', 'Writing desk', -0.3, 1.2, 2, 0.8);
+  add('shelf', 'Bookshelf', -0.9, 4.63, 0.9, 0.32);
   add('plant', 'Fiddle-leaf fig', 1.9, 4.1, 0.6, 0.6);
   add('laundry-stacked', 'Laundry', 3.2, 1.1, 0.7, 0.68);
   add('stairs', 'Stairs', 4.8, 1.05, 1.1, 3.4);
@@ -526,6 +550,7 @@ export function sampleProject(): Project {
   up('armchair', 'Chair', -2.2, 3.6, 0.9, 0.9, undefined, 270);
   up('sofa', 'Loft sofa', -0.4, -3.9, 2.4, 1, '#b8a58a');
   up('rug', 'Rug', -0.2, -2.6, 2.4, 1.7);
+  up('shelf-wall', 'Built-in shelves', -0.85, -0.42, 2.4, 0.35, undefined, 180);
   up('bunk', 'Bunk beds', 0.85, 3.6, 2.05, 1.05, '#c08f6a', 90);
   up('desk', 'Homework desk', -0.9, 1.1, 1.3, 0.6);
   up('bathtub', 'Bathtub', 4.15, -3.9, 1.75, 0.8);
