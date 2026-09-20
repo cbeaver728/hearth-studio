@@ -1224,6 +1224,256 @@ function Shape({ item: i, floor }: { item: Item; floor: number }) {
         </>
       );
       break;
+    case 'islandSink':
+    case 'islandStove':
+      body = (
+        <>
+          {r(0, 0, W, D, c, 0.04)}
+          {r(0.06, 0.06, W - 0.12, D - 0.12, '#f1ede0', 0.03)}
+          {i.kind === 'islandSink'
+            ? ellipse(W / 2, D / 2, Math.min(0.3, W * 0.2), D * 0.2, '#c9d2d2')
+            : [0, 1, 2, 3].map((n) => (
+                <g key={n}>
+                  {circle(
+                    W / 2 + (n % 2 ? 0.16 : -0.16),
+                    D / 2 + (n > 1 ? 0.13 : -0.13),
+                    0.09,
+                    '#3a3e3c',
+                  )}
+                </g>
+              ))}
+        </>
+      );
+      break;
+    case 'islandL': {
+      const arm = Math.min(0.95, Math.min(W, D) * 0.45);
+      body = (
+        <>
+          {r(0, 0, W, arm, c, 0.04)}
+          {r(0, arm, arm, D - arm, c, 0.04)}
+          {ellipse(W - arm / 2 - 0.35, arm / 2, 0.26, Math.min(0.2, arm / 2 - 0.1), '#c9d2d2')}
+        </>
+      );
+      break;
+    }
+    case 'islandRound':
+      body = (
+        <>
+          {circle(W / 2, D / 2, Math.min(W, D) / 2, c)}
+          {circle(W / 2, D / 2, Math.min(W, D) / 2 - 0.1, '#f1ede0')}
+        </>
+      );
+      break;
+    case 'range':
+      body = (
+        <>
+          {r(0, 0, W, D, c, 0.03)}
+          {[0, 1, 2, 3, 4, 5].map((n) => (
+            <g key={n}>
+              {circle(W * (0.26 + (n % 3) * 0.24), D * (n > 2 ? 0.68 : 0.32), 0.07, '#3a3e3c')}
+            </g>
+          ))}
+        </>
+      );
+      break;
+    case 'dishwasher':
+      body = (
+        <>
+          {r(0, 0, W, D, c, 0.03)}
+          {line(0.06, D - 0.07, W - 0.06, D - 0.07)}
+        </>
+      );
+      break;
+    case 'cabinet':
+      body = (
+        <>
+          {r(0, 0, W, D, c, 0.02)}
+          {line(0, 0, W, D)}
+          {line(W, 0, 0, D)}
+        </>
+      );
+      break;
+    case 'uppers':
+      body = (
+        <>
+          <rect
+            x={-W / 2}
+            y={-D / 2}
+            width={W}
+            height={D}
+            rx=".02"
+            fill={c}
+            fillOpacity=".5"
+            stroke={s}
+            strokeWidth={sw}
+            strokeDasharray=".12 .08"
+          />
+          {line(0, D, W, D)}
+        </>
+      );
+      break;
+    case 'mirror':
+    case 'tvwall':
+    case 'picture':
+      body = (
+        <>
+          {r(0, 0, W, D, c, 0.02)}
+          {line(0.05, D * 0.5, W - 0.05, D * 0.5)}
+        </>
+      );
+      break;
+    case 'roundTable':
+      body = (
+        <>
+          {[0, 1, 2, 3].map((n) => {
+            const a = (n * Math.PI) / 2 + Math.PI / 4;
+            return (
+              <g key={n}>
+                {r(
+                  W / 2 + Math.sin(a) * (Math.min(W, D) / 2 + 0.32) - 0.22,
+                  D / 2 + Math.cos(a) * (Math.min(W, D) / 2 + 0.32) - 0.22,
+                  0.44,
+                  0.44,
+                  '#d8cfbd',
+                  0.06,
+                )}
+              </g>
+            );
+          })}
+          {circle(W / 2, D / 2, Math.min(W, D) / 2, c)}
+        </>
+      );
+      break;
+    case 'chandelier':
+    case 'fan':
+      body = (
+        <>
+          {circle(W / 2, D / 2, Math.min(W, D) / 2, '#ffffff00')}
+          {circle(W / 2, D / 2, Math.min(W, D) * 0.16, c)}
+          {[0, 1, 2, 3].map((n) => {
+            const a = (n * Math.PI) / 2 + (i.kind === 'fan' ? 0 : Math.PI / 4);
+            return (
+              <g key={n}>
+                {line(
+                  W / 2,
+                  D / 2,
+                  W / 2 + Math.sin(a) * Math.min(W, D) * 0.48,
+                  D / 2 + Math.cos(a) * Math.min(W, D) * 0.48,
+                )}
+              </g>
+            );
+          })}
+        </>
+      );
+      break;
+    case 'pendant':
+      body = (
+        <>
+          {Array.from({ length: Math.max(1, Math.round(W / 0.55)) }, (_, n) => {
+            const lamps = Math.max(1, Math.round(W / 0.55));
+            return <g key={n}>{circle((W / lamps) * (n + 0.5), D / 2, 0.11, c)}</g>;
+          })}
+        </>
+      );
+      break;
+    case 'floorlamp':
+      body = (
+        <>
+          {circle(W / 2, D / 2, Math.min(W, D) / 2, c)}
+          {circle(W / 2, D / 2, Math.min(W, D) * 0.16, '#fff3d0')}
+        </>
+      );
+      break;
+    case 'sconce':
+      body = (
+        <>
+          {r(0, 0, W, D, c, 0.02)}
+          {circle(W / 2, D * 0.7, Math.min(W, D) * 0.28, '#fff3d0')}
+        </>
+      );
+      break;
+    case 'dresser':
+      body = (
+        <>
+          {r(0, 0, W, D, c, 0.03)}
+          {line(0.05, D - 0.06, W - 0.05, D - 0.06)}
+        </>
+      );
+      break;
+    case 'crib':
+      body = (
+        <>
+          {r(0, 0, W, D, c, 0.05)}
+          {r(0.08, 0.08, W - 0.16, D - 0.16, '#f8f4e8', 0.04)}
+        </>
+      );
+      break;
+    case 'deskL': {
+      const arm = Math.min(0.75, Math.min(W, D) * 0.5);
+      body = (
+        <>
+          {r(0, 0, W, arm, c, 0.03)}
+          {r(0, arm, arm, D - arm, c, 0.03)}
+          {circle(W * 0.6, arm + 0.3, 0.22, '#bdb8b1')}
+        </>
+      );
+      break;
+    }
+    case 'shed':
+      body = (
+        <>
+          {r(0, 0, W, D, c, 0.04)}
+          {line(0, D * 0.5, W, D * 0.5)}
+          {line(W * 0.22, D, W * 0.22, D - 0.12)}
+          {line(W * 0.78, D, W * 0.78, D - 0.12)}
+        </>
+      );
+      break;
+    case 'firepit':
+      body = (
+        <>
+          {circle(W / 2, D / 2, Math.min(W, D) / 2, c)}
+          {circle(W / 2, D / 2, Math.min(W, D) * 0.28, '#c26a2c')}
+        </>
+      );
+      break;
+    case 'hottub':
+      body = (
+        <>
+          {circle(W / 2, D / 2, Math.min(W, D) / 2, c)}
+          {circle(W / 2, D / 2, Math.min(W, D) / 2 - 0.16, '#9fd8dd')}
+        </>
+      );
+      break;
+    case 'planter':
+      body = (
+        <>
+          {r(0, 0, W, D, c, 0.04)}
+          {Array.from({ length: Math.max(1, Math.round(W / 0.4)) }, (_, n) => (
+            <g key={n}>
+              {circle((W / Math.max(1, Math.round(W / 0.4))) * (n + 0.5), D / 2, 0.14, '#6f9569')}
+            </g>
+          ))}
+        </>
+      );
+      break;
+    case 'bench':
+      body = (
+        <>
+          {r(0, 0, W, D, c, 0.04)}
+          {line(0.05, D - 0.1, W - 0.05, D - 0.1)}
+        </>
+      );
+      break;
+    case 'xmas':
+      body = (
+        <>
+          {circle(W / 2, D / 2, Math.min(W, D) / 2, c)}
+          {circle(W / 2, D / 2, Math.min(W, D) * 0.3, '#2f5236')}
+          {circle(W / 2, D / 2, Math.min(W, D) * 0.1, '#ffe9a8')}
+        </>
+      );
+      break;
     case 'desk':
       body = (
         <>

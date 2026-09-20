@@ -514,7 +514,14 @@ function buildContent(p: Project, mode: SceneMode, floor: number, evening: boole
       !shown.includes(i.floor)
     )
       continue;
-    const g = furniture(i, i.floor * FLOOR_H, mat);
+    const room = roomsOn(i.floor).find(
+      (r) =>
+        i.x + i.w / 2 > r.x &&
+        i.x + i.w / 2 < r.x + r.w &&
+        i.z + i.d / 2 > r.z &&
+        i.z + i.d / 2 < r.z + r.d,
+    );
+    const g = furniture(i, i.floor * FLOOR_H, mat, room ? ceilingHeight(p, room) : WALL_H);
     if (g) {
       g.userData.itemId = i.id;
       group.add(g);

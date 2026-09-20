@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   blankProject,
   buildWalls,
+  catalog,
   catalogEntry,
   createItem,
   removeItem,
@@ -132,4 +133,22 @@ it('adds laundry and bunk beds you can walk around', () => {
     expect(world.free(piece.x + piece.w / 2, piece.z + piece.d / 2, 0), id).toBe(false);
     expect(world.free(room.x + 5, room.z + 5, 0), id).toBe(true);
   }
+});
+it('can place every catalog entry, and each has an icon-worthy kind', () => {
+  const kinds = new Set<string>();
+  for (const entry of catalog) {
+    if (entry.kind === 'room' || entry.kind === 'garage') continue;
+    const p = blankProject();
+    const room = createItem('room', 0, -6, -6);
+    Object.assign(room, { w: 14, d: 14 });
+    const piece = createItem(entry.id, 0, 0, 0);
+    expect(piece.kind, entry.id).toBe(entry.kind);
+    // Nothing thinner than the format allows, or it won't save.
+    expect(piece.w, entry.id).toBeGreaterThanOrEqual(0.1);
+    expect(piece.d, entry.id).toBeGreaterThanOrEqual(0.1);
+    p.items = [room, piece];
+    expect(() => validateProject(JSON.parse(JSON.stringify(p))), entry.id).not.toThrow();
+    kinds.add(entry.kind);
+  }
+  expect(kinds.size).toBeGreaterThan(40);
 });

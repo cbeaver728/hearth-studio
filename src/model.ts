@@ -30,7 +30,33 @@ export type Kind =
   | 'laundry'
   | 'bunk'
   | 'utility'
-  | 'shelf';
+  | 'shelf'
+  | 'islandSink'
+  | 'islandStove'
+  | 'islandL'
+  | 'islandRound'
+  | 'range'
+  | 'dishwasher'
+  | 'cabinet'
+  | 'uppers'
+  | 'mirror'
+  | 'picture'
+  | 'tvwall'
+  | 'roundTable'
+  | 'chandelier'
+  | 'pendant'
+  | 'fan'
+  | 'floorlamp'
+  | 'sconce'
+  | 'dresser'
+  | 'crib'
+  | 'deskL'
+  | 'shed'
+  | 'firepit'
+  | 'hottub'
+  | 'planter'
+  | 'bench'
+  | 'xmas';
 export type StairStyle = 'straight' | 'l' | 'u' | 'spiral';
 /** Ceiling height: the usual 10 ft, a taller 12 ft, or open all the way to the floor above. */
 export type Ceiling = 'standard' | 'tall' | 'open';
@@ -281,6 +307,105 @@ export const catalog: CatalogEntry[] = [
     'Kitchen & dining',
   ),
   entry(
+    'islandSink',
+    'islandSink',
+    'Island with sink',
+    'Wash up facing the room',
+    2.4,
+    1,
+    '#d4c7b5',
+    'Furnish',
+    'Kitchen & dining',
+  ),
+  entry(
+    'islandStove',
+    'islandStove',
+    'Island with cooktop',
+    'Cook facing the room',
+    2.4,
+    1,
+    '#d4c7b5',
+    'Furnish',
+    'Kitchen & dining',
+  ),
+  entry(
+    'islandL',
+    'islandL',
+    'L-shaped island',
+    'Wraps around a corner',
+    2.8,
+    2.2,
+    '#d4c7b5',
+    'Furnish',
+    'Kitchen & dining',
+  ),
+  entry(
+    'islandRound',
+    'islandRound',
+    'Round island',
+    'A curved breakfast bar',
+    1.8,
+    1.8,
+    '#d4c7b5',
+    'Furnish',
+    'Kitchen & dining',
+  ),
+  entry(
+    'range',
+    'range',
+    'Range & oven',
+    'Six burners and a hood',
+    0.9,
+    0.68,
+    '#cfd3d2',
+    'Furnish',
+    'Kitchen & dining',
+  ),
+  entry(
+    'dishwasher',
+    'dishwasher',
+    'Dishwasher',
+    'Tucked under the counter',
+    0.6,
+    0.62,
+    '#dfe2e0',
+    'Furnish',
+    'Kitchen & dining',
+  ),
+  entry(
+    'pantry',
+    'cabinet',
+    'Pantry cupboard',
+    'Floor to ceiling storage',
+    0.9,
+    0.6,
+    '#d4c7b5',
+    'Furnish',
+    'Kitchen & dining',
+  ),
+  entry(
+    'uppers',
+    'uppers',
+    'Wall cabinets',
+    'Cupboards above the counter',
+    1.8,
+    0.35,
+    '#d4c7b5',
+    'Furnish',
+    'Kitchen & dining',
+  ),
+  entry(
+    'roundTable',
+    'roundTable',
+    'Round table',
+    'Four chairs around it',
+    1.2,
+    1.2,
+    '#c9a87c',
+    'Furnish',
+    'Kitchen & dining',
+  ),
+  entry(
     'fridge',
     'fridge',
     'Refrigerator',
@@ -392,6 +517,220 @@ export const catalog: CatalogEntry[] = [
     'Furnish',
     'Laundry & utility',
   ),
+  entry(
+    'vanity-double',
+    'vanity',
+    'Double vanity',
+    'Two basins, one cabinet',
+    1.9,
+    0.55,
+    '#b9a58a',
+    'Furnish',
+    'Bathroom',
+  ),
+  entry(
+    'linen',
+    'cabinet',
+    'Linen cupboard',
+    'Towels and spares',
+    0.8,
+    0.55,
+    '#d9d2c6',
+    'Furnish',
+    'Bathroom',
+  ),
+  entry(
+    'medicine',
+    'mirror',
+    'Mirror cabinet',
+    'Over the basin',
+    0.8,
+    0.14,
+    '#dfe7e8',
+    'Furnish',
+    'Bathroom',
+  ),
+  entry(
+    'picture',
+    'picture',
+    'Framed picture',
+    'Hang it on a wall',
+    0.8,
+    0.12,
+    '#9b8970',
+    'Furnish',
+    'On the walls',
+  ),
+  entry(
+    'gallery',
+    'picture',
+    'Gallery wall',
+    'A row of frames',
+    2.2,
+    0.12,
+    '#9b8970',
+    'Furnish',
+    'On the walls',
+  ),
+  entry(
+    'mirror',
+    'mirror',
+    'Wall mirror',
+    'Opens up a room',
+    1,
+    0.12,
+    '#dfe7e8',
+    'Furnish',
+    'On the walls',
+  ),
+  entry(
+    'tvwall',
+    'tvwall',
+    'Wall-mounted TV',
+    'Up out of the way',
+    1.5,
+    0.12,
+    '#1d2123',
+    'Furnish',
+    'On the walls',
+  ),
+  entry(
+    'sconce',
+    'sconce',
+    'Wall light',
+    'A soft glow beside a bed',
+    0.3,
+    0.16,
+    '#d9cdb8',
+    'Furnish',
+    'Lighting',
+  ),
+  entry(
+    'chandelier',
+    'chandelier',
+    'Chandelier',
+    'Hangs over the table',
+    0.9,
+    0.9,
+    '#d9c48a',
+    'Furnish',
+    'Lighting',
+  ),
+  entry(
+    'pendant',
+    'pendant',
+    'Pendant lights',
+    'A row over an island',
+    1.6,
+    0.3,
+    '#c9b49a',
+    'Furnish',
+    'Lighting',
+  ),
+  entry(
+    'fan',
+    'fan',
+    'Ceiling fan',
+    'With a light below',
+    1.3,
+    1.3,
+    '#d9d2c6',
+    'Furnish',
+    'Lighting',
+  ),
+  entry(
+    'floorlamp',
+    'floorlamp',
+    'Floor lamp',
+    'Beside a chair',
+    0.45,
+    0.45,
+    '#d9cdb8',
+    'Furnish',
+    'Lighting',
+  ),
+  entry(
+    'nightstand',
+    'dresser',
+    'Nightstand',
+    'Beside the bed',
+    0.5,
+    0.45,
+    '#b59d80',
+    'Furnish',
+    'Bedroom & office',
+  ),
+  entry(
+    'dresser',
+    'dresser',
+    'Dresser',
+    'A chest of drawers',
+    1.4,
+    0.5,
+    '#b59d80',
+    'Furnish',
+    'Bedroom & office',
+  ),
+  entry(
+    'crib',
+    'crib',
+    'Crib',
+    'For the littlest one',
+    1.35,
+    0.75,
+    '#c9b49a',
+    'Furnish',
+    'Bedroom & office',
+  ),
+  entry(
+    'deskL',
+    'deskL',
+    'Corner desk',
+    'Wraps around a corner',
+    1.6,
+    1.5,
+    '#b8976f',
+    'Furnish',
+    'Bedroom & office',
+  ),
+  entry(
+    'console',
+    'table',
+    'Console table',
+    'Along a wall or hallway',
+    1.2,
+    0.38,
+    '#c9a87c',
+    'Furnish',
+    'Living',
+  ),
+  entry(
+    'side',
+    'table',
+    'Side table',
+    'Next to the sofa',
+    0.5,
+    0.5,
+    '#c9a87c',
+    'Furnish',
+    'Living',
+  ),
+  entry(
+    'xmas',
+    'xmas',
+    'Christmas tree',
+    'Lights, baubles, and a star',
+    1.3,
+    1.3,
+    '#3f6b46',
+    'Furnish',
+    'Living',
+  ),
+  entry('shed', 'shed', 'Garden shed', 'Mower and tools', 3, 2.4, '#b4a58b', 'Landscape'),
+  entry('firepit', 'firepit', 'Fire pit', 'Evenings outside', 1.2, 1.2, '#8d8378', 'Landscape'),
+  entry('hottub', 'hottub', 'Hot tub', 'A warm soak', 2.2, 2.2, '#7fb7bd', 'Landscape'),
+  entry('planter', 'planter', 'Planter box', 'Herbs and flowers', 1.6, 0.6, '#a8845c', 'Landscape'),
+  entry('bench', 'bench', 'Garden bench', 'Somewhere to sit', 1.5, 0.6, '#a8845c', 'Landscape'),
   entry('deck', 'deck', 'Patio / deck', 'Take life outside', 5, 3, '#c2a781', 'Landscape'),
   entry(
     'landing',
@@ -537,6 +876,8 @@ export function sampleProject(): Project {
   add('tree', 'Garden tree', 3, -9, 2.5, 2.5);
   add('tree', 'Garden tree', -10, -8, 2, 2);
   add('tree', 'Garden tree', 10, -5, 2.5, 2.5);
+  add('shed', 'Garden shed', -11.5, 3, 3, 2.4);
+  add('firepit', 'Fire pit', -8.5, -7.5, 1.2, 1.2);
   add('rug', 'Wool rug', -4.6, -2.9, 3.2, 2.6);
   add('sofa', 'Linen sofa', -4.4, -1.2, 2.8, 1, undefined, 180);
   add('coffee', 'Coffee table', -3.8, -2.45, 1.6, 0.7);
@@ -546,6 +887,8 @@ export function sampleProject(): Project {
   add('fridge', 'Refrigerator', 3.05, -3.9, 0.85, 0.75);
   add('counter', 'Kitchen island', 0.7, -2.85, 2.6, 0.9);
   add('table', 'Dining table', 0.8, -1.1, 2, 1.2);
+  add('chandelier', 'Dining chandelier', 1.35, -0.85, 0.9, 0.9);
+  add('picture', 'Family photos', 3.05, 4.86, 2.2, 0.12, undefined, 180);
   add('bathtub', 'Bathtub', 4.1, -3.9, 1.8, 0.8);
   add('toilet', 'Toilet', 5.2, -2.4, 0.7, 0.45, undefined, 90);
   add('vanity', 'Vanity', 4.08, -2.9, 0.5, 1, undefined, 270);
