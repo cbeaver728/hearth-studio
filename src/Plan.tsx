@@ -1544,6 +1544,39 @@ function Shape({ item: i, floor, openings }: { item: Item; floor: number; openin
         </>
       );
       break;
+    case 'grand':
+      body = (
+        <>
+          {/* The classic grand outline: straight side, curved bent side, keys at the front. */}
+          <path
+            d={`M${-W / 2} ${D / 2}L${-W / 2} ${-D / 2 + D * 0.3}Q${-W / 2} ${-D / 2} ${-W / 2 + W * 0.35} ${-D / 2}Q${W / 2} ${-D / 2 + D * 0.08} ${W / 2} ${-D / 2 + D * 0.55}L${W / 2} ${D / 2}Z`}
+            fill={c}
+            stroke={s}
+            strokeWidth={sw}
+          />
+          {r(0.02, D - 0.2, W - 0.04, 0.16, '#f4f1e8', 0.02)}
+          {line(0.02, D - 0.12, W - 0.02, D - 0.12)}
+          {r(W * 0.2, D + 0.28, W * 0.6, 0.34, '#d8cfbd', 0.05)}
+        </>
+      );
+      break;
+    case 'upright':
+      body = (
+        <>
+          {r(0, 0, W, D * 0.78, c, 0.03)}
+          {r(0.04, D * 0.72, W - 0.08, D * 0.26, '#f4f1e8', 0.02)}
+          {r(W * 0.2, D + 0.3, W * 0.6, 0.34, '#d8cfbd', 0.05)}
+        </>
+      );
+      break;
+    case 'clock':
+      body = (
+        <>
+          {r(0, 0, W, D, c, 0.03)}
+          {circle(W / 2, D * 0.55, Math.min(W, D) * 0.3, '#f4efe0')}
+        </>
+      );
+      break;
     case 'desk':
       body = (
         <>

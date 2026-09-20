@@ -530,6 +530,76 @@ export function furniture(item: Item, y: number, mat: Mat, ceiling = 3): T.Group
       ball(W / 2, 0.28 + tiers * 0.42 + 0.14, D / 2, 0.12, mat('#ffe9a8', { emissive: '#ffcf5a' }));
       break;
     }
+    case 'grand': {
+      // Keys at the front, the case sweeping back to a curved tail.
+      const caseTop = 0.78;
+      const bodyBack = D * 0.62;
+      b(0, W, 0.62, caseTop, 0, bodyBack, c);
+      cyl(W * 0.42, bodyBack, W * 0.58, 0.62, caseTop, c);
+      // Keyboard and its cheeks.
+      b(0, W, 0.6, 0.72, D - 0.34, D, tone(c, 8));
+      b(0.04, W - 0.04, 0.72, 0.745, D - 0.3, D - 0.03, '#f4f1e8');
+      for (let u = 0.12; u < W - 0.1; u += 0.105)
+        b(u, u + 0.045, 0.745, 0.755, D - 0.29, D - 0.14, '#1b1c1d');
+      // The lid, propped open over the case.
+      const lid = b(0, W * 0.98, caseTop + 0.34, caseTop + 0.38, 0.02, bodyBack + W * 0.4, c);
+      if (lid) lid.rotation.x = -0.32;
+      b(W * 0.86, W * 0.9, caseTop, caseTop + 0.42, bodyBack * 0.55, bodyBack * 0.6, tone(c, 20));
+      // Three legs and the pedal lyre.
+      for (const [u, v] of [
+        [0.12, D - 0.12],
+        [W - 0.12, D - 0.12],
+        [W * 0.45, 0.16],
+      ])
+        b(u - 0.05, u + 0.05, 0, 0.62, v - 0.05, v + 0.05, c);
+      b(W * 0.45 - 0.07, W * 0.45 + 0.07, 0.12, 0.3, D * 0.52, D * 0.58, tone(c, 25));
+      // Bench.
+      b(W * 0.2, W * 0.8, 0.44, 0.5, D + 0.28, D + 0.62, tone(c, 12));
+      for (const u of [W * 0.24, W * 0.76])
+        for (const v of [D + 0.32, D + 0.58]) b(u - 0.03, u + 0.03, 0, 0.44, v - 0.03, v + 0.03, c);
+      break;
+    }
+    case 'upright': {
+      const h = 1.24;
+      b(0, W, 0.12, h, 0, D * 0.75, c);
+      // Music desk and the keyboard ledge on the front.
+      b(0.03, W - 0.03, h - 0.42, h - 0.06, D * 0.75, D * 0.78, tone(c, 14));
+      b(0, W, 0.62, 0.76, D * 0.7, D, tone(c, 8));
+      b(0.05, W - 0.05, 0.76, 0.785, D * 0.72, D - 0.03, '#f4f1e8');
+      for (let u = 0.12; u < W - 0.1; u += 0.105)
+        b(u, u + 0.045, 0.785, 0.795, D * 0.74, D - 0.12, '#1b1c1d');
+      for (const u of [0.06, W - 0.06]) b(u - 0.06, u + 0.06, 0, 0.12, 0, D * 0.75, tone(c, -15));
+      // Pedals and bench.
+      b(W / 2 - 0.09, W / 2 + 0.09, 0.05, 0.09, D * 0.5, D * 0.66, '#b9a06a');
+      b(W * 0.2, W * 0.8, 0.44, 0.5, D + 0.3, D + 0.64, tone(c, 12));
+      for (const u of [W * 0.24, W * 0.76])
+        for (const v of [D + 0.34, D + 0.6]) b(u - 0.03, u + 0.03, 0, 0.44, v - 0.03, v + 0.03, c);
+      break;
+    }
+    case 'clock': {
+      const h = 2.05;
+      // Case, with a glazed waist showing the pendulum.
+      b(0, W, 0.06, h - 0.34, 0, D, c);
+      b(0, W, 0, 0.06, -0.02, D + 0.02, tone(c, -18));
+      b(
+        W * 0.14,
+        W * 0.86,
+        0.5,
+        h - 0.72,
+        D - 0.02,
+        D + 0.01,
+        mat('#cfe0e2', { opacity: 0.35, rough: 0.1 }),
+      );
+      cyl(W / 2, D * 0.55, 0.05, 0.6, 1.25, '#c9a94f');
+      cyl(W / 2, D * 0.55, 0.11, 0.55, 0.6, '#c9a94f');
+      // Hood and face.
+      b(-0.03, W + 0.03, h - 0.34, h - 0.06, -0.03, D + 0.03, c);
+      b(W * 0.12, W * 0.88, h - 0.32, h - 0.08, D, D + 0.015, '#f4efe0');
+      b(W / 2 - 0.015, W / 2 + 0.015, h - 0.22, h - 0.1, D + 0.015, D + 0.025, '#2a2522');
+      b(W / 2 - 0.09, W / 2 + 0.015, h - 0.21, h - 0.185, D + 0.015, D + 0.025, '#2a2522');
+      b(-0.05, W + 0.05, h - 0.06, h, -0.05, D + 0.05, tone(c, 12));
+      break;
+    }
     case 'desk':
       b(0, W, 0.72, 0.76, 0, D, c);
       b(0, 0.05, 0, 0.72, 0, D, c);

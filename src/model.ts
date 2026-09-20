@@ -57,7 +57,10 @@ export type Kind =
   | 'planter'
   | 'bench'
   | 'xmas'
-  | 'curve';
+  | 'curve'
+  | 'grand'
+  | 'upright'
+  | 'clock';
 export type StairStyle = 'straight' | 'l' | 'u' | 'spiral';
 /** Ceiling height: the usual 10 ft, a taller 12 ft, or open all the way to the floor above. */
 export type Ceiling = 'standard' | 'tall' | 'open';
@@ -717,6 +720,39 @@ export const catalog: CatalogEntry[] = [
     'Living',
   ),
   entry(
+    'grand',
+    'grand',
+    'Grand piano',
+    'With the lid up',
+    1.5,
+    1.9,
+    '#26282a',
+    'Furnish',
+    'Living',
+  ),
+  entry(
+    'upright',
+    'upright',
+    'Upright piano',
+    'Against a wall',
+    1.5,
+    0.68,
+    '#3b2f2a',
+    'Furnish',
+    'Living',
+  ),
+  entry(
+    'clock',
+    'clock',
+    'Grandfather clock',
+    'Chimes on the hour',
+    0.52,
+    0.36,
+    '#6b4b2f',
+    'Furnish',
+    'Living',
+  ),
+  entry(
     'xmas',
     'xmas',
     'Christmas tree',
@@ -908,6 +944,8 @@ export function sampleProject(): Project {
   add('wardrobe', 'Wardrobe', -2.8, 4.35, 1.6, 0.6, undefined, 180);
   add('desk', 'Writing desk', -0.3, 1.2, 2, 0.8);
   add('shelf', 'Bookshelf', -0.9, 4.63, 0.9, 0.32);
+  add('upright', 'Upright piano', 1.35, 1.12, 1.5, 0.68);
+  add('clock', 'Grandfather clock', 3.14, 1.12, 0.52, 0.36);
   add('plant', 'Fiddle-leaf fig', 1.9, 4.1, 0.6, 0.6);
   add('laundry-stacked', 'Laundry', 3.2, 1.1, 0.7, 0.68);
   add('stairs', 'Stairs', 4.8, 1.05, 1.1, 3.4);
