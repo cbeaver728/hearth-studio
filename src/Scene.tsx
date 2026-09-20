@@ -33,6 +33,7 @@ import {
   type Project,
 } from './model';
 import { layoutFor, localSize, RISE, subtractRects, toWorld, type Rect } from './stairs';
+import { curvePieces } from './curve';
 import { buildWalkWorld, EYE, landingRails, stairHoles, type WalkWorld } from './walk';
 import { furniture, tone, type Mat } from './furniture3d';
 
@@ -476,6 +477,59 @@ function buildContent(p: Project, mode: SceneMode, floor: number, evening: boole
     buildStairs(s, lower, upper, shown.includes(upper), group, mat, interior);
   }
 
+  // Curved walls: short straight lengths set along the arc, with glass where windows fall.
+  for (const cw of p.items.filter((i) => i.kind === 'curve' && shown.includes(i.floor))) {
+    const y = cw.floor * FLOOR_H;
+    const { LW, LD } = localSize(cw);
+    const g = new T.Group();
+    g.position.set(cw.x + cw.w / 2, y, cw.z + cw.d / 2);
+    g.rotation.y = (-cw.rotation * Math.PI) / 180;
+    g.userData.itemId = cw.id;
+    group.add(g);
+    const height = mode === 'dollhouse' && cw.floor === floor ? 1.15 : WALL_H;
+    const thick = 0.16;
+    const faces = [
+      mat(cw.color),
+      mat(cw.color),
+      mat(interior),
+      mat(interior),
+      mat(interior),
+      mat(cw.color),
+    ];
+    const glass = mat(evening ? '#f3d19a' : '#a9d0d6', {
+      opacity: evening ? 0.8 : 0.3,
+      rough: 0.1,
+      metal: 0.1,
+      emissive: evening ? '#be874a' : undefined,
+    });
+    const put = (
+      piece: { u: number; v: number; angle: number; len: number },
+      y0: number,
+      y1: number,
+      material: T.Material | T.Material[],
+      t = thick,
+    ) => {
+      if (y1 - y0 < 0.01) return;
+      const m = new T.Mesh(new T.BoxGeometry(piece.len, y1 - y0, t), material);
+      m.position.set(piece.u - LW / 2, (y0 + y1) / 2, piece.v - LD / 2);
+      m.rotation.y = -piece.angle;
+      m.castShadow = m.receiveShadow = true;
+      g.add(m);
+    };
+    for (const piece of curvePieces(cw, p.openings)) {
+      if (piece.fill === 'solid') {
+        put(piece, 0, height, faces);
+        put(piece, 0, Math.min(0.09, height), mat('#d2caba'), thick + 0.02);
+      } else if (piece.fill === 'window') {
+        put(piece, 0, Math.min(0.95, height), faces);
+        if (height > 2.25) put(piece, 2.25, height, faces);
+        put(piece, 0.95, Math.min(2.25, height), glass, 0.04);
+        put(piece, 0.95, Math.min(1, height), mat('#52675f'), thick + 0.04);
+        if (height >= 2.25) put(piece, 2.2, 2.25, mat('#52675f'), thick + 0.04);
+      } else if (height > 2.2) put(piece, 2.2, height, faces);
+    }
+  }
+
   // Landings and balconies.
   for (const l of p.items.filter((i) => i.kind === 'landing' && shown.includes(i.floor))) {
     const y = l.floor * FLOOR_H;
@@ -511,6 +565,7 @@ function buildContent(p: Project, mode: SceneMode, floor: number, evening: boole
       isOutside(i) ||
       i.kind === 'stairs' ||
       i.kind === 'landing' ||
+      i.kind === 'curve' ||
       !shown.includes(i.floor)
     )
       continue;

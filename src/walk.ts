@@ -6,10 +6,12 @@ import {
   isRoom,
   openCeilings,
   stairLevels,
+  WALL_H,
   type Item,
   type Project,
 } from './model';
 import { layoutFor, rectToWorld, stairHeightAt, subtractRects, toWorld, type Rect } from './stairs';
+import { curvePieces } from './curve';
 
 export const EYE = 1.62;
 const RADIUS = 0.24;
@@ -176,6 +178,18 @@ export function buildWalkWorld(p: Project): WalkWorld {
       const cx = i.x + i.w / 2,
         cz = i.z + i.d / 2;
       boxes.push({ x0: cx - 0.15, z0: cz - 0.15, x1: cx + 0.15, z1: cz + 0.15, y0: 0, y1: 3 });
+    }
+  }
+  // Curved walls, chopped into short lengths that keep their openings open.
+  for (const c of p.items.filter((i) => i.kind === 'curve')) {
+    const y = c.floor * FLOOR_H;
+    for (const piece of curvePieces(c, p.openings)) {
+      if (piece.fill === 'gap') continue;
+      const [x, z] = toWorld(c, piece.u, piece.v);
+      const half = piece.len / 2;
+      const ax = Math.abs(Math.cos(piece.angle)) * half + 0.09,
+        az = Math.abs(Math.sin(piece.angle)) * half + 0.09;
+      boxes.push({ x0: x - ax, z0: z - az, x1: x + ax, z1: z + az, y0: y, y1: y + WALL_H });
     }
   }
   // Landing rails and porch posts.

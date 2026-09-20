@@ -16,10 +16,12 @@ import {
   stairLevels,
   uid,
   type Item,
+  type Opening,
   type Project,
   type Side,
 } from './model';
 import { layoutFor, localSize, toWorld } from './stairs';
+import { curvePieces, nearestOnCurve, type CurvePiece } from './curve';
 /** 'select', 'pan', 'window', 'door', or a catalog id such as 'sofa' or 'stairs-spiral'. */
 export type Tool = string;
 interface Props {
@@ -204,6 +206,12 @@ export default function Plan({
 
   const placeOpening = (a: { x: number; z: number }, kind: OpeningKind) => {
     let best: { r: Item; side: Side; dist: number; offset: number } | undefined;
+    // Curved walls take openings too, measured along the curve.
+    let curved: { c: Item; dist: number; t: number } | undefined;
+    for (const c of p.items.filter((i) => i.kind === 'curve' && i.floor === floor)) {
+      const near = nearestOnCurve(c, a.x, a.z);
+      if (!curved || near.distance < curved.dist) curved = { c, dist: near.distance, t: near.t };
+    }
     for (const r of roomsHere) {
       const candidates: { side: Side; dist: number; offset: number }[] = [
         {
@@ -228,6 +236,29 @@ export default function Plan({
         },
       ];
       for (const c of candidates) if (!best || c.dist < best.dist) best = { r, ...c };
+    }
+    if (curved && curved.dist < 0.8 && (!best || curved.dist < best.dist)) {
+      if (kind === 'open') {
+        onNotice('A curved wall is one piece — delete it instead of opening it up.');
+        return;
+      }
+      onChange({
+        ...p,
+        openings: [
+          ...p.openings,
+          {
+            id: uid(),
+            roomId: curved.c.id,
+            side: 'north',
+            offset: Math.round(Math.max(0.08, Math.min(0.92, curved.t)) * 100) / 100,
+            width: openingKinds.find((o) => o.kind === kind)!.width,
+            kind,
+          },
+        ],
+      });
+      onSelect(curved.c.id);
+      onNotice(`${openingName(kind)} added to the curved wall. Drag it along on the right.`);
+      return;
     }
     if (best && best.dist < 0.8) {
       const onThisWall = p.openings.filter((o) => o.roomId === best!.r.id && o.side === best!.side);
@@ -713,12 +744,12 @@ export default function Plan({
             <title>
               {i.name} · {formatLength(i.w, u)} × {formatLength(i.d, u)}
             </title>
-            <Shape item={i} floor={floor} />
+            <Shape item={i} floor={floor} openings={p.openings} />
           </g>
         ))}
         {preview && (
           <g opacity=".55" pointerEvents="none" className="no-export">
-            <Shape item={preview} floor={floor} />
+            <Shape item={preview} floor={floor} openings={p.openings} />
             <rect
               x={preview.x}
               y={preview.z}
@@ -1006,7 +1037,45 @@ export default function Plan({
 }
 
 /** Draws one shape on the plan. */
-function Shape({ item: i, floor }: { item: Item; floor: number }) {
+/** A bowed wall, with its openings left as gaps or marked as glass. */
+function CurveShape({ item: i, openings }: { item: Item; openings: Opening[] }) {
+  const { LW: W, LD: D } = localSize(i);
+  const pieces = curvePieces(i, openings, 48);
+  const run = (want: CurvePiece['fill']) => {
+    const runs: string[] = [];
+    let open = false;
+    for (const piece of pieces) {
+      const half = piece.len / 2.24;
+      const ax = Math.cos(piece.angle) * half,
+        az = Math.sin(piece.angle) * half;
+      const x0 = piece.u - ax - W / 2,
+        z0 = piece.v - az - D / 2,
+        x1 = piece.u + ax - W / 2,
+        z1 = piece.v + az - D / 2;
+      if (piece.fill !== want) {
+        open = false;
+        continue;
+      }
+      runs.push(`${open ? 'L' : 'M'}${x0} ${z0}L${x1} ${z1}`);
+      open = true;
+    }
+    return runs.join('');
+  };
+  return (
+    <g transform={`translate(${i.x + i.w / 2} ${i.z + i.d / 2}) rotate(${i.rotation})`}>
+      <path
+        d={run('solid') + run('window') + run('gap')}
+        stroke="transparent"
+        strokeWidth=".5"
+        fill="none"
+      />
+      <path d={run('solid')} stroke="#56645d" strokeWidth=".16" fill="none" strokeLinecap="butt" />
+      <path d={run('window')} stroke="#8ac0c2" strokeWidth=".16" fill="none" />
+      <path d={run('window')} stroke="#49868d" strokeWidth=".03" fill="none" />
+    </g>
+  );
+}
+function Shape({ item: i, floor, openings }: { item: Item; floor: number; openings: Opening[] }) {
   if (i.kind === 'tree')
     return (
       <>
@@ -1064,6 +1133,7 @@ function Shape({ item: i, floor }: { item: Item; floor: number }) {
       </>
     );
   if (i.kind === 'stairs') return <StairsShape item={i} floor={floor} />;
+  if (i.kind === 'curve') return <CurveShape item={i} openings={openings} />;
   const { LW: W, LD: D } = localSize(i);
   const s = '#6f6656',
     sw = 0.03;

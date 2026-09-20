@@ -52,6 +52,7 @@ import {
   ShowerHead,
   Sofa,
   Sparkles,
+  Spline,
   Sprout,
   Square,
   SquareDashedBottom,
@@ -170,6 +171,7 @@ const icons: Record<Kind, typeof Home> = {
   planter: Sprout,
   bench: Armchair,
   xmas: TreePine,
+  curve: Spline,
   counter: Columns3,
   kitchen: CookingPot,
   fridge: Refrigerator,
@@ -1236,7 +1238,7 @@ export default function App() {
             <Trash2 size={16} />
           </button>
         </div>
-        {isRoom(s) && (
+        {(isRoom(s) || s.kind === 'curve') && (
           <>
             <div className="section-heading opening-heading">WINDOWS & DOORS</div>
             {project.openings
@@ -1284,25 +1286,27 @@ export default function App() {
                       ))}
                     </select>
                   </label>
-                  <label>
-                    Wall
-                    <select
-                      aria-label={`${o.kind} wall`}
-                      value={o.side}
-                      onChange={(e) =>
-                        commit({
-                          ...project,
-                          openings: project.openings.map((a) =>
-                            a.id === o.id ? { ...a, side: e.target.value as typeof o.side } : a,
-                          ),
-                        })
-                      }
-                    >
-                      {['north', 'south', 'east', 'west'].map((side) => (
-                        <option key={side}>{side}</option>
-                      ))}
-                    </select>
-                  </label>
+                  {isRoom(s) && (
+                    <label>
+                      Wall
+                      <select
+                        aria-label={`${o.kind} wall`}
+                        value={o.side}
+                        onChange={(e) =>
+                          commit({
+                            ...project,
+                            openings: project.openings.map((a) =>
+                              a.id === o.id ? { ...a, side: e.target.value as typeof o.side } : a,
+                            ),
+                          })
+                        }
+                      >
+                        {['north', 'south', 'east', 'west'].map((side) => (
+                          <option key={side}>{side}</option>
+                        ))}
+                      </select>
+                    </label>
+                  )}
                   <label>
                     Position
                     <input
@@ -1748,6 +1752,15 @@ export default function App() {
                       ? floorName(project, floor + (stairDir === 'up' ? 1 : -1))
                       : `a new ${stairDir === 'up' ? 'floor' : 'basement'}`}
                     .
+                  </p>
+                </div>
+                <div className="catalog-block">
+                  <div className="section-heading">CURVED WALLS</div>
+                  {catalogTiles(catalog.filter((c) => c.section === 'Curved walls'))}
+                  <p className="hint-text">
+                    Place it, then drag the depth to bow it — half the width makes a half-round.
+                    Windows and doors go in it the same way. To curve the front of a room, take the
+                    straight wall out with Remove wall and set this across the gap.
                   </p>
                 </div>
                 <div className="catalog-block">

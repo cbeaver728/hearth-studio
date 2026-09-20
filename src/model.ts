@@ -56,7 +56,8 @@ export type Kind =
   | 'hottub'
   | 'planter'
   | 'bench'
-  | 'xmas';
+  | 'xmas'
+  | 'curve';
 export type StairStyle = 'straight' | 'l' | 'u' | 'spiral';
 /** Ceiling height: the usual 10 ft, a taller 12 ft, or open all the way to the floor above. */
 export type Ceiling = 'standard' | 'tall' | 'open';
@@ -733,6 +734,17 @@ export const catalog: CatalogEntry[] = [
   entry('bench', 'bench', 'Garden bench', 'Somewhere to sit', 1.5, 0.6, '#a8845c', 'Landscape'),
   entry('deck', 'deck', 'Patio / deck', 'Take life outside', 5, 3, '#c2a781', 'Landscape'),
   entry(
+    'curve',
+    'curve',
+    'Curved wall',
+    'Bow it as much as you like',
+    3.2,
+    0.8,
+    '#f0e9dc',
+    'Build',
+    'Curved walls',
+  ),
+  entry(
     'landing',
     'landing',
     'Landing / balcony',
@@ -1043,7 +1055,7 @@ export function validateProject(raw: unknown): Project {
       !str(o.id) ||
       openingIds.has(o.id) ||
       !room ||
-      !isRoom(room) ||
+      !(isRoom(room) || room.kind === 'curve') ||
       !['north', 'south', 'east', 'west'].includes(o.side) ||
       !openingKinds.some((k) => k.kind === o.kind) ||
       !num(o.offset, 0, 1) ||
