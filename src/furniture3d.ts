@@ -216,6 +216,42 @@ export function furniture(item: Item, y: number, mat: Mat, ceiling = 3): T.Group
       }
       break;
     }
+    case 'counterPlain':
+    case 'counterSink': {
+      // Base cabinets under a worktop. Nothing else unless you ask for the sink.
+      const run = (u0: number, u1: number, v0: number, v1: number) => {
+        b(u0, u1, 0.1, 0.88, v0, v1, c);
+        b(u0, u1, 0, 0.1, v0 + 0.05, v1 - 0.05, '#6b6358');
+        b(u0 - 0.01, u1 + 0.01, 0.88, 0.92, v0, v1 + 0.02, '#f1ede0');
+        for (let n = 1; n < Math.max(2, Math.round((u1 - u0) / 0.6)); n++) {
+          const u = u0 + ((u1 - u0) / Math.max(2, Math.round((u1 - u0) / 0.6))) * n;
+          b(u - 0.005, u + 0.005, 0.15, 0.85, v1, v1 + 0.004, tone(c, -25));
+        }
+      };
+      run(0, W, 0, D);
+      if (item.kind === 'counterSink') {
+        const at = W / 2;
+        b(at - 0.3, at + 0.3, 0.86, 0.925, 0.12, D - 0.12, '#b8c0c0');
+        cyl(at, 0.12, 0.02, 0.92, 1.2, '#9aa3a3');
+      }
+      break;
+    }
+    case 'counterL': {
+      const arm = Math.min(0.7, Math.min(W, D) * 0.4);
+      for (const [u0, u1, v0, v1] of [
+        [0, W, 0, arm],
+        [0, arm, arm, D],
+      ] as [number, number, number, number][]) {
+        b(u0, u1, 0.1, 0.88, v0, v1, c);
+        b(u0, u1, 0, 0.1, v0 + 0.05, v1 - 0.05, '#6b6358');
+        b(u0 - 0.01, u1 + 0.01, 0.88, 0.92, v0 - 0.01, v1 + 0.01, '#f1ede0');
+      }
+      for (let u = 0.6; u < W - 0.1; u += 0.6)
+        b(u - 0.005, u + 0.005, 0.15, 0.85, arm, arm + 0.004, tone(c, -25));
+      for (let v = arm + 0.6; v < D - 0.1; v += 0.6)
+        b(arm, arm + 0.004, 0.15, 0.85, v - 0.005, v + 0.005, tone(c, -25));
+      break;
+    }
     case 'islandSink':
       worktop();
       sink(W / 2, D / 2);

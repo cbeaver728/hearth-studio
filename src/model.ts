@@ -60,7 +60,10 @@ export type Kind =
   | 'curve'
   | 'grand'
   | 'upright'
-  | 'clock';
+  | 'clock'
+  | 'counterPlain'
+  | 'counterSink'
+  | 'counterL';
 export type StairStyle = 'straight' | 'l' | 'u' | 'spiral';
 /** Ceiling height: the usual 10 ft, a taller 12 ft, or open all the way to the floor above. */
 export type Ceiling = 'standard' | 'tall' | 'open';
@@ -302,8 +305,8 @@ export const catalog: CatalogEntry[] = [
   entry(
     'kitchen',
     'kitchen',
-    'Kitchen counter',
-    'Sink, cooktop, cabinets',
+    'Counter, sink & cooktop',
+    'The works, with wall cabinets',
     3,
     0.65,
     '#d4c7b5',
@@ -406,6 +409,39 @@ export const catalog: CatalogEntry[] = [
     1.2,
     1.2,
     '#c9a87c',
+    'Furnish',
+    'Kitchen & dining',
+  ),
+  entry(
+    'counterPlain',
+    'counterPlain',
+    'Plain counter',
+    'Cabinets and a worktop',
+    3,
+    0.65,
+    '#d4c7b5',
+    'Furnish',
+    'Kitchen & dining',
+  ),
+  entry(
+    'counterSink',
+    'counterSink',
+    'Counter with sink',
+    'No cooktop, no cupboards above',
+    2.4,
+    0.65,
+    '#d4c7b5',
+    'Furnish',
+    'Kitchen & dining',
+  ),
+  entry(
+    'counterL',
+    'counterL',
+    'L-shaped counter',
+    'Plain, around a corner',
+    2.8,
+    2,
+    '#d4c7b5',
     'Furnish',
     'Kitchen & dining',
   ),

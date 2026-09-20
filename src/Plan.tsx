@@ -1294,6 +1294,27 @@ function Shape({ item: i, floor, openings }: { item: Item; floor: number; openin
         </>
       );
       break;
+    case 'counterPlain':
+    case 'counterSink':
+      body = (
+        <>
+          {r(0, 0, W, D, c, 0.02)}
+          {line(0, D - 0.04, W, D - 0.04)}
+          {i.kind === 'counterSink' &&
+            ellipse(W / 2, D / 2, Math.min(0.3, W * 0.22), D * 0.3, '#c9d2d2')}
+        </>
+      );
+      break;
+    case 'counterL': {
+      const arm = Math.min(0.7, Math.min(W, D) * 0.4);
+      body = (
+        <>
+          {r(0, 0, W, arm, c, 0.02)}
+          {r(0, arm, arm, D - arm, c, 0.02)}
+        </>
+      );
+      break;
+    }
     case 'islandSink':
     case 'islandStove':
       body = (
