@@ -3,6 +3,7 @@ import {
   blankProject,
   createItem,
   deleteFloor,
+  flipItem,
   FLOOR_H,
   onLevel,
   rotateItem,
@@ -20,7 +21,7 @@ import {
   toLocal,
   toWorld,
 } from '../src/stairs';
-import { buildWalkWorld, floorRects } from '../src/walk';
+import { buildWalkWorld, floorRects, stairGuards } from '../src/walk';
 import { addLevel } from '../src/floors';
 
 const styles: StairStyle[] = ['straight', 'l', 'u', 'spiral'];
@@ -73,6 +74,60 @@ describe('stair geometry', () => {
     expect(stairLevels(s)).toEqual({ lower: 0, upper: 1 });
     expect(onLevel(s, 0) && onLevel(s, 1) && !onLevel(s, 2)).toBe(true);
     expect(stairHeightAt(s, 0.5, s.d - 0.05)).toBeCloseTo(0.2);
+  });
+  it('flips a turning run, so there are eight positions instead of four', () => {
+    let p = blankProject();
+    const s = createItem('stairs-l', 0, 0, 0);
+    p.items = [s];
+    const spots = new Set<string>();
+    for (let turn = 0; turn < 8; turn++) {
+      const i = p.items[0];
+      spots.add(stairEnds(i).top.map((n) => n.toFixed(2)) + '/' + i.rotation);
+      p = rotateItem(p, i.id);
+    }
+    expect(spots.size).toBe(8);
+    // Eight turns brings it back to where it started.
+    expect(p.items[0].rotation).toBe(0);
+    expect(p.items[0].mirror).toBe(false);
+  });
+  it('leaves straight runs unflipped, since they look the same either way', () => {
+    let p = blankProject();
+    p.items = [createItem('stairs', 0, 0, 0)];
+    for (let turn = 0; turn < 4; turn++) p = rotateItem(p, p.items[0].id);
+    expect(p.items[0].mirror).toBeUndefined();
+  });
+  it('mirrors every flight, and mirroring twice puts them back', () => {
+    for (const style of ['l', 'u', 'spiral'] as StairStyle[]) {
+      let p = blankProject();
+      const s = createItem(`stairs-${style}`, 0, 0, 0);
+      p.items = [s];
+      const { LW } = localSize(s);
+      const plain = layoutFor(s);
+      p = flipItem(p, s.id);
+      const flipped = layoutFor(p.items[0]);
+      // The top step ends up on the other side of the footprint.
+      const top = (l: ReturnType<typeof layoutFor>) => l.path[l.path.length - 1][0];
+      expect(top(flipped), style).toBeCloseTo(LW - top(plain));
+      expect(layoutFor(flipItem(p, s.id).items[0]).path, style).toEqual(plain.path);
+      // Every tread is still there, at the same height.
+      expect(
+        flipped.treads.map((t) => t.k),
+        style,
+      ).toEqual(plain.treads.map((t) => t.k));
+    }
+  });
+  it('climbs a mirrored run just as well', () => {
+    const s = createItem('stairs-l', 0, 0, 0);
+    s.mirror = true;
+    const layout = layoutFor(s);
+    for (const [u, v] of layout.path) {
+      const [x, z] = toWorld(s, u, v);
+      expect(stairHeightAt(s, x, z)).toBeGreaterThan(0);
+    }
+    const [bx, bz] = toWorld(s, ...(layout.path[0] as [number, number]));
+    const [tx, tz] = toWorld(s, ...(layout.path[layout.path.length - 1] as [number, number]));
+    expect(stairHeightAt(s, bx, bz)!).toBeLessThan(0.6);
+    expect(stairHeightAt(s, tx, tz)!).toBeGreaterThan(2.7);
   });
   it('subtracts openings from floor slabs', () => {
     const pieces = subtractRects({ x0: 0, z0: 0, x1: 4, z1: 4 }, [{ x0: 1, z0: 1, x1: 2, z1: 3 }]);
@@ -135,6 +190,36 @@ describe('walkthrough', () => {
       }
       expect(pos.feet, style).toBeGreaterThan(2.7);
     }
+  });
+  it('only rails the sides that need one', () => {
+    const p = blankProject();
+    p.floors.push({ level: 1, name: 'Upstairs' });
+    const below = createItem('room', 0, 0, 0),
+      above = createItem('room', 1, 0, 0);
+    Object.assign(below, { w: 6, d: 6 });
+    Object.assign(above, { w: 6, d: 6 });
+    // Flush against the west wall of the room.
+    const s = createItem('stairs', 0, 0, 1);
+    p.items = [below, above, s];
+    const guards = stairGuards(p, s);
+    const atWall = (r: { a: [number, number]; b: [number, number] }) =>
+      r.a[0] === 0 && r.b[0] === 0;
+    const atOpenSide = (r: { a: [number, number]; b: [number, number] }) =>
+      r.a[0] === s.w && r.b[0] === s.w;
+    expect(guards.rails.some(atWall)).toBe(false);
+    expect(guards.banisters.some(atWall)).toBe(false);
+    expect(guards.rails.some(atOpenSide)).toBe(true);
+    expect(guards.banisters.some(atOpenSide)).toBe(true);
+  });
+  it('leaves rails off an opening nobody can walk up to', () => {
+    const p = blankProject();
+    p.floors.push({ level: 1, name: 'Upstairs' });
+    const below = createItem('room', 0, 0, 0);
+    Object.assign(below, { w: 6, d: 6 });
+    const s = createItem('stairs', 0, 1, 1);
+    p.items = [below, s];
+    // Nothing is built upstairs yet, so there is no floor beside the opening.
+    expect(stairGuards(p, s).rails).toHaveLength(0);
   });
   it('cuts the stair opening out of the upper floor and guards it', () => {
     const p = sampleProject();

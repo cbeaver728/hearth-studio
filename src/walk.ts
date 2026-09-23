@@ -1,6 +1,7 @@
 // Walkthrough physics: which surface you stand on, and what blocks you.
 import {
   buildWalls,
+  type Wall,
   FLOOR_H,
   isPassable,
   isRoom,
@@ -10,7 +11,16 @@ import {
   type Item,
   type Project,
 } from './model';
-import { layoutFor, rectToWorld, stairHeightAt, subtractRects, toWorld, type Rect } from './stairs';
+import {
+  layoutFor,
+  rectToWorld,
+  stairHeightAt,
+  subtractRects,
+  toWorld,
+  type Banister,
+  type Rect,
+  type Segment,
+} from './stairs';
 import { curvePieces } from './curve';
 
 export const EYE = 1.62;
@@ -91,6 +101,62 @@ export function landingRails(p: Project, l: Item) {
   return edges.filter((e) => !attached(e.along, e.line, e.from, e.to)).map((e) => e.rect);
 }
 
+/** Whether a wall on this level runs along the segment, so a rail there would be pointless. */
+function wallAlong(walls: Wall[], level: number, a: [number, number], b: [number, number]) {
+  return walls.some((w) => {
+    if (w.floor !== level) return false;
+    const across: [number, number] = w.axis === 'x' ? [a[1], b[1]] : [a[0], b[0]];
+    if (Math.abs(across[0] - w.line) > 0.3 || Math.abs(across[1] - w.line) > 0.3) return false;
+    const along: [number, number] = w.axis === 'x' ? [a[0], b[0]] : [a[1], b[1]];
+    const lo = Math.min(...along),
+      hi = Math.max(...along);
+    const overlap = Math.min(hi, w.end) - Math.max(lo, w.start);
+    return overlap > Math.min(0.6, (hi - lo) * 0.6);
+  });
+}
+
+/**
+ * The rails a staircase actually needs. A guard rail earns its place where someone could walk
+ * up to the opening and fall in; a handrail earns its place where the flight is open to the
+ * room. Rails that would stand inside a wall, or out in thin air, are dropped.
+ */
+export function stairGuards(p: Project, s: Item, walls: Wall[] = buildWalls(p)) {
+  const layout = layoutFor(s);
+  const { lower, upper } = stairLevels(s);
+  const floors = floorRects(p, upper);
+  // Outward is away from the middle of the opening the stairs cut.
+  const area = layout.holes.reduce((n, h) => n + (h.x1 - h.x0) * (h.z1 - h.z0), 0) || 1;
+  const hu =
+    layout.holes.reduce((n, h) => n + ((h.x0 + h.x1) / 2) * (h.x1 - h.x0) * (h.z1 - h.z0), 0) /
+    area;
+  const hv =
+    layout.holes.reduce((n, h) => n + ((h.z0 + h.z1) / 2) * (h.x1 - h.x0) * (h.z1 - h.z0), 0) /
+    area;
+  const ends = (r: Segment) =>
+    [toWorld(s, r.a[0], r.a[1]), toWorld(s, r.b[0], r.b[1])] as [
+      [number, number],
+      [number, number],
+    ];
+  const rails = layout.rails.filter((r) => {
+    const mu = (r.a[0] + r.b[0]) / 2,
+      mv = (r.a[1] + r.b[1]) / 2;
+    let nu = -(r.b[1] - r.a[1]),
+      nv = r.b[0] - r.a[0];
+    const len = Math.hypot(nu, nv) || 1;
+    nu /= len;
+    nv /= len;
+    if ((mu - hu) * nu + (mv - hv) * nv < 0) {
+      nu = -nu;
+      nv = -nv;
+    }
+    const [x, z] = toWorld(s, mu + nu * 0.45, mv + nv * 0.45);
+    const standable = floors.some((f) => x >= f.x0 && x <= f.x1 && z >= f.z0 && z <= f.z1);
+    return standable && !wallAlong(walls, upper, ...ends(r));
+  });
+  const banisters = layout.banisters.filter((r) => !wallAlong(walls, lower, ...ends(r)));
+  return { rails, banisters };
+}
+
 const segBox = (a: [number, number], b: [number, number], t: number, y0: number, y1: number) => ({
   x0: Math.min(a[0], b[0]) - t,
   z0: Math.min(a[1], b[1]) - t,
@@ -160,6 +226,19 @@ const SOLID = new Set([
   'counterPlain',
   'counterSink',
   'counterL',
+  'canopy',
+  'platform',
+  'daybed',
+  'loft',
+  'sectional',
+  'ottoman',
+  'pooltable',
+  'wetbar',
+  'stools',
+  'toybox',
+  'grill',
+  'swing',
+  'trampoline',
   'coffee',
   'media',
   'fireplace',
@@ -218,12 +297,25 @@ export function buildWalkWorld(p: Project): WalkWorld {
           y1: y + 2.6,
         });
   }
+  const walls = buildWalls(p);
   for (const s of stairs) {
     const layout = layoutFor(s),
       { lower, upper } = stairLevels(s);
     const w = (pt: [number, number]) => toWorld(s, pt[0], pt[1]);
-    for (const r of layout.rails)
+    const guards = stairGuards(p, s, walls);
+    for (const r of guards.rails)
       boxes.push(segBox(w(r.a), w(r.b), 0.03, upper * FLOOR_H, upper * FLOOR_H + 1));
+    // A banister you can lean on, but not walk through.
+    for (const r of guards.banisters)
+      boxes.push(
+        segBox(
+          w(r.a),
+          w(r.b),
+          0.04,
+          lower * FLOOR_H + Math.min(r.y0, r.y1) - 0.9,
+          lower * FLOOR_H + Math.max(r.y0, r.y1),
+        ),
+      );
     for (const r of layout.dividers)
       boxes.push(segBox(w(r.a), w(r.b), 0.04, lower * FLOOR_H, upper * FLOOR_H + 1));
     if (layout.pole) {

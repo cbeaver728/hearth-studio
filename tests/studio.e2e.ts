@@ -171,3 +171,45 @@ test('stairs rotate, change style, and lead up to the next floor', async ({ page
   await expect(page.getByLabel('Active floor', { exact: true })).toHaveValue('-1');
   await expect(page.getByTestId('shape-stairs')).toHaveCount(1);
 });
+
+test('an L-shaped run flips left for right, and the walls take a material', async ({ page }) => {
+  await open(page);
+  await page.getByRole('button', { name: '2D plan', exact: true }).click();
+  await page.getByRole('button', { name: /^L-shaped/ }).click();
+  const plan = page.getByTestId('floor-plan');
+  const b = (await plan.boundingBox())!;
+  await page.mouse.click(b.x + b.width * 0.2, b.y + b.height * 0.2);
+  // The dashed arrow on the plan runs from the bottom step to the top. The starter house
+  // already has a straight run, so the L-shaped one we just laid is the last.
+  const arrow = page.locator('[data-testid="shape-stairs"] path[marker-end]').last();
+  const before = await arrow.getAttribute('d');
+  await page.getByRole('button', { name: 'Flip the stairs' }).click();
+  await expect.poll(() => arrow.getAttribute('d')).not.toBe(before);
+  await page.getByRole('button', { name: 'Flip the stairs' }).click();
+  await expect.poll(() => arrow.getAttribute('d')).toBe(before);
+  // Four turns come back to where they started, but handed the other way.
+  for (let n = 0; n < 4; n++) await page.keyboard.press('e');
+  await expect.poll(() => arrow.getAttribute('d')).not.toBe(before);
+  for (let n = 0; n < 4; n++) await page.keyboard.press('e');
+  await expect.poll(() => arrow.getAttribute('d')).toBe(before);
+
+  await page.keyboard.press('Escape');
+  const brick = page.getByRole('button', { name: 'Brick', exact: true });
+  await brick.click();
+  await expect(brick).toHaveAttribute('aria-pressed', 'true');
+  await page.getByRole('button', { name: 'See the exterior' }).click();
+  await expect(page.locator('canvas')).toBeVisible();
+});
+
+test('the catalog can be searched across every tab', async ({ page }) => {
+  await open(page);
+  const search = page.getByLabel('Search the catalog');
+  await search.fill('four-poster');
+  await expect(page.getByRole('button', { name: /Four-poster bed/ })).toBeVisible();
+  await search.fill('trampoline');
+  await expect(page.getByRole('button', { name: /Trampoline/ })).toBeVisible();
+  await search.fill('zzzz');
+  await expect(page.getByText('NOTHING FOUND')).toBeVisible();
+  await page.getByRole('button', { name: 'Clear search' }).click();
+  await expect(page.getByText('SPACES')).toBeVisible();
+});

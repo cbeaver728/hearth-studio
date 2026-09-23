@@ -1,5 +1,15 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { Compass, Copy, Crosshair, ImageDown, Minus, Plus, RotateCw, Trash2 } from 'lucide-react';
+import {
+  Compass,
+  Copy,
+  Crosshair,
+  FlipHorizontal2,
+  ImageDown,
+  Minus,
+  Plus,
+  RotateCw,
+  Trash2,
+} from 'lucide-react';
 import {
   catalogEntry,
   openingKinds,
@@ -21,6 +31,7 @@ import {
   type Side,
 } from './model';
 import { layoutFor, localSize, toWorld } from './stairs';
+import { stairGuards } from './walk';
 import { curvePieces, nearestOnCurve, type CurvePiece } from './curve';
 /** 'select', 'pan', 'window', 'door', or a catalog id such as 'sofa' or 'stairs-spiral'. */
 export type Tool = string;
@@ -35,6 +46,7 @@ interface Props {
   onTool: (t: Tool) => void;
   onNotice: (s: string) => void;
   onRotate: () => void;
+  onFlip: () => void;
   onDuplicate: () => void;
   onDelete: () => void;
   /** Which way newly laid stairs lead from this floor. */
@@ -66,6 +78,7 @@ export default function Plan({
   onTool,
   onNotice,
   onRotate,
+  onFlip,
   onDuplicate,
   onDelete,
   stairDir,
@@ -744,12 +757,12 @@ export default function Plan({
             <title>
               {i.name} · {formatLength(i.w, u)} × {formatLength(i.d, u)}
             </title>
-            <Shape item={i} floor={floor} openings={p.openings} />
+            <Shape item={i} floor={floor} openings={p.openings} project={p} />
           </g>
         ))}
         {preview && (
           <g opacity=".55" pointerEvents="none" className="no-export">
-            <Shape item={preview} floor={floor} openings={p.openings} />
+            <Shape item={preview} floor={floor} openings={p.openings} project={p} />
             <rect
               x={preview.x}
               y={preview.z}
@@ -965,6 +978,15 @@ export default function Plan({
           <button aria-label="Rotate 90 degrees" title="Rotate 90° (E)" onClick={onRotate}>
             <RotateCw size={15} />
           </button>
+          {sel.kind === 'stairs' && (sel.style || 'straight') !== 'straight' && (
+            <button
+              aria-label="Flip the stairs"
+              title="Flip left for right (Shift+E)"
+              onClick={onFlip}
+            >
+              <FlipHorizontal2 size={15} />
+            </button>
+          )}
           <button aria-label="Duplicate" title="Duplicate (Ctrl+D)" onClick={onDuplicate}>
             <Copy size={15} />
           </button>
@@ -1075,7 +1097,17 @@ function CurveShape({ item: i, openings }: { item: Item; openings: Opening[] }) 
     </g>
   );
 }
-function Shape({ item: i, floor, openings }: { item: Item; floor: number; openings: Opening[] }) {
+function Shape({
+  item: i,
+  floor,
+  openings,
+  project,
+}: {
+  item: Item;
+  floor: number;
+  openings: Opening[];
+  project: Project;
+}) {
   if (i.kind === 'tree')
     return (
       <>
@@ -1132,7 +1164,7 @@ function Shape({ item: i, floor, openings }: { item: Item; floor: number; openin
         )}
       </>
     );
-  if (i.kind === 'stairs') return <StairsShape item={i} floor={floor} />;
+  if (i.kind === 'stairs') return <StairsShape item={i} floor={floor} project={project} />;
   if (i.kind === 'curve') return <CurveShape item={i} openings={openings} />;
   const { LW: W, LD: D } = localSize(i);
   const s = '#6f6656',
@@ -1208,6 +1240,195 @@ function Shape({ item: i, floor, openings }: { item: Item; floor: number; openin
       );
       break;
     }
+    case 'platform':
+      body = (
+        <>
+          {r(0, 0, W, D, c, 0.06)}
+          {r(0.16, 0.16, W - 0.32, D - 0.42, '#ffffff66', 0.05)}
+          {r(0, 0, W, 0.14, '#9b8b7c', 0.02)}
+          {r(W * 0.2, 0.24, W * 0.26, 0.36, '#f5f2ed', 0.06)}
+          {r(W * 0.52, 0.24, W * 0.26, 0.36, '#f5f2ed', 0.06)}
+        </>
+      );
+      break;
+    case 'canopy':
+      body = (
+        <>
+          {r(0.08, 0.08, W - 0.16, D - 0.16, c, 0.06)}
+          {r(W * 0.09, 0.2, W * 0.36, 0.38, '#f5f2ed', 0.06)}
+          {r(W * 0.55, 0.2, W * 0.36, 0.38, '#f5f2ed', 0.06)}
+          {r(0.04, D * 0.5, W - 0.08, D * 0.45, '#a8b9b4aa', 0.04)}
+          {[
+            [0.07, 0.07],
+            [W - 0.07, 0.07],
+            [0.07, D - 0.07],
+            [W - 0.07, D - 0.07],
+          ].map(([u, v], n) => (
+            <g key={n}>{circle(u, v, 0.07, '#6b5a45')}</g>
+          ))}
+        </>
+      );
+      break;
+    case 'daybed':
+      body = (
+        <>
+          {r(0, 0, W, D, c, 0.06)}
+          {r(0, 0, W, 0.12, '#9b8b7c', 0.02)}
+          {r(0, 0, 0.1, D, '#9b8b7c', 0.02)}
+          {r(W - 0.1, 0, 0.1, D, '#9b8b7c', 0.02)}
+          {[0, 1, 2].map((n) => (
+            <g key={n}>{r(W * (0.12 + n * 0.27), 0.14, W * 0.22, 0.2, '#f0e7d8', 0.04)}</g>
+          ))}
+        </>
+      );
+      break;
+    case 'loft':
+      body = (
+        <>
+          {r(0, 0, W, D, c, 0.05)}
+          {r(0.06, 0.07, W - 0.12, D * 0.86, '#dfe3ea', 0.04)}
+          {r(W * 0.14, 0.15, W * 0.72, 0.34, '#f5f2ed', 0.05)}
+          {[0, 1, 2].map((n) => (
+            <g key={n}>{line(W * 0.12, D - 0.06 - n * 0.09, W * 0.88, D - 0.06 - n * 0.09)}</g>
+          ))}
+        </>
+      );
+      break;
+    case 'sectional': {
+      const run = Math.min(0.95, D * 0.45);
+      body = (
+        <>
+          {r(0, 0, W, run, c, 0.1)}
+          {r(W - run, 0, run, D, c, 0.1)}
+          {r(0, 0, W, 0.2, c, 0.06)}
+          {r(W - 0.2, 0, 0.2, D, c, 0.06)}
+          {r(0.22, 0.22, W - run - 0.24, run - 0.26, '#ffffff55', 0.05)}
+          {r(W - run + 0.02, run + 0.02, run - 0.24, D - run - 0.24, '#ffffff55', 0.05)}
+        </>
+      );
+      break;
+    }
+    case 'ottoman':
+      body = <>{r(0, 0, W, D, c, 0.12)}</>;
+      break;
+    case 'pooltable':
+      body = (
+        <>
+          {r(0, 0, W, D, '#6b4b2f', 0.06)}
+          {r(0.11, 0.11, W - 0.22, D - 0.22, c, 0.04)}
+          {[
+            [0.17, 0.17],
+            [W / 2, 0.17],
+            [W - 0.17, 0.17],
+            [0.17, D - 0.17],
+            [W / 2, D - 0.17],
+            [W - 0.17, D - 0.17],
+          ].map(([u, v], n) => (
+            <g key={n}>{circle(u, v, 0.06, '#2b2b2b')}</g>
+          ))}
+        </>
+      );
+      break;
+    case 'wetbar':
+      body = (
+        <>
+          {r(0, 0, W, D, c, 0.03)}
+          {line(0.04, D * 0.78, W - 0.04, D * 0.78)}
+          {[0, 1, 2, 3, 4, 5].map((n) => (
+            <g key={n}>{circle(0.16 + n * ((W - 0.32) / 5), D * 0.16, 0.035, '#5d3f2c')}</g>
+          ))}
+        </>
+      );
+      break;
+    case 'stools': {
+      const n = Math.max(1, Math.round(W / 0.55));
+      body = (
+        <>
+          {Array.from({ length: n }, (_, k) => (
+            <g key={k}>{circle((W / n) * (k + 0.5), D / 2, Math.min(0.2, D * 0.45), c)}</g>
+          ))}
+        </>
+      );
+      break;
+    }
+    case 'toybox':
+      body = (
+        <>
+          {r(0, 0, W, D, c, 0.04)}
+          {line(0.05, D / 2, W - 0.05, D / 2)}
+        </>
+      );
+      break;
+    case 'pergola':
+      body = (
+        <>
+          {r(0, 0, W, D, c, 0.04, { fillOpacity: 0.25 })}
+          {[1, 2, 3, 4, 5, 6].map((n) => (
+            <g key={n}>{line(0.04, (D / 7) * n, W - 0.04, (D / 7) * n)}</g>
+          ))}
+          {[
+            [0.11, 0.11],
+            [W - 0.11, 0.11],
+            [0.11, D - 0.11],
+            [W - 0.11, D - 0.11],
+          ].map(([u, v], n) => (
+            <g key={n}>{r(u - 0.08, v - 0.08, 0.16, 0.16, c, 0.02)}</g>
+          ))}
+        </>
+      );
+      break;
+    case 'grill':
+      body = (
+        <>
+          {r(0, 0.08, W * 0.74, D - 0.16, c, 0.06)}
+          {r(W * 0.74, D * 0.2, W * 0.24, D * 0.6, '#9aa3a6', 0.04)}
+          {circle(W * 0.36, D / 2, Math.min(W * 0.22, D * 0.3), '#3d4143')}
+        </>
+      );
+      break;
+    case 'swing':
+      body = (
+        <>
+          {r(0, D / 2 - 0.06, W, 0.12, c, 0.04)}
+          {[0.3, 0.7].map((f, n) => (
+            <g key={n}>{r(W * f - 0.25, D / 2 - 0.12, 0.5, 0.24, '#c0563a', 0.05)}</g>
+          ))}
+          {[
+            [0.12, 0.14],
+            [W - 0.12, 0.14],
+            [0.12, D - 0.14],
+            [W - 0.12, D - 0.14],
+          ].map(([u, v], n) => (
+            <g key={n}>{circle(u, v, 0.07, c)}</g>
+          ))}
+        </>
+      );
+      break;
+    case 'trampoline':
+      body = (
+        <>
+          {circle(W / 2, D / 2, Math.min(W, D) / 2, '#2f3a40')}
+          {circle(W / 2, D / 2, Math.min(W, D) / 2 - 0.12, c)}
+        </>
+      );
+      break;
+    case 'hoop':
+      body = (
+        <>
+          {r(W * 0.18, D * 0.24, W * 0.64, 0.08, '#d9d2c6', 0.02)}
+          {circle(W / 2, D * 0.1, 0.23, '#d4522e')}
+          {circle(W / 2, D - 0.16, 0.08, c)}
+        </>
+      );
+      break;
+    case 'mailbox':
+      body = (
+        <>
+          {r(W * 0.16, D * 0.1, W * 0.68, D * 0.8, c, 0.05)}
+          {circle(W / 2, D / 2, 0.05, '#5a4a3a')}
+        </>
+      );
+      break;
     case 'bed':
       body = (
         <>
@@ -1732,8 +1953,9 @@ function Shape({ item: i, floor, openings }: { item: Item; floor: number; openin
   );
 }
 
-function StairsShape({ item: i, floor }: { item: Item; floor: number }) {
+function StairsShape({ item: i, floor, project }: { item: Item; floor: number; project: Project }) {
   const layout = layoutFor(i);
+  const guards = stairGuards(project, i);
   const { lower } = stairLevels(i);
   const upperView = floor !== lower;
   const W = layout.LW,
@@ -1787,6 +2009,16 @@ function StairsShape({ item: i, floor }: { item: Item; floor: number }) {
             fill="#6b5a45"
           />
         )}
+        {!upperView &&
+          guards.banisters.map((r, n) => (
+            <path
+              key={'b' + n}
+              d={`M${r.a[0] - W / 2} ${r.a[1] - D / 2}L${r.b[0] - W / 2} ${r.b[1] - D / 2}`}
+              stroke="#8a7a62"
+              strokeWidth=".05"
+              strokeLinecap="round"
+            />
+          ))}
         {layout.dividers.map((d, n) => (
           <path
             key={n}
@@ -1796,7 +2028,7 @@ function StairsShape({ item: i, floor }: { item: Item; floor: number }) {
           />
         ))}
         {upperView &&
-          layout.rails.map((r, n) => (
+          guards.rails.map((r, n) => (
             <path
               key={n}
               d={`M${r.a[0] - W / 2} ${r.a[1] - D / 2}L${r.b[0] - W / 2} ${r.b[1] - D / 2}`}

@@ -31,10 +31,21 @@ import {
   type FloorFinish,
   type Item,
   type Project,
+  type Siding,
 } from './model';
-import { layoutFor, localSize, RISE, subtractRects, toWorld, type Rect } from './stairs';
+import {
+  layoutFor,
+  localSize,
+  RAIL_H,
+  RISE,
+  subtractRects,
+  toWorld,
+  type Banister,
+  type Rect,
+  type Segment,
+} from './stairs';
 import { curvePieces } from './curve';
-import { buildWalkWorld, EYE, landingRails, stairHoles, type WalkWorld } from './walk';
+import { buildWalkWorld, EYE, landingRails, stairGuards, stairHoles, type WalkWorld } from './walk';
 import { furniture, tone, type Mat } from './furniture3d';
 
 export type SceneMode = 'dollhouse' | 'exterior' | 'walk';
@@ -145,6 +156,112 @@ function floorTexture(finish: FloorFinish) {
   return t;
 }
 
+// Outside wall finishes, drawn once and tiled over the walls. Each covers SIDING_TILE meters.
+const SIDING_TILE = 1.2;
+const sidingTextures = new Map<string, T.CanvasTexture>();
+/** A repeating panel of the chosen material in the chosen color; null for plain paint. */
+function sidingTexture(siding: Siding, color: string): T.CanvasTexture | null {
+  if (!siding || siding === 'painted') return null;
+  const key = siding + color;
+  const hit = sidingTextures.get(key);
+  if (hit) return hit;
+  const c = document.createElement('canvas');
+  c.width = c.height = 256;
+  const g = c.getContext('2d')!;
+  g.fillStyle = color;
+  g.fillRect(0, 0, 256, 256);
+  const shade = (a: number) => `rgba(28,22,16,${a})`;
+  const light = (a: number) => `rgba(255,252,245,${a})`;
+  if (siding === 'lap') {
+    // Horizontal boards about 7 inches to the weather, each with a shadow under its edge.
+    for (let n = 0; n < 8; n++) {
+      const y = n * 32;
+      g.fillStyle = shade(0.05 + (n % 3) * 0.012);
+      g.fillRect(0, y, 256, 32);
+      g.fillStyle = shade(0.22);
+      g.fillRect(0, y + 29, 256, 3);
+      g.fillStyle = light(0.3);
+      g.fillRect(0, y, 256, 1.5);
+    }
+  } else if (siding === 'board') {
+    // Wide boards with a batten over every joint.
+    for (let n = 0; n < 6; n++) {
+      const x = n * 42.6;
+      g.fillStyle = shade(0.05 + (n % 2) * 0.03);
+      g.fillRect(x, 0, 42.6, 256);
+      g.fillStyle = shade(0.2);
+      g.fillRect(x - 5, 0, 4, 256);
+      g.fillStyle = light(0.35);
+      g.fillRect(x + 5, 0, 5, 256);
+      g.fillRect(x - 1, 0, 1.5, 256);
+    }
+  } else if (siding === 'shingle') {
+    // Staggered shakes, each a slightly different tone.
+    for (let row = 0; row < 8; row++) {
+      const y = row * 32,
+        off = (row % 2) * 21;
+      for (let n = -1; n < 7; n++) {
+        const x = off + n * 42;
+        g.fillStyle = shade(0.03 + ((row * 7 + n * 5) % 5) * 0.022);
+        g.fillRect(x + 1, y, 40, 30);
+        g.fillStyle = shade(0.28);
+        g.fillRect(x, y, 1.5, 30);
+        g.fillRect(x, y + 29, 42, 3);
+      }
+    }
+  } else if (siding === 'brick') {
+    // Running bond: pale mortar, bricks a little different from each other.
+    g.fillStyle = '#e7e2d6';
+    g.fillRect(0, 0, 256, 256);
+    for (let row = 0; row < 12; row++) {
+      const y = row * 21.3,
+        off = (row % 2) * 26;
+      for (let n = -1; n < 6; n++) {
+        g.fillStyle = color;
+        g.globalAlpha = 0.78 + ((row * 5 + n * 3) % 5) * 0.055;
+        g.fillRect(off + n * 52 + 2, y + 2, 48, 17.3);
+        g.globalAlpha = 1;
+        g.fillStyle = shade(0.08 + ((row + n) % 3) * 0.03);
+        g.fillRect(off + n * 52 + 2, y + 14, 48, 5.3);
+      }
+    }
+  } else if (siding === 'stone') {
+    // Rough courses of cut stone with deep joints.
+    g.fillStyle = shade(0.4);
+    g.fillRect(0, 0, 256, 256);
+    let seed = 7;
+    const rnd = () => (seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648;
+    for (let row = 0; row < 6; row++) {
+      const y = row * 42.6;
+      let x = -20 * rnd();
+      while (x < 256) {
+        const w = 40 + rnd() * 46;
+        g.fillStyle = color;
+        g.globalAlpha = 0.72 + rnd() * 0.28;
+        g.fillRect(x + 3, y + 3, w - 5, 37);
+        g.globalAlpha = 1;
+        g.fillStyle = light(0.12 + rnd() * 0.14);
+        g.fillRect(x + 4, y + 4, w - 7, 6);
+        x += w;
+      }
+    }
+  } else {
+    // Stucco: a fine hand-troweled speckle.
+    for (let n = 0; n < 9000; n++) {
+      const x = (n * 97 + ((n * n) % 131)) % 256,
+        y = (n * 53 + ((n * n * 3) % 173)) % 256;
+      g.fillStyle = n % 3 ? shade(0.02 + (n % 4) * 0.012) : light(0.05 + (n % 3) * 0.02);
+      g.fillRect(x, y, 3, 2);
+    }
+  }
+  const t = new T.CanvasTexture(c);
+  t.wrapS = t.wrapT = T.RepeatWrapping;
+  t.colorSpace = T.SRGBColorSpace;
+  t.anisotropy = 4;
+  sidingTextures.set(key, t);
+  return t;
+}
+
 /** Builds every mesh for the current project and view. */
 function buildContent(p: Project, mode: SceneMode, floor: number, evening: boolean) {
   const group = new T.Group();
@@ -206,6 +323,30 @@ function buildContent(p: Project, mode: SceneMode, floor: number, evening: boole
     );
   const sphere = (x: number, y: number, z: number, r: number, color: string) =>
     add(new T.Mesh(new T.IcosahedronGeometry(r, 1), mat(color))).position.set(x, y, z);
+
+  // The outside finish: a tiled material for brick and the rest, plain paint otherwise.
+  const sidingMap = sidingTexture(p.siding || 'painted', p.exterior);
+  const sidingMat = (double = false) => {
+    if (!sidingMap) return mat(p.exterior, double ? { double: true } : {});
+    const key = `siding:${p.siding}:${p.exterior}:${double}`;
+    let m = materials.get(key);
+    if (!m) {
+      m = new T.MeshStandardMaterial({
+        map: sidingMap,
+        roughness: p.siding === 'stucco' || p.siding === 'stone' ? 0.95 : 0.85,
+        side: double ? T.DoubleSide : T.FrontSide,
+      });
+      materials.set(key, m);
+    }
+    return m;
+  };
+  /** Tiles a box's texture at real-world size, carrying on from where the last piece left off. */
+  const tileUv = (mesh: T.Mesh | null, su: number, sv: number, ou = 0, ov = 0) => {
+    if (!mesh || !sidingMap) return;
+    const uv = mesh.geometry.attributes.uv as T.BufferAttribute;
+    for (let n = 0; n < uv.count; n++) uv.setXY(n, uv.getX(n) * su + ou, uv.getY(n) * sv + ov);
+    uv.needsUpdate = true;
+  };
 
   const levels = p.floors.map((f) => f.level).sort((a, b) => a - b);
   const shown =
@@ -356,8 +497,8 @@ function buildContent(p: Project, mode: SceneMode, floor: number, evening: boole
         ? insideRoom(wall.floor, mid, wall.line + 0.25)
         : insideRoom(wall.floor, wall.line + 0.25, mid);
     const height = wallHeight(wall, !sideA || !sideB);
-    const neg = mat(sideA ? interior : p.exterior),
-      pos = mat(sideB ? interior : p.exterior),
+    const neg = sideA ? mat(interior) : sidingMat(),
+      pos = sideB ? mat(interior) : sidingMat(),
       edge = mat(mode === 'dollhouse' ? '#f5f0e5' : interior);
     // BoxGeometry face order: +x, -x, +y, -y, +z, -z.
     const faces =
@@ -369,10 +510,21 @@ function buildContent(p: Project, mode: SceneMode, floor: number, evening: boole
       top: number,
       material: T.Material | T.Material[] | string = faces,
       t = thick,
-    ) =>
-      wall.axis === 'x'
-        ? box((a + b) / 2, y + (bottom + top) / 2, wall.line, b - a, top - bottom, t, material)
-        : box(wall.line, y + (bottom + top) / 2, (a + b) / 2, t, top - bottom, b - a, material);
+    ) => {
+      const mesh =
+        wall.axis === 'x'
+          ? box((a + b) / 2, y + (bottom + top) / 2, wall.line, b - a, top - bottom, t, material)
+          : box(wall.line, y + (bottom + top) / 2, (a + b) / 2, t, top - bottom, b - a, material);
+      if (material === faces)
+        tileUv(
+          mesh,
+          (b - a) / SIDING_TILE,
+          (top - bottom) / SIDING_TILE,
+          a / SIDING_TILE,
+          (y + bottom) / SIDING_TILE,
+        );
+      return mesh;
+    };
     const cuts = [
       ...new Set([wall.start, wall.end, ...wall.openings.flatMap((o) => [o.start, o.end])]),
     ].sort((a, b) => a - b);
@@ -429,10 +581,12 @@ function buildContent(p: Project, mode: SceneMode, floor: number, evening: boole
       const width = o.end - o.start;
       if (height < headTop || o.kind === 'arch') continue;
       if (o.kind === 'garage') {
-        const panel = mat(tone(p.exterior, 10), { rough: 0.6 });
+        // A painted door reads as part of the wall; against brick or stone it takes a trim color.
+        const doorColor = sidingMap ? '#e4dfd2' : tone(p.exterior, 10);
+        const panel = mat(doorColor, { rough: 0.6 });
         piece(o.start, o.end, 0.02, 2.2, panel, 0.05);
         for (let g = 1; g < 4; g++)
-          piece(o.start, o.end, g * 0.55, g * 0.55 + 0.02, tone(p.exterior, -25), 0.07);
+          piece(o.start, o.end, g * 0.55, g * 0.55 + 0.02, tone(doorColor, -25), 0.07);
         continue;
       }
       if (o.kind === 'slider') {
@@ -474,7 +628,7 @@ function buildContent(p: Project, mode: SceneMode, floor: number, evening: boole
   for (const s of p.items.filter((i) => i.kind === 'stairs')) {
     const { lower, upper } = stairLevels(s);
     if (!shown.includes(lower) && !(mode === 'dollhouse' && upper === floor)) continue;
-    buildStairs(s, lower, upper, shown.includes(upper), group, mat, interior);
+    buildStairs(s, lower, upper, shown.includes(upper), group, mat, interior, stairGuards(p, s));
   }
 
   // Curved walls: short straight lengths set along the arc, with glass where windows fall.
@@ -630,9 +784,11 @@ function buildContent(p: Project, mode: SceneMode, floor: number, evening: boole
         const roof = add(
           new T.Mesh(
             new T.ExtrudeGeometry(shape, { depth: d, bevelEnabled: false }),
-            mat(tone(p.exterior, -8), { double: true }),
+            sidingMap ? sidingMat(true) : mat(tone(p.exterior, -8), { double: true }),
           ),
         );
+        // The gable ends carry the same finish as the walls below them.
+        tileUv(roof, 1 / SIDING_TILE, 1 / SIDING_TILE, 0, y / SIDING_TILE);
         roof.position.set(x, y + 0.02, minZ);
         const length = Math.hypot(w / 2, rise),
           angle = Math.atan2(rise, w / 2);
@@ -678,6 +834,7 @@ function buildStairs(
   group: T.Group,
   mat: Mat,
   interior: string,
+  guards: { rails: Segment[]; banisters: Banister[] },
 ) {
   const layout = layoutFor(s);
   const { LW, LD } = localSize(s);
@@ -767,18 +924,34 @@ function buildStairs(
     segment(d.a, d.b, 0, (upper - lower) * FLOOR_H + 1, mat(interior), 0.1);
   if (upperShown) {
     const y = (upper - lower) * FLOOR_H;
-    for (const r of layout.rails) {
+    for (const r of guards.rails) {
       segment(r.a, r.b, y, y + 0.92, glass, 0.02);
       segment(r.a, r.b, y + 0.92, y + 0.97, rail, 0.06);
     }
   }
-  // A handrail along the open side of straight flights.
-  if (s.style === 'straight' || !s.style) {
-    const h = (upper - lower) * FLOOR_H;
-    const len = Math.hypot(LD, h);
-    const m = put(new T.Mesh(new T.BoxGeometry(0.05, 0.05, len), rail));
-    m.position.set(LW / 2 - 0.04, h / 2 + 0.9, 0);
-    m.rotation.x = Math.atan2(h, LD);
+  // Handrails climbing beside each flight, with posts under them.
+  for (const r of guards.banisters) {
+    const [du, dv] = [r.b[0] - r.a[0], r.b[1] - r.a[1]];
+    const run = Math.hypot(du, dv);
+    if (run < 0.2) continue;
+    const drop = r.y1 - r.y0;
+    const m = put(new T.Mesh(new T.BoxGeometry(0.05, 0.05, Math.hypot(run, drop)), rail));
+    m.position.set(
+      (r.a[0] + r.b[0]) / 2 - LW / 2,
+      (r.y0 + r.y1) / 2,
+      (r.a[1] + r.b[1]) / 2 - LD / 2,
+    );
+    m.rotation.order = 'YXZ';
+    m.rotation.y = Math.atan2(du, dv);
+    m.rotation.x = -Math.atan2(drop, run);
+    // Posts stand on the treads below the rail, not on the floor far underneath.
+    const posts = Math.max(2, Math.round(run / 0.42));
+    for (let n = 0; n <= posts; n++) {
+      const t = n / posts;
+      const top = r.y0 + drop * t;
+      const post = put(new T.Mesh(new T.BoxGeometry(0.035, RAIL_H, 0.035), rail));
+      post.position.set(r.a[0] + du * t - LW / 2, top - RAIL_H / 2, r.a[1] + dv * t - LD / 2);
+    }
   }
 }
 
@@ -823,6 +996,8 @@ export default function Scene({
   const map = useRef<HTMLCanvasElement>(null);
   const engine = useRef<Engine | null>(null);
   const walker = useRef<Walker>({ x: 0, z: 0, feet: 0, yaw: Math.PI, pitch: 0, level: 0, fall: 0 });
+  /** Momentum, so walking and turning start and stop gently rather than snapping. */
+  const motion = useRef({ vx: 0, vz: 0, spin: 0 });
   const keys = useRef(new Set<string>());
   const pad = useRef({ forward: 0, turn: 0 });
   // Guided tour: a slow look around each room in turn.
@@ -1071,21 +1246,31 @@ export default function Scene({
           (k.has('arrowright') || k.has('e') ? 1 : 0) +
           pad.current.turn;
         if (turn || pad.current.forward) endTour.current();
-        w.yaw += turn * dt * 1.6;
+        const m = motion.current;
+        m.spin += (turn * 1.7 - m.spin) * Math.min(1, dt * 9);
+        if (Math.abs(m.spin) < 0.002) m.spin = 0;
+        w.yaw += m.spin * dt;
         const forward =
             (k.has('w') || k.has('arrowup') ? 1 : 0) -
             (k.has('s') || k.has('arrowdown') ? 1 : 0) +
             pad.current.forward,
           strafe = (k.has('d') ? 1 : 0) - (k.has('a') ? 1 : 0);
-        let vx = -Math.sin(w.yaw) * forward + Math.cos(w.yaw) * strafe,
-          vz = -Math.cos(w.yaw) * forward - Math.sin(w.yaw) * strafe;
-        const len = Math.hypot(vx, vz);
-        if (len > 0) {
-          const speed = (k.has('shift') ? 4.2 : 2.4) * dt;
-          vx = (vx / len) * speed;
-          vz = (vz / len) * speed;
+        const dx = -Math.sin(w.yaw) * forward + Math.cos(w.yaw) * strafe,
+          dz = -Math.cos(w.yaw) * forward - Math.sin(w.yaw) * strafe;
+        const len = Math.hypot(dx, dz);
+        const speed = k.has('shift') ? 4.2 : 2.4;
+        // Accelerate toward the pace you asked for; let go and you slow to a stop.
+        const ease = Math.min(1, dt * (len > 0 ? 8 : 11));
+        m.vx += ((len > 0 ? (dx / len) * speed : 0) - m.vx) * ease;
+        m.vz += ((len > 0 ? (dz / len) * speed : 0) - m.vz) * ease;
+        if (Math.hypot(m.vx, m.vz) < 0.02) m.vx = m.vz = 0;
+        if (m.vx || m.vz) {
+          const vx = m.vx * dt,
+            vz = m.vz * dt;
           if (e.world.free(w.x + vx, w.z, w.feet)) w.x += vx;
+          else m.vx = 0;
           if (e.world.free(w.x, w.z + vz, w.feet)) w.z += vz;
+          else m.vz = 0;
         }
         const ground = e.world.support(w.x, w.z, w.feet);
         if (ground >= w.feet) {

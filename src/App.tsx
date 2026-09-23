@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from 'react';
 import {
   Archive,
   ArrowDownToLine,
@@ -12,9 +19,13 @@ import {
   ChevronDown,
   ChevronRight,
   Baby,
+  Beef,
+  Blinds,
   Circle,
+  CircleDashed,
   Clock,
   Columns2,
+  Dumbbell,
   Columns3,
   Droplet,
   Droplets,
@@ -27,6 +38,7 @@ import {
   Flame,
   Flower2,
   FolderOpen,
+  FlipHorizontal2,
   Footprints,
   Grid2X2,
   Hand,
@@ -37,11 +49,14 @@ import {
   LampFloor,
   LampWallUp,
   Layers,
+  Mailbox,
+  Martini,
   Library,
   Maximize2,
   Microwave,
   Monitor,
   MousePointer2,
+  Package,
   PanelLeftClose,
   Pencil,
   Piano,
@@ -51,11 +66,13 @@ import {
   RotateCw,
   Ruler,
   Save,
+  Search,
   ShowerHead,
   Sofa,
   Sparkles,
   Spline,
   Sprout,
+  Tent,
   Square,
   SquareDashedBottom,
   Table2,
@@ -66,6 +83,7 @@ import {
   Undo2,
   Warehouse,
   Waves,
+  Wine,
   WashingMachine,
   X,
   Lamp,
@@ -103,6 +121,9 @@ import {
   removeItem,
   roomsAbove,
   rotateItem,
+  flipItem,
+  sidings,
+  type Siding,
   sampleProject,
   stairEntry,
   stairLevels,
@@ -180,6 +201,22 @@ const icons: Record<Kind, typeof Home> = {
   counterPlain: RectangleHorizontal,
   counterSink: Droplets,
   counterL: TableProperties,
+  canopy: Blinds,
+  platform: BedDouble,
+  daybed: Sofa,
+  loft: BedSingle,
+  sectional: Sofa,
+  ottoman: Square,
+  pooltable: Table2,
+  wetbar: Martini,
+  stools: Wine,
+  toybox: Package,
+  pergola: Tent,
+  grill: Beef,
+  swing: Baby,
+  trampoline: CircleDashed,
+  hoop: Dumbbell,
+  mailbox: Mailbox,
   counter: Columns3,
   kitchen: CookingPot,
   fridge: Refrigerator,
@@ -194,6 +231,52 @@ const icons: Record<Kind, typeof Home> = {
   tree: TreePine,
   fence: Fence,
 };
+// Colors that suit each outside finish, and a little CSS picture of the material itself.
+const SIDING_COLORS: Record<Siding, string[]> = {
+  painted: ['#f0e9dc', '#dad4c7', '#a5b0a0', '#b38368', '#586b66', '#3f4446'],
+  lap: ['#f4f0e7', '#dad4c7', '#a5b0a0', '#7d8a86', '#586b66', '#3f4446'],
+  board: ['#f6f4ee', '#e0d9c9', '#9aa89c', '#6f7d73', '#4a534e', '#33383a'],
+  shingle: ['#b39069', '#c7a982', '#9c7b57', '#8a7f6f', '#6f6355', '#4a4038'],
+  brick: ['#a8583f', '#8d4636', '#b8735a', '#9c8b7d', '#d8cdbf', '#6b4a3c'],
+  stone: ['#9d9689', '#b6ac9a', '#8a8377', '#6f6a61', '#c9c1b1', '#5a5751'],
+  stucco: ['#e8dcc6', '#f0e9dc', '#d8c7a8', '#c9b79a', '#b0a288', '#8c8270'],
+};
+function sidingSwatch(id: Siding, color: string): CSSProperties {
+  const dark = (a: number) => `rgba(32,24,16,${a})`;
+  switch (id) {
+    case 'lap':
+      return {
+        background: `repeating-linear-gradient(180deg, ${color} 0 6px, ${dark(0.22)} 6px 7px)`,
+      };
+    case 'board':
+      return {
+        background: `repeating-linear-gradient(90deg, ${color} 0 8px, ${dark(0.26)} 8px 10px)`,
+      };
+    case 'shingle':
+      return {
+        backgroundColor: color,
+        backgroundImage: `repeating-linear-gradient(180deg, transparent 0 7px, ${dark(0.26)} 7px 8px), repeating-linear-gradient(90deg, transparent 0 9px, ${dark(0.16)} 9px 10px)`,
+      };
+    case 'brick':
+      return {
+        backgroundColor: '#e7e2d6',
+        backgroundImage: `repeating-linear-gradient(180deg, ${color} 0 5px, transparent 5px 6px), repeating-linear-gradient(90deg, transparent 0 11px, #e7e2d6 11px 12px)`,
+      };
+    case 'stone':
+      return {
+        backgroundColor: color,
+        backgroundImage: `repeating-linear-gradient(180deg, transparent 0 9px, ${dark(0.35)} 9px 11px), repeating-linear-gradient(90deg, transparent 0 13px, ${dark(0.3)} 13px 15px)`,
+      };
+    case 'stucco':
+      return {
+        backgroundColor: color,
+        backgroundImage: `radial-gradient(${dark(0.12)} 1px, transparent 1px)`,
+        backgroundSize: '4px 4px',
+      };
+    default:
+      return { background: color };
+  }
+}
 function initial() {
   try {
     const raw = localStorage.getItem(STORAGE);
@@ -479,6 +562,7 @@ export default function App() {
   const [selected, setSelected] = useState<string | null>(null);
   const [tool, setTool] = useState<Tool>('select');
   const [tab, setTab] = useState<'Build' | 'Furnish' | 'Landscape'>('Build');
+  const [search, setSearch] = useState('');
   const [mode, setMode] = useState<'split' | 'plan' | '3d'>('split');
   const [sceneMode, setSceneMode] = useState<SceneMode>('dollhouse');
   const [snapping, setSnapping] = useState(true);
@@ -707,6 +791,10 @@ export default function App() {
     if (!selected) return;
     commit(rotateItem(project, selected));
   };
+  const flip = () => {
+    if (!selectedItem || selectedItem.kind !== 'stairs') return;
+    commit(flipItem(project, selectedItem.id));
+  };
   const remove = () => {
     if (!selectedItem) return;
     commit(removeItem(project, selectedItem.id));
@@ -857,7 +945,10 @@ export default function App() {
       if (k === 'r') selectTool('room');
       if (k === 'h') setTool('pan');
       if (k === 'm') selectTool(tool === 'measure' ? 'select' : 'measure');
-      if (k === 'e' && selected) rotate();
+      if (k === 'e' && selected) {
+        if (e.shiftKey) flip();
+        else rotate();
+      }
       const arrows: Record<string, [number, number]> = {
         ArrowLeft: [-1, 0],
         ArrowRight: [1, 0],
@@ -885,6 +976,12 @@ export default function App() {
   });
   const factor = project.units === 'ft' ? 3.28084 : 1;
   const u = project.units;
+  const query = search.trim().toLowerCase();
+  const matches = query
+    ? catalog.filter((c) =>
+        [c.name, c.hint, c.section || '', c.group].join(' ').toLowerCase().includes(query),
+      )
+    : [];
   const catalogTiles = (entries: typeof catalog) => (
     <div className="tile-grid">
       {entries.map((c) => {
@@ -946,7 +1043,11 @@ export default function App() {
             ? 'ROOM'
             : s.kind === 'stairs'
               ? 'STAIRS'
-              : (catalogEntry(s.kind)?.name || s.kind).toUpperCase()}
+              : (
+                  catalog.find((c) => c.kind === s.kind && c.name === s.name)?.name ||
+                  catalogEntry(s.kind)?.name ||
+                  s.kind
+                ).toUpperCase()}
         </span>
         <label className="field">
           Name
@@ -1083,12 +1184,23 @@ export default function App() {
                 </span>
               </div>
             )}
-            <button className="outline-button full" onClick={rotate}>
-              <RotateCw size={15} />
-              Turn 90° <kbd>E</kbd>
-            </button>
+            <div className="button-row">
+              <button className="outline-button" onClick={rotate}>
+                <RotateCw size={15} />
+                Turn 90° <kbd>E</kbd>
+              </button>
+              {(s.style || 'straight') !== 'straight' && (
+                <button className="outline-button" onClick={flip}>
+                  <FlipHorizontal2 size={15} />
+                  Flip <kbd>⇧E</kbd>
+                </button>
+              )}
+            </div>
             <p className="hint-text">
               The arrow on the plan points uphill. UP marks the bottom step; DN marks the top.
+              {(s.style || 'straight') !== 'straight'
+                ? ' Turning goes all the way round twice — four positions each way, eight in all — or flip them straight away.'
+                : ''}
             </p>
           </>
         )}
@@ -1484,10 +1596,47 @@ export default function App() {
           <small>Finished rooms only. A ballpark for conversations, not a quote.</small>
         </div>
         <span className="section-heading">FINISHES</span>
+        <div className="field-label">Exterior walls</div>
+        <div className="material-grid" role="group" aria-label="Exterior material">
+          {sidings.map((m) => {
+            const current = project.siding || 'painted';
+            // Show each material in the color it would take, so the choice reads at a glance.
+            const shown = SIDING_COLORS[m.id].includes(project.exterior)
+              ? project.exterior
+              : m.id === current
+                ? project.exterior
+                : SIDING_COLORS[m.id][0];
+            return (
+              <button
+                key={m.id}
+                className={current === m.id ? 'material selected' : 'material'}
+                aria-pressed={current === m.id}
+                title={m.hint}
+                onClick={() => {
+                  // Keep a color the owner chose; swap a stock one for this material's own.
+                  const stock = Object.values(SIDING_COLORS).some(
+                    (list) => list.includes(project.exterior) && list !== SIDING_COLORS[m.id],
+                  );
+                  commit({
+                    ...project,
+                    siding: m.id,
+                    exterior:
+                      stock && !SIDING_COLORS[m.id].includes(project.exterior)
+                        ? SIDING_COLORS[m.id][0]
+                        : project.exterior,
+                  });
+                }}
+              >
+                <span className="material-swatch" style={sidingSwatch(m.id, shown)} />
+                <span>{m.name}</span>
+              </button>
+            );
+          })}
+        </div>
         <label className="field">
-          Exterior walls
+          Color
           <div className="swatches">
-            {['#f0e9dc', '#dad4c7', '#a5b0a0', '#b38368', '#586b66', '#3f4446'].map((c) => (
+            {SIDING_COLORS[project.siding || 'painted'].map((c) => (
               <button
                 key={c}
                 aria-label={`Exterior ${c}`}
@@ -1685,8 +1834,45 @@ export default function App() {
               );
             })}
           </div>
+          <div className="catalog-search">
+            <Search size={15} />
+            <input
+              type="text"
+              value={search}
+              aria-label="Search the catalog"
+              placeholder="Search 100+ pieces"
+              onChange={(e) => setSearch(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') {
+                  e.stopPropagation();
+                  setSearch('');
+                }
+              }}
+            />
+            {!!search && (
+              <button aria-label="Clear search" onClick={() => setSearch('')}>
+                <X size={14} />
+              </button>
+            )}
+          </div>
           <div className="catalog-section">
-            {tab === 'Build' && (
+            {!!query && (
+              <div className="catalog-block">
+                <div className="section-heading">
+                  {matches.length
+                    ? `${matches.length} MATCH${matches.length === 1 ? '' : 'ES'}`
+                    : 'NOTHING FOUND'}
+                </div>
+                {matches.length ? (
+                  catalogTiles(matches)
+                ) : (
+                  <p className="hint-text">
+                    No piece matches "{search.trim()}". Try "bed", "island", "light" or "outside".
+                  </p>
+                )}
+              </div>
+            )}
+            {!query && tab === 'Build' && (
               <>
                 <div className="catalog-block">
                   <div className="section-heading">SPACES</div>
@@ -1781,8 +1967,8 @@ export default function App() {
                 </div>
               </>
             )}
-            {tab === 'Furnish' && sections('Furnish')}
-            {tab === 'Landscape' && (
+            {!query && tab === 'Furnish' && sections('Furnish')}
+            {!query && tab === 'Landscape' && (
               <>
                 {sections('Landscape')}
                 {floor !== 0 && <p className="hint-text">Landscaping lives on the ground floor.</p>}
@@ -1922,6 +2108,7 @@ export default function App() {
                 onTool={setTool}
                 onNotice={notify}
                 onRotate={rotate}
+                onFlip={flip}
                 onDuplicate={duplicate}
                 onDelete={remove}
                 stairDir={stairDir}
@@ -2295,6 +2482,9 @@ export default function App() {
                   </span>
                   <span>
                     <kbd>E</kbd>Turn 90°
+                  </span>
+                  <span>
+                    <kbd>⇧ E</kbd>Flip stairs
                   </span>
                   <span>
                     <kbd>Del</kbd>Delete

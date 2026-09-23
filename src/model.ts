@@ -63,7 +63,23 @@ export type Kind =
   | 'clock'
   | 'counterPlain'
   | 'counterSink'
-  | 'counterL';
+  | 'counterL'
+  | 'canopy'
+  | 'platform'
+  | 'daybed'
+  | 'loft'
+  | 'sectional'
+  | 'ottoman'
+  | 'pooltable'
+  | 'wetbar'
+  | 'stools'
+  | 'toybox'
+  | 'pergola'
+  | 'grill'
+  | 'swing'
+  | 'trampoline'
+  | 'hoop'
+  | 'mailbox';
 export type StairStyle = 'straight' | 'l' | 'u' | 'spiral';
 /** Ceiling height: the usual 10 ft, a taller 12 ft, or open all the way to the floor above. */
 export type Ceiling = 'standard' | 'tall' | 'open';
@@ -90,6 +106,8 @@ export interface Item {
   style?: StairStyle;
   /** Stairs only: whether they lead up or down from the floor they were laid on. */
   dir?: 'up' | 'down';
+  /** Stairs only: flipped left-for-right, so an L or switchback turns the other way. */
+  mirror?: boolean;
   /** Rooms only: what the floor is made of (wood when unset). */
   finish?: FloorFinish;
   /** Landings only: a roof on posts over the platform. */
@@ -98,6 +116,19 @@ export interface Item {
   ceiling?: Ceiling;
 }
 export type FloorFinish = 'wood' | 'tile' | 'carpet' | 'stone';
+/** What the outside walls are made of. */
+export type Siding = 'painted' | 'lap' | 'board' | 'shingle' | 'brick' | 'stone' | 'stucco';
+export const sidings: { id: Siding; name: string; hint: string; color: string }[] = [
+  { id: 'painted', name: 'Painted', hint: 'Smooth, flat color', color: '#f0e9dc' },
+  { id: 'lap', name: 'Lap siding', hint: 'Horizontal boards', color: '#dad4c7' },
+  { id: 'board', name: 'Board & batten', hint: 'Vertical boards and battens', color: '#a5b0a0' },
+  { id: 'shingle', name: 'Cedar shingle', hint: 'Staggered shakes', color: '#b39069' },
+  { id: 'brick', name: 'Brick', hint: 'Running bond, pale mortar', color: '#a8583f' },
+  { id: 'stone', name: 'Stone', hint: 'Rough-cut courses', color: '#9d9689' },
+  { id: 'stucco', name: 'Stucco', hint: 'Hand-troweled render', color: '#e8dcc6' },
+];
+export const sidingName = (s: Siding = 'painted') =>
+  sidings.find((x) => x.id === s)?.name ?? 'Painted';
 /** Ways through (or into) a wall. 'open' takes the wall away entirely. */
 export type OpeningKind = 'door' | 'double' | 'slider' | 'garage' | 'window' | 'arch' | 'open';
 export interface Opening {
@@ -141,6 +172,8 @@ export interface Project {
   items: Item[];
   openings: Opening[];
   exterior: string;
+  /** What the outside walls are made of (painted when unset). */
+  siding?: Siding;
   interior?: string;
   roof: string;
   roofStyle: 'gable' | 'flat';
@@ -279,6 +312,40 @@ export const catalog: CatalogEntry[] = [
     'Furnish',
     'Living',
   ),
+  entry(
+    'sectional',
+    'sectional',
+    'Sectional sofa',
+    'Wraps around the corner',
+    2.8,
+    2.2,
+    '#88a79b',
+    'Furnish',
+    'Living',
+  ),
+  entry(
+    'ottoman',
+    'ottoman',
+    'Ottoman',
+    'Put your feet up',
+    0.8,
+    0.8,
+    '#b8a58a',
+    'Furnish',
+    'Living',
+  ),
+  entry(
+    'pooltable',
+    'pooltable',
+    'Pool table',
+    'Rack them up',
+    2.5,
+    1.4,
+    '#4f7a58',
+    'Furnish',
+    'Living',
+  ),
+  entry('wetbar', 'wetbar', 'Wet bar', 'Pour a drink', 1.6, 0.6, '#8a6a4e', 'Furnish', 'Living'),
   entry('plant', 'plant', 'House plant', 'A little life', 0.6, 0.6, '#6f9569', 'Furnish', 'Living'),
   entry(
     'table',
@@ -446,6 +513,17 @@ export const catalog: CatalogEntry[] = [
     'Kitchen & dining',
   ),
   entry(
+    'stools',
+    'stools',
+    'Bar stools',
+    'A row along the island',
+    1.7,
+    0.45,
+    '#b8976f',
+    'Furnish',
+    'Kitchen & dining',
+  ),
+  entry(
     'fridge',
     'fridge',
     'Refrigerator',
@@ -459,11 +537,77 @@ export const catalog: CatalogEntry[] = [
   entry(
     'bed',
     'bed',
-    'Bed',
+    'Queen bed',
     'A restful retreat',
-    1.8,
+    1.6,
+    2.05,
+    '#b3b9cb',
+    'Furnish',
+    'Bedroom & office',
+  ),
+  entry(
+    'bed-king',
+    'bed',
+    'King bed',
+    'Room to stretch out',
+    1.95,
     2.1,
     '#b3b9cb',
+    'Furnish',
+    'Bedroom & office',
+  ),
+  entry(
+    'bed-twin',
+    'bed',
+    'Twin bed',
+    'For one sleeper',
+    1,
+    1.95,
+    '#b3b9cb',
+    'Furnish',
+    'Bedroom & office',
+  ),
+  entry(
+    'platform',
+    'platform',
+    'Platform bed',
+    'Low, wide and modern',
+    1.95,
+    2.3,
+    '#b3b9cb',
+    'Furnish',
+    'Bedroom & office',
+  ),
+  entry(
+    'canopy',
+    'canopy',
+    'Four-poster bed',
+    'Posts, frame and drapes',
+    1.8,
+    2.2,
+    '#b3b9cb',
+    'Furnish',
+    'Bedroom & office',
+  ),
+  entry(
+    'daybed',
+    'daybed',
+    'Daybed',
+    'A sofa by day, a bed by night',
+    2,
+    0.95,
+    '#c9b49a',
+    'Furnish',
+    'Bedroom & office',
+  ),
+  entry(
+    'loft',
+    'loft',
+    'Loft bed',
+    'A desk tucked underneath',
+    1.1,
+    2.05,
+    '#b59d80',
     'Furnish',
     'Bedroom & office',
   ),
@@ -723,6 +867,17 @@ export const catalog: CatalogEntry[] = [
     'Bedroom & office',
   ),
   entry(
+    'toybox',
+    'toybox',
+    'Toy chest',
+    'Tidy, at last',
+    0.9,
+    0.45,
+    '#c08f6a',
+    'Furnish',
+    'Bedroom & office',
+  ),
+  entry(
     'deskL',
     'deskL',
     'Corner desk',
@@ -804,6 +959,12 @@ export const catalog: CatalogEntry[] = [
   entry('hottub', 'hottub', 'Hot tub', 'A warm soak', 2.2, 2.2, '#7fb7bd', 'Landscape'),
   entry('planter', 'planter', 'Planter box', 'Herbs and flowers', 1.6, 0.6, '#a8845c', 'Landscape'),
   entry('bench', 'bench', 'Garden bench', 'Somewhere to sit', 1.5, 0.6, '#a8845c', 'Landscape'),
+  entry('pergola', 'pergola', 'Pergola', 'Dappled shade', 3.6, 3, '#c2a781', 'Landscape'),
+  entry('grill', 'grill', 'Barbecue', 'Cook outside', 1.3, 0.7, '#5d6163', 'Landscape'),
+  entry('swing', 'swing', 'Swing set', 'Push me higher', 3, 1.8, '#8d9aa2', 'Landscape'),
+  entry('trampoline', 'trampoline', 'Trampoline', 'Bounce', 3.4, 3.4, '#5b6a72', 'Landscape'),
+  entry('hoop', 'hoop', 'Basketball hoop', 'Shoot some hoops', 1.4, 0.9, '#9aa3a6', 'Landscape'),
+  entry('mailbox', 'mailbox', 'Mailbox', 'Down by the driveway', 0.4, 0.4, '#7a6a58', 'Landscape'),
   entry('deck', 'deck', 'Patio / deck', 'Take life outside', 5, 3, '#c2a781', 'Landscape'),
   entry(
     'curve',
@@ -927,6 +1088,8 @@ export function blankProject(): Project {
 export function sampleProject(): Project {
   const p = blankProject();
   p.name = 'The Sunday House';
+  p.siding = 'lap';
+  p.exterior = '#f4f0e7';
   const add = (
     kind: string,
     name: string,
@@ -961,6 +1124,9 @@ export function sampleProject(): Project {
   add('tree', 'Garden tree', -10, -8, 2, 2);
   add('tree', 'Garden tree', 10, -5, 2.5, 2.5);
   add('shed', 'Garden shed', -11.5, 3, 3, 2.4);
+  add('grill', 'Barbecue', -1.2, -7.4, 1.3, 0.7);
+  add('pergola', 'Pergola', -4.4, -10.6, 3.6, 3);
+  add('mailbox', 'Mailbox', 8.6, 8.4, 0.4, 0.4);
   add('firepit', 'Fire pit', -8.5, -7.5, 1.2, 1.2);
   add('rug', 'Wool rug', -4.6, -2.9, 3.2, 2.6);
   add('sofa', 'Linen sofa', -4.4, -1.2, 2.8, 1, undefined, 180);
@@ -971,6 +1137,7 @@ export function sampleProject(): Project {
   add('fridge', 'Refrigerator', 3.05, -3.9, 0.85, 0.75);
   add('counter', 'Kitchen island', 0.7, -2.85, 2.6, 0.9);
   add('table', 'Dining table', 0.8, -1.1, 2, 1.2);
+  add('stools', 'Bar stools', 0.9, -1.95, 1.7, 0.45, undefined, 180);
   add('chandelier', 'Dining chandelier', 1.35, -0.85, 0.9, 0.9);
   add('picture', 'Family photos', 3.05, 4.86, 2.2, 0.12, undefined, 180);
   add('bathtub', 'Bathtub', 4.1, -3.9, 1.8, 0.8);
@@ -1010,7 +1177,7 @@ export function sampleProject(): Project {
   kids.finish = 'carpet';
   const upBath = up('room', 'Upstairs bath', 3, -4, 3, 3, '#dbe8e4');
   upBath.finish = 'tile';
-  up('bed', 'King bed', -4.5, -3.8, 2, 2.2);
+  up('platform', 'Platform bed', -4.6, -3.85, 1.95, 2.3);
   up('wardrobe', 'Wardrobe', -5.9, 1.5, 0.6, 1.8, undefined, 270);
   up('armchair', 'Chair', -2.2, 3.6, 0.9, 0.9, undefined, 270);
   up('sofa', 'Loft sofa', -0.4, -3.9, 2.4, 1, '#b8a58a');
@@ -1018,6 +1185,7 @@ export function sampleProject(): Project {
   up('shelf-wall', 'Built-in shelves', -0.85, -0.42, 2.4, 0.35, undefined, 180);
   up('bunk', 'Bunk beds', 0.85, 3.6, 2.05, 1.05, '#c08f6a', 90);
   up('desk', 'Homework desk', -0.9, 1.1, 1.3, 0.6);
+  up('toybox', 'Toy chest', 1.5, 1.12, 0.9, 0.45);
   up('bathtub', 'Bathtub', 4.15, -3.9, 1.75, 0.8);
   up('vanity', 'Vanity', 3.08, -2.7, 0.5, 1, undefined, 270);
   up('toilet', 'Toilet', 5.2, -2.3, 0.7, 0.45, undefined, 90);
@@ -1086,6 +1254,7 @@ export function validateProject(raw: unknown): Project {
     p.openings.length > 2000 ||
     !color(p.exterior) ||
     (p.interior !== undefined && !color(p.interior)) ||
+    (p.siding !== undefined && !sidings.some((s) => s.id === p.siding)) ||
     !color(p.roof) ||
     !['gable', 'flat'].includes(p.roofStyle) ||
     !['ft', 'm'].includes(p.units) ||
@@ -1115,6 +1284,7 @@ export function validateProject(raw: unknown): Project {
       !color(i.color) ||
       (i.style !== undefined && !['straight', 'l', 'u', 'spiral'].includes(i.style)) ||
       (i.dir !== undefined && !['up', 'down'].includes(i.dir)) ||
+      (i.mirror !== undefined && typeof i.mirror !== 'boolean') ||
       (i.finish !== undefined && !['wood', 'tile', 'carpet', 'stone'].includes(i.finish)) ||
       (i.covered !== undefined && typeof i.covered !== 'boolean') ||
       (i.ceiling !== undefined && !['standard', 'tall', 'open'].includes(i.ceiling))
@@ -1223,13 +1393,17 @@ export function rotateItem(p: Project, id: string): Project {
   if (!i) return p;
   const cx = i.x + i.w / 2,
     cz = i.z + i.d / 2;
+  const rotation = (i.rotation + 90) % 360;
+  // Stairs that turn a corner have eight positions: four each way round. A full circle flips them.
+  const handed = i.kind === 'stairs' && (i.style || 'straight') !== 'straight';
   const rotated: Item = {
     ...i,
     w: i.d,
     d: i.w,
     x: Math.round((cx - i.d / 2) * 100) / 100,
     z: Math.round((cz - i.w / 2) * 100) / 100,
-    rotation: (i.rotation + 90) % 360,
+    rotation,
+    ...(handed && rotation === 0 ? { mirror: !i.mirror } : {}),
   };
   const sides = { north: 'east', east: 'south', south: 'west', west: 'north' } as const;
   return {
@@ -1244,6 +1418,13 @@ export function rotateItem(p: Project, id: string): Project {
           }
         : o,
     ),
+  };
+}
+/** Flips a staircase left-for-right, so its flights turn the other way. */
+export function flipItem(p: Project, id: string): Project {
+  return {
+    ...p,
+    items: p.items.map((i) => (i.id === id ? { ...i, mirror: !i.mirror } : i)),
   };
 }
 /** Removes a level. Levels further from the ground shift one step closer so floors stay stacked. */

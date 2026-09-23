@@ -24,6 +24,11 @@ export interface Segment {
   a: [number, number];
   b: [number, number];
 }
+/** A handrail running alongside a flight, climbing from y0 to y1 above the lower floor. */
+export interface Banister extends Segment {
+  y0: number;
+  y1: number;
+}
 export interface StairLayout {
   LW: number;
   LD: number;
@@ -34,6 +39,8 @@ export interface StairLayout {
   rails: Segment[];
   /** Full-height dividers between flights. */
   dividers: Segment[];
+  /** Handrails climbing beside the flights. */
+  banisters: Banister[];
   /** Plan arrow from the bottom step to the top. */
   path: [number, number][];
   /** Spiral center pole. */
@@ -41,6 +48,14 @@ export interface StairLayout {
 }
 const R = (x0: number, z0: number, x1: number, z1: number): Rect => ({ x0, z0, x1, z1 });
 const S = (a: [number, number], b: [number, number]): Segment => ({ a, b });
+/** Handrail height above the treads. */
+export const RAIL_H = 0.9;
+const B = (a: [number, number], b: [number, number], y0: number, y1: number): Banister => ({
+  a,
+  b,
+  y0,
+  y1,
+});
 
 export function localSize(i: Item) {
   return i.rotation % 180 === 0 ? { LW: i.w, LD: i.d } : { LW: i.d, LD: i.w };
@@ -54,7 +69,8 @@ export function stairLayout(style: StairStyle, LW: number, LD: number): StairLay
       a = Math.floor(n / 2),
       b = n - a - 1,
       run1 = (LD - fw) / a,
-      run2 = (LW - fw) / b;
+      run2 = (LW - fw) / b,
+      turn = (a + 1) * RISE + RAIL_H;
     for (let k = 1; k <= a; k++)
       treads.push({ k, rect: R(0, LD - k * run1, fw, LD - (k - 1) * run1) });
     treads.push({ k: a + 1, rect: R(0, 0, fw, fw) });
@@ -67,6 +83,12 @@ export function stairLayout(style: StairStyle, LW: number, LD: number): StairLay
       holes: [R(0, 0, LW, LD)],
       rails: [S([0, 0], [LW, 0]), S([0, 0], [0, LD]), S([0, LD], [LW, LD]), S([LW, fw], [LW, LD])],
       dividers: [],
+      banisters: [
+        B([fw, LD], [fw, fw], RAIL_H, turn),
+        B([fw, fw], [LW, fw], turn, FLOOR_H + RAIL_H),
+        B([0, LD], [0, 0], RAIL_H, turn),
+        B([0, 0], [LW, 0], turn, FLOOR_H + RAIL_H),
+      ],
       path: [
         [fw / 2, LD - 0.25],
         [fw / 2, fw / 2],
@@ -93,6 +115,10 @@ export function stairLayout(style: StairStyle, LW: number, LD: number): StairLay
       holes: [R(0, 0, LW, LD)],
       rails: [S([0, 0], [LW, 0]), S([0, 0], [0, LD]), S([LW, 0], [LW, LD]), S([0, LD], [half, LD])],
       dividers: [S([half, ld], [half, LD])],
+      banisters: [
+        B([0, LD], [0, ld], RAIL_H, a * RISE + RAIL_H),
+        B([LW, ld], [LW, LD], (a + 1) * RISE + RAIL_H, FLOOR_H + RAIL_H),
+      ],
       path: [
         [half / 2, LD - 0.25],
         [half / 2, ld / 2],
@@ -126,6 +152,7 @@ export function stairLayout(style: StairStyle, LW: number, LD: number): StairLay
         S([cu, cv], [cu, LD]),
       ],
       dividers: [],
+      banisters: [],
       path,
       pole: { u: cu, v: cv, r: 0.07 },
     };
@@ -139,6 +166,10 @@ export function stairLayout(style: StairStyle, LW: number, LD: number): StairLay
     holes: [R(0, 0, LW, LD)],
     rails: [S([0, 0], [0, LD]), S([LW, 0], [LW, LD]), S([0, LD], [LW, LD])],
     dividers: [],
+    banisters: [
+      B([0, LD], [0, 0], RAIL_H, FLOOR_H + RAIL_H),
+      B([LW, LD], [LW, 0], RAIL_H, FLOOR_H + RAIL_H),
+    ],
     path: [
       [LW / 2, LD - 0.25],
       [LW / 2, 0.2],
@@ -146,10 +177,44 @@ export function stairLayout(style: StairStyle, LW: number, LD: number): StairLay
   };
 }
 
+/** The same stairs, handed the other way: every flight turns the opposite direction. */
+export function mirrorLayout(l: StairLayout): StairLayout {
+  const u = (n: number) => l.LW - n;
+  const seg = <T extends Segment>(s: T): T => ({
+    ...s,
+    a: [u(s.a[0]), s.a[1]],
+    b: [u(s.b[0]), s.b[1]],
+  });
+  const TWO_PI = Math.PI * 2;
+  return {
+    ...l,
+    treads: l.treads.map((t) => ({
+      k: t.k,
+      rect: t.rect && R(u(t.rect.x1), t.rect.z0, u(t.rect.x0), t.rect.z1),
+      // Reflecting across u turns the sweep the other way: the angle runs from -a1 to -a0.
+      wedge: t.wedge && {
+        ...t.wedge,
+        cu: u(t.wedge.cu),
+        a0: TWO_PI - t.wedge.a1,
+        a1: TWO_PI - t.wedge.a0,
+      },
+    })),
+    holes: l.holes.map((r) => R(u(r.x1), r.z0, u(r.x0), r.z1)),
+    rails: l.rails.map(seg),
+    dividers: l.dividers.map(seg),
+    banisters: l.banisters.map(seg),
+    path: l.path.map(([pu, pv]) => [u(pu), pv] as [number, number]),
+    pole: l.pole && { ...l.pole, u: u(l.pole.u) },
+  };
+}
+
 export function layoutFor(i: Item) {
   const { LW, LD } = localSize(i);
-  return stairLayout(i.style || 'straight', LW, LD);
+  const layout = stairLayout(i.style || 'straight', LW, LD);
+  return i.mirror ? mirrorLayout(layout) : layout;
 }
+/** Styles that look different flipped, so turning them offers eight positions instead of four. */
+export const handedStyle = (style: StairStyle = 'straight') => style !== 'straight';
 
 /** Local (u, v) → plan (x, z). */
 export function toWorld(i: Item, u: number, v: number): [number, number] {

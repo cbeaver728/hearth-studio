@@ -13,9 +13,29 @@ import {
   money,
   squareFeet,
   snap,
+  sidingName,
+  sidings,
   validateProject,
 } from '../src/model';
 import { buildWalkWorld } from '../src/walk';
+describe('exterior materials', () => {
+  it('saves, reloads and refuses nonsense', () => {
+    for (const { id } of sidings) {
+      const p = blankProject();
+      p.siding = id;
+      expect(validateProject(JSON.parse(JSON.stringify(p))).siding).toBe(id);
+      expect(sidingName(id)).toBeTruthy();
+    }
+    const bad = { ...blankProject(), siding: 'gingerbread' };
+    expect(() => validateProject(JSON.parse(JSON.stringify(bad)))).toThrow();
+    // Projects saved before materials existed still open, and read as painted.
+    const old = blankProject();
+    delete old.siding;
+    expect(validateProject(JSON.parse(JSON.stringify(old))).siding).toBeUndefined();
+    expect(sidingName(undefined)).toBe('Painted');
+  });
+});
+
 describe('project integrity', () => {
   it('round trips a furnished house and preserves every opening', () => {
     const p = sampleProject();

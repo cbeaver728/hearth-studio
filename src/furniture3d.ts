@@ -94,6 +94,240 @@ export function furniture(item: Item, y: number, mat: Mat, ceiling = 3): T.Group
           b(u - 0.03, u + 0.03, 0, 0.08, v - 0.03, v + 0.03, '#5a4a3a');
       break;
     }
+    case 'platform': {
+      // A wide, low base with the mattress set into it, on a recessed plinth.
+      b(0, W, 0.08, 0.3, 0, D, tone(c, -28));
+      b(0.14, W - 0.14, 0, 0.08, 0.14, D - 0.14, '#5c5349');
+      b(0.16, W - 0.16, 0.3, 0.6, 0.16, D - 0.26, c);
+      for (let n = 0; n < 2; n++)
+        b(W * (0.2 + n * 0.32), W * (0.46 + n * 0.32), 0.6, 0.72, 0.24, 0.6, '#f8f4e8');
+      b(0.16, W - 0.16, 0.6, 0.64, D * 0.52, D - 0.26, tone(c, 16));
+      b(0, W, 0.3, 0.8, 0, 0.14, tone(c, -18));
+      break;
+    }
+    case 'canopy': {
+      const post = tone(c, -48);
+      b(0.08, W - 0.08, 0.16, 0.44, 0.08, D - 0.08, tone(c, -26));
+      b(0.1, W - 0.1, 0.44, 0.66, 0.14, D - 0.1, c);
+      for (let n = 0; n < 2; n++)
+        b(W * (0.09 + n * 0.46), W * (0.45 + n * 0.46), 0.66, 0.8, 0.2, 0.62, '#f8f4e8');
+      b(W * 0.04, W * 0.96, 0.66, 0.7, D * 0.5, D * 0.95, tone(c, 16));
+      // A headboard panel between the posts at the pillow end.
+      b(0.1, W - 0.1, 0.44, 1.16, 0.03, 0.1, tone(c, -30));
+      // Four posts and the frame across the top.
+      for (const u of [0.07, W - 0.07])
+        for (const v of [0.07, D - 0.07]) b(u - 0.05, u + 0.05, 0, 2.08, v - 0.05, v + 0.05, post);
+      b(0, W, 2.02, 2.1, 0, 0.1, post);
+      b(0, W, 2.02, 2.1, D - 0.1, D, post);
+      b(0, 0.1, 2.02, 2.1, 0, D, post);
+      b(W - 0.1, W, 2.02, 2.1, 0, D, post);
+      // Sheer drapes gathered at the head posts.
+      const sheer = mat('#f6f1e6', { opacity: 0.38, rough: 0.95, double: true });
+      for (const u of [0.13, W - 0.17]) b(u, u + 0.04, 0.55, 2.02, 0.08, 0.38, sheer);
+      break;
+    }
+    case 'daybed': {
+      b(0, W, 0.1, 0.44, 0, D, tone(c, -25));
+      b(0.06, W - 0.06, 0.44, 0.58, 0.08, D - 0.04, tone(c, 22));
+      b(0, W, 0.44, 0.95, 0, 0.1, tone(c, -25));
+      b(0, 0.1, 0.44, 0.8, 0, D, tone(c, -25));
+      b(W - 0.1, W, 0.44, 0.8, 0, D, tone(c, -25));
+      for (let n = 0; n < 3; n++)
+        b(W * (0.12 + n * 0.27), W * (0.34 + n * 0.27), 0.58, 0.88, 0.12, 0.32, '#f0e7d8');
+      for (const u of [0.07, W - 0.07])
+        for (const v of [0.07, D - 0.07])
+          b(u - 0.03, u + 0.03, 0, 0.1, v - 0.03, v + 0.03, '#5a4a3a');
+      break;
+    }
+    case 'loft': {
+      const top = 1.35;
+      for (const u of [0.06, W - 0.06])
+        for (const v of [0.06, D - 0.06])
+          b(u - 0.045, u + 0.045, 0, top + 0.52, v - 0.045, v + 0.045, c);
+      b(0, W, top, top + 0.1, 0, D, tone(c, -15));
+      b(0.05, W - 0.05, top + 0.1, top + 0.3, 0.07, D - 0.07, '#dfe3ea');
+      b(W * 0.14, W * 0.86, top + 0.3, top + 0.4, 0.15, 0.52, '#f8f4e8');
+      // A rail down each side of the platform.
+      for (const u of [0, W - 0.05])
+        b(u, u + 0.05, top + 0.1, top + 0.52, 0.12, D - 0.12, tone(c, -10));
+      // The desk underneath, and the ladder at the foot.
+      b(0.06, W - 0.06, 0.72, 0.78, 0.12, D * 0.5, '#b8976f');
+      b(0.08, 0.14, 0, 0.72, 0.14, D * 0.48, '#a08a6c');
+      b(W - 0.14, W - 0.08, 0, 0.72, 0.14, D * 0.48, '#a08a6c');
+      for (let n = 0; n < 4; n++)
+        b(0.12, W - 0.12, 0.36 + n * 0.32, 0.4 + n * 0.32, D - 0.055, D - 0.01, tone(c, -20));
+      break;
+    }
+    case 'sectional': {
+      const arm = 0.2,
+        run = Math.min(0.95, D * 0.45);
+      b(0, W, 0.08, 0.44, 0, run, c);
+      b(W - run, W, 0.08, 0.44, 0, D, c);
+      b(0, W, 0.44, 0.86, 0, 0.2, tone(c, -10));
+      b(W - 0.2, W, 0.44, 0.86, 0, D, tone(c, -10));
+      b(0, arm, 0.08, 0.62, 0, run, tone(c, -4));
+      b(W - run, W - 0.2, 0.44, 0.6, D - arm, D, tone(c, -4));
+      const seats = Math.max(2, Math.round((W - run - arm) / 0.9));
+      const sw = (W - run - arm) / seats;
+      for (let n = 0; n < seats; n++)
+        b(
+          arm + n * sw + 0.02,
+          arm + (n + 1) * sw - 0.02,
+          0.44,
+          0.56,
+          0.22,
+          run - 0.04,
+          tone(c, 18),
+        );
+      b(W - run + 0.02, W - 0.22, 0.44, 0.56, run + 0.02, D - arm - 0.02, tone(c, 18));
+      for (const [u, v] of [
+        [0.06, 0.06],
+        [W - 0.06, 0.06],
+        [0.06, run - 0.06],
+        [W - 0.06, D - 0.06],
+        [W - run + 0.06, D - 0.06],
+      ])
+        b(u - 0.03, u + 0.03, 0, 0.08, v - 0.03, v + 0.03, '#5a4a3a');
+      break;
+    }
+    case 'ottoman':
+      b(0.04, W - 0.04, 0.12, 0.4, 0.04, D - 0.04, c);
+      b(0, W, 0.34, 0.46, 0, D, tone(c, 14));
+      for (const u of [0.09, W - 0.09])
+        for (const v of [0.09, D - 0.09])
+          b(u - 0.03, u + 0.03, 0, 0.12, v - 0.03, v + 0.03, '#5a4a3a');
+      break;
+    case 'pooltable': {
+      const rail = '#6b4b2f';
+      b(0.1, W - 0.1, 0.3, 0.76, 0.1, D - 0.1, rail);
+      b(0, W, 0.76, 0.8, 0, D, rail);
+      b(0.11, W - 0.11, 0.79, 0.81, 0.11, D - 0.11, c);
+      for (const u of [0.17, W / 2, W - 0.17])
+        for (const v of [0.17, D - 0.17]) cyl(u, v, 0.055, 0.77, 0.8, '#2b2b2b');
+      for (const u of [0.24, W - 0.24])
+        for (const v of [0.24, D - 0.24])
+          b(u - 0.07, u + 0.07, 0, 0.3, v - 0.07, v + 0.07, '#5a3f27');
+      const balls = ['#d8b13a', '#c0392b', '#2e6fa7', '#8e44ad', '#e07b39', '#2f6b4f'];
+      for (let row = 0; row < 3; row++)
+        for (let n = 0; n <= row; n++)
+          ball(
+            W * 0.66 + row * 0.07,
+            0.845,
+            D / 2 + (n - row / 2) * 0.075,
+            0.033,
+            balls[(row + n) % 6],
+          );
+      ball(W * 0.28, 0.845, D / 2, 0.033, '#f6f3ea');
+      break;
+    }
+    case 'wetbar': {
+      b(0, W, 0.1, 1.05, 0, D * 0.78, c);
+      b(0.04, W - 0.04, 0, 0.1, 0.04, D * 0.72, tone(c, -28));
+      b(-0.04, W + 0.04, 1.05, 1.11, -0.04, D * 0.78 + 0.04, '#3b3a38');
+      b(0.1, W - 0.1, 0.52, 0.56, 0.06, D * 0.3, tone(c, 22));
+      for (let n = 0; n < 6; n++)
+        cyl(
+          0.16 + n * ((W - 0.32) / 5),
+          D * 0.16,
+          0.035,
+          0.56,
+          0.82,
+          n % 2 ? '#7a8f6a' : '#5d3f2c',
+        );
+      break;
+    }
+    case 'stools': {
+      const n = Math.max(1, Math.round(W / 0.55));
+      for (let k = 0; k < n; k++) {
+        const u = (W / n) * (k + 0.5);
+        cyl(u, D / 2, 0.05, 0.02, 0.66, '#8a8f92');
+        cyl(u, D / 2, 0.16, 0.02, 0.06, '#8a8f92');
+        cyl(u, D / 2, 0.17, 0.66, 0.73, c);
+        b(u - 0.16, u + 0.16, 0.73, 1.02, D / 2 - 0.03, D / 2 + 0.03, tone(c, -14));
+      }
+      break;
+    }
+    case 'toybox':
+      b(0, W, 0, 0.45, 0, D, c);
+      b(-0.02, W + 0.02, 0.45, 0.52, -0.02, D + 0.02, tone(c, 16));
+      b(W * 0.42, W * 0.58, 0.52, 0.55, D * 0.42, D * 0.58, '#8a8f92');
+      break;
+    case 'pergola': {
+      const h = 2.4;
+      for (const u of [0.11, W - 0.11])
+        for (const v of [0.11, D - 0.11]) b(u - 0.08, u + 0.08, 0, h, v - 0.08, v + 0.08, c);
+      for (const v of [0.11, D - 0.11]) b(0, W, h, h + 0.14, v - 0.08, v + 0.08, tone(c, 8));
+      for (let n = 0; n <= 7; n++) {
+        const v = (D / 7) * n;
+        b(
+          0.02,
+          W - 0.02,
+          h + 0.14,
+          h + 0.26,
+          Math.max(0, v - 0.05),
+          Math.min(D, v + 0.05),
+          tone(c, 14),
+        );
+      }
+      for (let n = 0; n <= 5; n++) {
+        const u = (W / 5) * n;
+        b(Math.max(0, u - 0.04), Math.min(W, u + 0.04), h + 0.26, h + 0.32, 0, D, tone(c, 22));
+      }
+      break;
+    }
+    case 'grill': {
+      b(W * 0.06, W * 0.72, 0.5, 0.92, 0.08, D - 0.08, c);
+      b(W * 0.04, W * 0.74, 0.92, 0.98, 0.04, D - 0.04, tone(c, 20));
+      b(W * 0.06, W * 0.72, 0.98, 1.14, 0.04, D * 0.42, tone(c, -14));
+      b(W * 0.74, W - 0.02, 0.64, 0.7, 0.1, D - 0.1, tone(c, 26));
+      for (const u of [W * 0.12, W * 0.64]) {
+        b(u - 0.03, u + 0.03, 0.16, 0.5, 0.12, D - 0.12, '#4a4e50');
+        cyl(u, 0.16, 0.085, 0, 0.16, '#2a2a2a');
+        cyl(u, D - 0.16, 0.085, 0, 0.16, '#2a2a2a');
+      }
+      break;
+    }
+    case 'swing': {
+      const h = 2.1;
+      for (const u of [0.12, W - 0.12])
+        for (const v of [0.14, D - 0.14]) {
+          const leg = b(u - 0.06, u + 0.06, 0, h, v - 0.06, v + 0.06, c);
+          if (leg) leg.rotation.x = (v < D / 2 ? -1 : 1) * 0.2;
+        }
+      b(0, W, h - 0.06, h + 0.06, D / 2 - 0.06, D / 2 + 0.06, tone(c, -14));
+      for (const u of [W * 0.3, W * 0.7]) {
+        for (const du of [-0.22, 0.22])
+          b(u + du - 0.015, u + du + 0.015, 0.52, h - 0.06, D / 2 - 0.02, D / 2 + 0.02, '#6f757a');
+        b(u - 0.25, u + 0.25, 0.48, 0.53, D / 2 - 0.12, D / 2 + 0.12, '#c0563a');
+      }
+      break;
+    }
+    case 'trampoline': {
+      const r = Math.min(W, D) / 2;
+      cyl(W / 2, D / 2, r, 0.44, 0.52, '#2f3a40');
+      cyl(W / 2, D / 2, r - 0.1, 0.48, 0.55, c);
+      for (let n = 0; n < 6; n++) {
+        const a = (n / 6) * Math.PI * 2;
+        const u = W / 2 + Math.cos(a) * (r - 0.06),
+          v = D / 2 + Math.sin(a) * (r - 0.06);
+        cyl(u, v, 0.05, 0, 0.44, '#6f757a');
+        cyl(u, v, 0.035, 0.52, 2.2, '#8b9298');
+      }
+      break;
+    }
+    case 'hoop': {
+      cyl(W / 2, D - 0.16, 0.07, 0, 3.05, c);
+      b(W * 0.18, W * 0.82, 2.55, 3.32, D * 0.24, D * 0.3, '#f1ede0');
+      b(W * 0.36, W * 0.64, 2.72, 2.98, D * 0.21, D * 0.24, '#c0563a');
+      cyl(W / 2, D * 0.1, 0.23, 2.72, 2.755, '#d4522e');
+      b(W / 2 - 0.03, W / 2 + 0.03, 2.73, 2.76, D * 0.1, D * 0.24, '#d4522e');
+      break;
+    }
+    case 'mailbox':
+      cyl(W / 2, D / 2, 0.05, 0, 1.1, c);
+      b(W * 0.16, W * 0.84, 1.1, 1.38, D * 0.1, D * 0.9, tone(c, 34));
+      b(W * 0.85, W * 0.95, 1.16, 1.42, D * 0.44, D * 0.5, '#c0563a');
+      break;
     case 'bed':
       b(0, W, 0.1, 0.4, 0, D, '#a79178');
       b(W * 0.015, W * 0.985, 0.4, 0.62, 0.1, D * 0.985, c);
