@@ -123,6 +123,7 @@ import {
   rotateItem,
   flipItem,
   sidings,
+  roofFinishes,
   type Siding,
   sampleProject,
   stairEntry,
@@ -276,6 +277,26 @@ function sidingSwatch(id: Siding, color: string): CSSProperties {
     default:
       return { background: color };
   }
+}
+function roofSwatch(id: string, color: string): CSSProperties {
+  const dark = (a: number) => `rgba(14,14,16,${a})`;
+  const pale = (a: number) => `rgba(255,255,250,${a})`;
+  if (id === 'shingle')
+    return {
+      backgroundColor: color,
+      backgroundImage: `repeating-linear-gradient(180deg, transparent 0 5px, ${dark(0.3)} 5px 6px), repeating-linear-gradient(90deg, transparent 0 7px, ${dark(0.18)} 7px 8px)`,
+    };
+  if (id === 'metal')
+    return {
+      backgroundColor: color,
+      backgroundImage: `repeating-linear-gradient(90deg, ${pale(0.18)} 0 2px, transparent 2px 4px, ${dark(0.28)} 4px 5px, transparent 5px 9px)`,
+    };
+  if (id === 'tile')
+    return {
+      backgroundColor: color,
+      backgroundImage: `repeating-linear-gradient(90deg, ${dark(0.3)} 0 1px, ${pale(0.2)} 3px, ${dark(0.3)} 7px)`,
+    };
+  return { background: color };
 }
 function initial() {
   try {
@@ -1683,8 +1704,25 @@ export default function App() {
             <option value="flat">Modern flat</option>
           </select>
         </label>
+        <div className="field-label">Roof covering</div>
+        <div className="material-grid roof-grid" role="group" aria-label="Roof covering">
+          {roofFinishes.map((r) => (
+            <button
+              key={r.id}
+              className={
+                (project.roofFinish || 'shingle') === r.id ? 'material selected' : 'material'
+              }
+              aria-pressed={(project.roofFinish || 'shingle') === r.id}
+              title={r.hint}
+              onClick={() => commit({ ...project, roofFinish: r.id })}
+            >
+              <span className="material-swatch" style={roofSwatch(r.id, project.roof)} />
+              <span>{r.name}</span>
+            </button>
+          ))}
+        </div>
         <label className="field">
-          Roof finish
+          Roof color
           <div className="swatches">
             {['#586662', '#716456', '#b17759', '#b3ada0', '#2f3335'].map((c) => (
               <button

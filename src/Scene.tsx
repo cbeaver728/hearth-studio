@@ -31,6 +31,7 @@ import {
   type FloorFinish,
   type Item,
   type Project,
+  type RoofFinish,
   type Siding,
 } from './model';
 import {
@@ -259,6 +260,66 @@ function sidingTexture(siding: Siding, color: string): T.CanvasTexture | null {
   t.colorSpace = T.SRGBColorSpace;
   t.anisotropy = 4;
   sidingTextures.set(key, t);
+  return t;
+}
+
+// Roof coverings, tiled like the wall finishes. Each panel covers ROOF_TILE meters.
+const ROOF_TILE = 1.4;
+const roofTextures = new Map<string, T.CanvasTexture>();
+function roofTexture(finish: RoofFinish, color: string): T.CanvasTexture | null {
+  if (finish === 'plain') return null;
+  const key = finish + color;
+  const hit = roofTextures.get(key);
+  if (hit) return hit;
+  const c = document.createElement('canvas');
+  c.width = c.height = 256;
+  const g = c.getContext('2d')!;
+  g.fillStyle = color;
+  g.fillRect(0, 0, 256, 256);
+  const shade = (a: number) => `rgba(16,16,18,${a})`;
+  const light = (a: number) => `rgba(255,255,250,${a})`;
+  if (finish === 'shingle') {
+    // Courses of tabs, offset row by row.
+    for (let row = 0; row < 10; row++) {
+      const y = row * 25.6,
+        off = (row % 2) * 16;
+      for (let n = -1; n < 9; n++) {
+        g.fillStyle = shade(0.04 + ((row * 5 + n * 7) % 5) * 0.03);
+        g.fillRect(off + n * 32 + 1, y, 30, 24);
+      }
+      g.fillStyle = shade(0.3);
+      g.fillRect(0, y + 23, 256, 3);
+    }
+  } else if (finish === 'metal') {
+    // Standing seams every 40 cm, catching the light on one side.
+    for (let n = 0; n < 7; n++) {
+      const x = n * 36.6;
+      g.fillStyle = light(0.16);
+      g.fillRect(x + 2, 0, 8, 256);
+      g.fillStyle = shade(0.26);
+      g.fillRect(x, 0, 3, 256);
+    }
+  } else {
+    // Barrel tiles: rounded ridges in courses.
+    for (let n = 0; n < 8; n++) {
+      const x = n * 32;
+      const grad = g.createLinearGradient(x, 0, x + 32, 0);
+      grad.addColorStop(0, shade(0.28));
+      grad.addColorStop(0.45, light(0.16));
+      grad.addColorStop(1, shade(0.28));
+      g.fillStyle = grad;
+      g.fillRect(x, 0, 32, 256);
+    }
+    for (let row = 0; row < 5; row++) {
+      g.fillStyle = shade(0.22);
+      g.fillRect(0, row * 51.2 + 47, 256, 5);
+    }
+  }
+  const t = new T.CanvasTexture(c);
+  t.wrapS = t.wrapT = T.RepeatWrapping;
+  t.colorSpace = T.SRGBColorSpace;
+  t.anisotropy = 4;
+  roofTextures.set(key, t);
   return t;
 }
 
@@ -739,7 +800,27 @@ function buildContent(p: Project, mode: SceneMode, floor: number, evening: boole
 
   // Roofs: a gable (or flat) roof over the top of each stack, flat roofs over lower parts.
   if (mode !== 'dollhouse') {
-    const roofMat = mat(p.roof, { double: true });
+    const roofMap = roofTexture(p.roofFinish || 'shingle', p.roof);
+    const roofKey = `roof:${p.roofFinish}:${p.roof}`;
+    let roofMat = materials.get(roofKey);
+    if (!roofMat) {
+      roofMat = roofMap
+        ? new T.MeshStandardMaterial({
+            map: roofMap,
+            roughness: p.roofFinish === 'metal' ? 0.45 : 0.9,
+            metalness: p.roofFinish === 'metal' ? 0.35 : 0,
+            side: T.DoubleSide,
+          })
+        : mat(p.roof, { double: true });
+      materials.set(roofKey, roofMat);
+    }
+    /** Tiles the covering over a roof panel at real-world size. */
+    const tileRoof = (mesh: T.Mesh | null, su: number, sv: number) => {
+      if (!mesh || !roofMap) return;
+      const uv = mesh.geometry.attributes.uv as T.BufferAttribute;
+      for (let n = 0; n < uv.count; n++) uv.setXY(n, uv.getX(n) * su, uv.getY(n) * sv);
+      uv.needsUpdate = true;
+    };
     for (const level of levels.filter((l) => l >= 0))
       for (const kind of ['room', 'garage'] as const) {
         const rooms = p.items.filter((i) => i.floor === level && i.kind === kind);
@@ -760,7 +841,11 @@ function buildContent(p: Project, mode: SceneMode, floor: number, evening: boole
               { x0: r.x - 0.12, z0: r.z - 0.12, x1: r.x + r.w + 0.12, z1: r.z + r.d + 0.12 },
               cover,
             ))
-              slab(piece, y, y + 0.22, roofMat);
+              tileRoof(
+                slab(piece, y, y + 0.22, roofMat),
+                (piece.x1 - piece.x0) / ROOF_TILE,
+                (piece.z1 - piece.z0) / ROOF_TILE,
+              );
           continue;
         }
         const minX = Math.min(...rooms.map((i) => i.x)) - 0.3,
@@ -772,7 +857,7 @@ function buildContent(p: Project, mode: SceneMode, floor: number, evening: boole
           x = (minX + maxX) / 2,
           z = (minZ + maxZ) / 2;
         if (p.roofStyle === 'flat') {
-          box(x, y + 0.11, z, w, 0.22, d, roofMat);
+          tileRoof(box(x, y + 0.11, z, w, 0.22, d, roofMat), w / ROOF_TILE, d / ROOF_TILE);
           continue;
         }
         const rise = Math.min(2.2, w * 0.23);
@@ -802,7 +887,10 @@ function buildContent(p: Project, mode: SceneMode, floor: number, evening: boole
             d + 0.12,
             roofMat,
           );
-          if (panel) panel.rotation.z = -side * angle;
+          if (panel) {
+            panel.rotation.z = -side * angle;
+            tileRoof(panel, (length + 0.1) / ROOF_TILE, (d + 0.12) / ROOF_TILE);
+          }
         }
       }
   }

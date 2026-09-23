@@ -37,7 +37,7 @@ Other ways to run it:
    **Measure** (M) drags a tape between any two points; hold Shift to keep it straight.
 10. **Share the plan.** The picture button under the plan saves the current floor as a PNG with the house name and floor as a title.
 11. **Outside.** Patios, driveways, lawns, pools, trees, and fences live on the ground floor.
-    **Exterior materials:** painted, lap siding, board & batten, cedar shingle, brick, stone, or stucco, each in a choice of colors that suit it, with interior paint and the roof set separately. Then choose **See the exterior**.
+    **Exterior materials:** painted, lap siding, board & batten, cedar shingle, brick, stone, or stucco, each in a choice of colors that suit it. The roof takes shingles, standing-seam metal, or clay tile, in its own color, and interior paint is set separately. Then choose **See the exterior**.
 
 ### Versions, notes, and budget
 

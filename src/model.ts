@@ -127,6 +127,14 @@ export const sidings: { id: Siding; name: string; hint: string; color: string }[
   { id: 'stone', name: 'Stone', hint: 'Rough-cut courses', color: '#9d9689' },
   { id: 'stucco', name: 'Stucco', hint: 'Hand-troweled render', color: '#e8dcc6' },
 ];
+/** What the roof is covered with. */
+export type RoofFinish = 'plain' | 'shingle' | 'metal' | 'tile';
+export const roofFinishes: { id: RoofFinish; name: string; hint: string }[] = [
+  { id: 'shingle', name: 'Shingles', hint: 'Asphalt or cedar courses' },
+  { id: 'metal', name: 'Standing seam', hint: 'Ribbed metal panels' },
+  { id: 'tile', name: 'Clay tile', hint: 'Rolled barrel tiles' },
+  { id: 'plain', name: 'Plain', hint: 'Flat color, no texture' },
+];
 export const sidingName = (s: Siding = 'painted') =>
   sidings.find((x) => x.id === s)?.name ?? 'Painted';
 /** Ways through (or into) a wall. 'open' takes the wall away entirely. */
@@ -176,6 +184,8 @@ export interface Project {
   siding?: Siding;
   interior?: string;
   roof: string;
+  /** What the roof is covered with (shingles when unset). */
+  roofFinish?: RoofFinish;
   roofStyle: 'gable' | 'flat';
   units: 'ft' | 'm';
   /** Free-form notes about this version of the design. */
@@ -1255,6 +1265,7 @@ export function validateProject(raw: unknown): Project {
     !color(p.exterior) ||
     (p.interior !== undefined && !color(p.interior)) ||
     (p.siding !== undefined && !sidings.some((s) => s.id === p.siding)) ||
+    (p.roofFinish !== undefined && !roofFinishes.some((r) => r.id === p.roofFinish)) ||
     !color(p.roof) ||
     !['gable', 'flat'].includes(p.roofStyle) ||
     !['ft', 'm'].includes(p.units) ||

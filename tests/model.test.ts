@@ -13,6 +13,7 @@ import {
   money,
   squareFeet,
   snap,
+  roofFinishes,
   sidingName,
   sidings,
   validateProject,
@@ -26,8 +27,15 @@ describe('exterior materials', () => {
       expect(validateProject(JSON.parse(JSON.stringify(p))).siding).toBe(id);
       expect(sidingName(id)).toBeTruthy();
     }
+    for (const { id } of roofFinishes) {
+      const p = blankProject();
+      p.roofFinish = id;
+      expect(validateProject(JSON.parse(JSON.stringify(p))).roofFinish).toBe(id);
+    }
     const bad = { ...blankProject(), siding: 'gingerbread' };
     expect(() => validateProject(JSON.parse(JSON.stringify(bad)))).toThrow();
+    const badRoof = { ...blankProject(), roofFinish: 'thatch' };
+    expect(() => validateProject(JSON.parse(JSON.stringify(badRoof)))).toThrow();
     // Projects saved before materials existed still open, and read as painted.
     const old = blankProject();
     delete old.siding;
