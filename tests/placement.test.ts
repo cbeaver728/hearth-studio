@@ -139,3 +139,70 @@ describe('more building fixes', () => {
       ).toBe(false);
   });
 });
+
+describe('building a modern ranch', () => {
+  it('grows a room typed bigger away from the room it is built against', async () => {
+    const { resizeRoom } = await import('../src/placement');
+    const living = room(0, 0, 9, 5.5, 'Living room');
+    const garage = { ...room(-2.75, 1.5, 2.75, 4), kind: 'garage' as const };
+    const r = resizeRoom([living, garage], garage, 6.1, 6.7);
+    expect(r.x + r.w).toBeCloseTo(0, 5); // still against the living room
+    expect(r.x).toBeCloseTo(-6.1, 5);
+    // With nothing alongside, the top-left corner stays put.
+    const alone = room(10, 10, 3, 3);
+    expect(resizeRoom([alone], alone, 5, 4)).toMatchObject({ x: 10, z: 10, w: 5, d: 4 });
+  });
+  it('rounds only the corners that stand free', async () => {
+    const { freeCorners } = await import('../src/placement');
+    const living = room(0, 0, 9, 5.5, 'Living room');
+    const bed = room(9, 0, 4, 5.5);
+    const kitchen = room(1, 5.5, 7, 1.5, 'Kitchen');
+    expect(freeCorners({ items: [living, bed, kitchen] }, living).sort()).toEqual(['nw', 'sw']);
+    expect(freeCorners({ items: [living] }, living)).toHaveLength(4);
+  });
+  it('sets a curved wall on the wall you click beside, bowing out, with an opening', async () => {
+    const { attachCurve } = await import('../src/placement');
+    const living = room(0, 0, 9, 5.5, 'Living room');
+    const c = { ...createItem('curve', 0, 0, 0), w: 3.2, d: 0.8 };
+    const north = attachCurve([living], c, 4.5, -0.6)!;
+    expect(north.side).toBe('north');
+    expect(north.curve.rotation).toBe(0);
+    expect(north.curve.z + north.curve.d).toBeCloseTo(0, 5);
+    expect(north.curve.x + north.curve.w / 2).toBeCloseTo(4.5, 5);
+    const east = attachCurve([living], c, 9.5, 2.75)!;
+    expect(east.side).toBe('east');
+    expect(east.curve.x).toBeCloseTo(9, 5);
+    // Far from any wall it's left alone.
+    expect(attachCurve([living], c, 20, 20)).toBeNull();
+  });
+  it('keeps a resized curve on its wall and widens the opening into it', async () => {
+    const { attachCurve, resizeCurve } = await import('../src/placement');
+    const living = room(0, 0, 9, 5.5, 'Living room');
+    const j = attachCurve(
+      [living],
+      { ...createItem('curve', 0, 0, 0), w: 3.2, d: 0.8 },
+      4.5,
+      -0.5,
+    )!;
+    const arch = {
+      id: 'a',
+      roomId: living.id,
+      side: j.side,
+      offset: j.offset,
+      width: j.width,
+      kind: 'arch' as const,
+    };
+    const out = resizeCurve({ items: [living, j.curve], openings: [arch] }, j.curve, 3.66, 1.83);
+    const c = out.items.find((i) => i.kind === 'curve')!;
+    expect(c.z + c.d).toBeCloseTo(0, 5);
+    expect(c.x + c.w / 2).toBeCloseTo(4.5, 5);
+    expect(out.openings[0].width).toBeCloseTo(3.56, 2);
+  });
+  it('sets a deck flush against the outside wall', async () => {
+    const { attachOutside } = await import('../src/placement');
+    const bed = room(0, 0, 4, 5.5);
+    const deck = { ...createItem('landing', 0, 0, 0), w: 3, d: 1.8 };
+    const d = attachOutside([bed], deck, 2, -1.2);
+    expect(d.z + d.d).toBeCloseTo(0, 5);
+  });
+});

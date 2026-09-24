@@ -89,7 +89,8 @@ test('exports a valid portable project and imports it without replacing original
   expect(download.suggestedFilename()).toMatch(/\.hearth$/);
   const path = (await download.path())!;
   await page.locator('input[type=file]').setInputFiles(path);
-  await expect(page.getByText('Project opened as a new local copy.')).toBeVisible();
+  // A second project of the same name is told apart by a number.
+  await expect(page.getByText('Opened “The Sunday House (2)” as a new project')).toBeVisible();
   await page.getByRole('button', { name: 'My projects', exact: true }).click();
   // The Sunday House and Arthur's House come with a fresh install; the import makes three.
   await expect(page.locator('.project-card')).toHaveCount(3);

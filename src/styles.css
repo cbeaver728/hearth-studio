@@ -1274,7 +1274,7 @@ kbd {
 }
 .opening-row select {
   padding: 4px 6px;
-  max-width: 100px;
+  max-width: 150px;
   font-size: 12.5px;
 }
 .opening-row .field {

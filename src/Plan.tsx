@@ -1,4 +1,4 @@
-import { moveFurniture, placeFurniture, roomAt } from './placement';
+import { attachCurve, attachOutside, moveFurniture, placeFurniture, roomAt } from './placement';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   Compass,
@@ -71,7 +71,14 @@ interface Gesture {
   carried?: Item[];
   moved?: boolean;
 }
-const OPENING_TOOLS = openingKinds.map((o) => o.kind) as string[];
+/**
+ * The tool for placing an opening. A garage door has its own name, so it isn't mistaken for
+ * drawing a garage (the 'garage' tool).
+ */
+export const openingTool = (kind: OpeningKind) => (kind === 'garage' ? 'garage-door' : kind);
+export const toolOpening = (tool: string) =>
+  openingKinds.find((o) => openingTool(o.kind) === tool)?.kind;
+const OPENING_TOOLS = openingKinds.map((o) => openingTool(o.kind)) as string[];
 const placing = (tool: Tool) =>
   !['select', 'pan', 'measure', 'room', 'garage', ...OPENING_TOOLS].includes(tool);
 
@@ -373,7 +380,7 @@ export default function Plan({
       return;
     }
     if (OPENING_TOOLS.includes(tool)) {
-      placeOpening(a, tool as OpeningKind);
+      placeOpening(a, toolOpening(tool)!);
       return;
     }
     if (tool === 'measure') {
@@ -415,12 +422,43 @@ export default function Plan({
       return;
     }
     let i = createItem(tool, floor, 0, 0);
+    // "Landing / balcony" is the catalog's name for the tool; the piece itself is a deck, a balcony or a
+    // landing, depending on the floor.
+    if (i.kind === 'landing') i.name = floor === 0 ? 'Deck' : floor > 0 ? 'Balcony' : 'Landing';
+    // A curved wall by the outside of a room joins it: on the wall, bowing out, opening in.
+    if (i.kind === 'curve') {
+      const joined = attachCurve(roomsHere, i, a.x, a.z);
+      if (joined) {
+        onChange({
+          ...p,
+          items: [...p.items, joined.curve],
+          openings: [
+            ...p.openings,
+            {
+              id: uid(),
+              roomId: joined.room.id,
+              side: joined.side,
+              offset: Math.round(joined.offset * 100) / 100,
+              width: Math.round(joined.width * 100) / 100,
+              kind: 'arch',
+            },
+          ],
+        });
+        onSelect(joined.curve.id);
+        if (!e.shiftKey) onTool('select');
+        onNotice(
+          `Curved wall added to the ${joined.room.name.toLowerCase()}, opening into it. Drag its depth to bow it further.`,
+        );
+        return;
+      }
+    }
     if (snapping) i = placeFurniture(roomsHere, i, a.x, a.z, (v) => snap(v, true));
     else {
       i.x = snap(a.x - i.w / 2, snapping);
       i.z = snap(a.z - i.d / 2, snapping);
     }
     i = wallSnap(i);
+    if (i.kind === 'landing' && snapping) i = attachOutside(roomsHere, i, a.x, a.z);
     if (i.kind === 'stairs') {
       i.dir = stairDir;
       const to = floor + (i.dir === 'up' ? 1 : -1);
@@ -697,7 +735,10 @@ export default function Plan({
       i.x = snap(hover.x - i.w / 2, snapping);
       i.z = snap(hover.z - i.d / 2, snapping);
     }
-    return wallSnap(i);
+    i = wallSnap(i);
+    if (i.kind === 'landing' && snapping) i = attachOutside(roomsHere, i, hover.x, hover.z);
+    if (i.kind === 'curve') i = attachCurve(roomsHere, i, hover.x, hover.z)?.curve ?? i;
+    return i;
   })();
   const u = p.units;
 
@@ -1093,25 +1134,38 @@ export default function Plan({
                 }}
               />
             ))}
-            <text
-              x={sel.x + sel.w / 2}
-              y={sel.z - 0.35}
-              fontSize=".3"
-              textAnchor="middle"
-              className="dim-label"
-            >
-              {formatLength(sel.w, u)}
-            </text>
-            <text
-              x={sel.x + sel.w + 0.4}
-              y={sel.z + sel.d / 2}
-              fontSize=".3"
-              className="dim-label"
-              transform={`rotate(90 ${sel.x + sel.w + 0.4} ${sel.z + sel.d / 2})`}
-              textAnchor="middle"
-            >
-              {formatLength(sel.d, u)}
-            </text>
+            {(() => {
+              // Readable at any zoom. A room's sizes sit just inside its walls, clear of the
+              // buttons above it and of the room next door; a piece's sit just outside it.
+              const perMeter = pixels / view.w;
+              const fs = Math.min(Math.max(0.3, 10.5 / perMeter), 13 / perMeter);
+              const inside = isRoom(sel);
+              const topY = inside ? sel.z + fs * 1.5 : sel.z - fs * 1.1;
+              const sideX = inside ? sel.x + sel.w - fs * 1.2 : sel.x + sel.w + fs * 1.3;
+              return (
+                <>
+                  <text
+                    x={sel.x + sel.w / 2}
+                    y={topY}
+                    fontSize={fs}
+                    textAnchor="middle"
+                    className="dim-label"
+                  >
+                    {formatLength(sel.w, u)}
+                  </text>
+                  <text
+                    x={sideX}
+                    y={sel.z + sel.d / 2}
+                    fontSize={fs}
+                    className="dim-label"
+                    transform={`rotate(90 ${sideX} ${sel.z + sel.d / 2})`}
+                    textAnchor="middle"
+                  >
+                    {formatLength(sel.d, u)}
+                  </text>
+                </>
+              );
+            })()}
           </g>
         )}
       </svg>
@@ -1194,7 +1248,7 @@ export default function Plan({
         {tool === 'room' || tool === 'garage'
           ? 'Click and drag to draw. Release to build.'
           : OPENING_TOOLS.includes(tool)
-            ? `Click a wall to add ${openingName(tool as OpeningKind).toLowerCase()} · Esc when done`
+            ? `Click a wall to add ${openingName(toolOpening(tool)!).toLowerCase()} · Esc when done`
             : tool === 'measure'
               ? 'Drag to measure any distance · Shift keeps it straight'
               : tool === 'pan'

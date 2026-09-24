@@ -1,4 +1,6 @@
-import { besideSpot } from './placement';
+import { arcOutline, curveCircle, curveRoofOf } from './curveroof';
+import { roomPath } from './corners';
+import { besideSpot, freeCorners, resizeCurve, resizeRoom } from './placement';
 import {
   useCallback,
   useEffect,
@@ -101,12 +103,12 @@ import {
   RectangleVertical,
   Shirt,
 } from 'lucide-react';
-import Plan, { type Tool } from './Plan';
+import Plan, { openingTool, type Tool } from './Plan';
 import Scene, { type SceneMode } from './Scene';
 import { ARTHUR_ID, OLDER_ARTHUR_IDS, arthurProject } from './arthur';
 const ARTHUR_FLAG = 'hearth-arthur-added-v4';
 import { addLevel, defaultFloorName, landingFor, nextLevel } from './floors';
-import { stairEnds } from './stairs';
+import { stairEnds, toWorld } from './stairs';
 import {
   area,
   blankProject,
@@ -613,17 +615,27 @@ function Thumbnail({ p, level = 0 }: { p: Project; level?: number }) {
       className="thumb-svg"
     >
       {rooms.map((r) => (
-        <rect
-          key={r.id}
-          x={r.x}
-          y={r.z}
-          width={r.w}
-          height={r.d}
-          fill={r.color}
-          stroke="#56645d"
-          strokeWidth=".14"
-        />
+        <path key={r.id} d={roomPath(r)} fill={r.color} stroke="#56645d" strokeWidth=".14" />
       ))}
+      {/* Curved walls, as the bays they make. */}
+      {p.items
+        .filter((c) => c.kind === 'curve' && c.floor === level)
+        .map((c) => (
+          <path
+            key={c.id}
+            d={
+              arcOutline(c, curveCircle(c).r, 16)
+                .map(([u, v], n) => {
+                  const [x, z] = toWorld(c, u, v);
+                  return `${n ? 'L' : 'M'}${x} ${z}`;
+                })
+                .join('') + 'Z'
+            }
+            fill="#ebe3d4"
+            stroke="#56645d"
+            strokeWidth=".14"
+          />
+        ))}
     </svg>
   );
 }
@@ -920,6 +932,13 @@ export default function App() {
       ...project,
       items: project.items.map((i) => (i.id === selected ? { ...i, ...patch } : i)),
     });
+  /** Typed-in sizes: a room grows away from the rooms it's built against. */
+  const sizeTo = (w: number, d: number) => {
+    if (!selectedItem) return;
+    if (selectedItem.kind === 'curve')
+      return commit({ ...project, ...resizeCurve(project, selectedItem, w, d) });
+    patchItem(isRoom(selectedItem) ? resizeRoom(project.items, selectedItem, w, d) : { w, d });
+  };
   const save = useCallback(async () => {
     try {
       const data = JSON.stringify(project, null, 2);
@@ -968,13 +987,23 @@ export default function App() {
     }
     notify(`“${p.name}” deleted.`);
   };
+  /** A project name not already in use here: a second one gets (2), and so on. */
+  const freeName = (name: string) => {
+    const taken = new Set([project, ...library].map((p) => p.name));
+    if (!taken.has(name)) return name;
+    const base = name.replace(/ \(\d+\)$/, '');
+    let n = 2;
+    while (taken.has(`${base} (${n})`)) n++;
+    return `${base} (${n})`;
+  };
   const importText = (text: string) => {
     try {
       if (text.length > 5000000) throw new Error('Project is too large.');
       const p = validateProject(JSON.parse(text));
       p.id = uid();
+      p.name = freeName(p.name);
       switchProject(p);
-      notify('Project opened as a new local copy.');
+      notify(`Opened “${p.name}” as a new project on this device.`);
     } catch (err) {
       notify(err instanceof Error ? err.message : 'Could not open this project.');
     }
@@ -1467,7 +1496,7 @@ export default function App() {
             min={0.25 * factor}
             max={100 * factor}
             feet={u === 'ft'}
-            onChange={(n) => patchItem({ w: n / factor })}
+            onChange={(n) => sizeTo(n / factor, s.d)}
           />
           <Numeric
             label={`Depth (${u})`}
@@ -1475,7 +1504,7 @@ export default function App() {
             min={0.25 * factor}
             max={100 * factor}
             feet={u === 'ft'}
-            onChange={(n) => patchItem({ d: n / factor })}
+            onChange={(n) => sizeTo(s.w, n / factor)}
           />
         </div>
         {isRoom(s) && (
@@ -1533,13 +1562,24 @@ export default function App() {
                   key={k}
                   className={(s.radius ? 'rounded' : 'square') === k ? 'active' : ''}
                   aria-pressed={(s.radius ? 'rounded' : 'square') === k}
-                  onClick={() =>
-                    patchItem(
-                      k === 'square'
-                        ? { radius: undefined, rounded: undefined }
-                        : { radius: Math.min(1.2, s.w / 2, s.d / 2) },
-                    )
-                  }
+                  onClick={() => {
+                    if (k === 'square') return patchItem({ radius: undefined, rounded: undefined });
+                    // Round the corners that stand free; one tucked against another room would
+                    // leave a curved gap in the wall the two share.
+                    const free = freeCorners(project, s);
+                    if (!free.length)
+                      return notify(
+                        'Every corner of this room meets another room. Round a room on the outside of the house.',
+                      );
+                    patchItem({
+                      radius: Math.min(1.2, s.w / 2, s.d / 2),
+                      rounded: free.length === 4 ? undefined : free,
+                    });
+                    if (free.length < 4)
+                      notify(
+                        `Rounded the ${free.length === 1 ? 'corner' : `${free.length} corners`} on the outside. Pick others below.`,
+                      );
+                  }}
                 >
                   {label}
                 </button>
@@ -1789,9 +1829,9 @@ export default function App() {
               {curveRoofs.map((c) => (
                 <button
                   key={c.id}
-                  className={(s.curveRoof || 'cone') === c.id ? 'active' : ''}
-                  aria-pressed={(s.curveRoof || 'cone') === c.id}
-                  onClick={() => patchItem({ curveRoof: c.id === 'cone' ? undefined : c.id })}
+                  className={curveRoofOf(s, project.roofStyle) === c.id ? 'active' : ''}
+                  aria-pressed={curveRoofOf(s, project.roofStyle) === c.id}
+                  onClick={() => patchItem({ curveRoof: c.id })}
                 >
                   {c.name}
                 </button>
@@ -1866,8 +1906,17 @@ export default function App() {
                           })
                         }
                       >
-                        {['north', 'south', 'east', 'west'].map((side) => (
-                          <option key={side}>{side}</option>
+                        {(
+                          [
+                            ['north', 'North (top)'],
+                            ['south', 'South (bottom)'],
+                            ['east', 'East (right)'],
+                            ['west', 'West (left)'],
+                          ] as const
+                        ).map(([side, label]) => (
+                          <option key={side} value={side}>
+                            {label}
+                          </option>
                         ))}
                       </select>
                     </label>
@@ -2513,8 +2562,12 @@ export default function App() {
                       return (
                         <button
                           key={o.kind}
-                          className={`tile ${tool === o.kind ? 'chosen' : ''}`}
-                          onClick={() => selectTool(tool === o.kind ? 'select' : o.kind)}
+                          className={`tile ${tool === openingTool(o.kind) ? 'chosen' : ''}`}
+                          onClick={() =>
+                            selectTool(
+                              tool === openingTool(o.kind) ? 'select' : openingTool(o.kind),
+                            )
+                          }
                           title={o.hint}
                         >
                           <span className="tile-icon">
@@ -2990,14 +3043,15 @@ export default function App() {
                         </button>
                         <button
                           aria-label={`Duplicate project ${p.name}`}
-                          onClick={() =>
+                          onClick={() => {
                             switchProject({
                               ...structuredClone(p),
                               id: uid(),
-                              name: `${p.name} copy`,
+                              name: freeName(`${p.name} copy`),
                               updated: new Date().toISOString(),
-                            })
-                          }
+                            });
+                            notify(`Now working on the copy. The original is safe in My projects.`);
+                          }}
                         >
                           <Copy size={13} />
                           Make a copy

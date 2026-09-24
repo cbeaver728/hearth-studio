@@ -93,3 +93,7 @@ export function curveRoofGrid(
   const chord = (u: number) => height(Math.hypot(u - cu, r - D));
   return { rows, chord, top: height(r - D) };
 }
+
+/** The roof a curve gets: its own choice, or one to suit the house (flat on a flat-roofed one). */
+export const curveRoofOf = (c: Item, roofStyle: string): CurveRoof =>
+  c.curveRoof ?? (roofStyle === 'flat' ? 'flat' : 'cone');

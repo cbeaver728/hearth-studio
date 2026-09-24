@@ -39,7 +39,7 @@ import {
   bayDepth,
 } from './model';
 import { capeCeilingAt, crossRange, OVERHANG, planRoof, roofOver } from './roof';
-import { arcOutline, curveCircle, curveRoofGrid } from './curveroof';
+import { arcOutline, curveCircle, curveRoofGrid, curveRoofOf } from './curveroof';
 import { buildRoofs, sheet, uprightPanel } from './roof3d';
 import {
   layoutFor,
@@ -1598,7 +1598,7 @@ function buildContent(p: Project, mode: SceneMode, floor: number, evening: boole
       if (ceiling) g.add(ceiling);
       // A roof, unless the floor above carries on over the curve.
       if (!insideRoom(cw.floor + 1, ...toWorld(cw, cu, D * 0.5))) {
-        const style = cw.curveRoof || 'cone';
+        const style = curveRoofOf(cw, p.roofStyle);
         const roofing = roofMaterial();
         if (style === 'flat') {
           const slab = sheet(
@@ -2037,7 +2037,8 @@ function frontDoor(p: Project) {
       (r) => isRoom(r) && r.floor === 0 && x > r.x && x < r.x + r.w && z > r.z && z < r.z + r.d,
     );
   const doors = p.openings
-    .filter((o) => o.kind === 'door')
+    // Any way in counts; a plain door is the likeliest front door.
+    .filter((o) => ['door', 'double', 'french', 'slider'].includes(o.kind))
     .map((o) => {
       const r = rooms.find((i) => i.id === o.roomId);
       if (!r) return null;
@@ -2049,7 +2050,10 @@ function frontDoor(p: Project) {
         z = h ? (o.side === 'north' ? r.z : r.z + r.d) : r.z + c;
       const n = { north: [0, -1], south: [0, 1], west: [-1, 0], east: [1, 0] }[o.side];
       if (inside(x + n[0] * 0.3, z + n[1] * 0.3)) return null;
-      const score = /entry|foyer|front|mud/i.test(r.name) ? 2 : o.side === 'south' ? 1 : 0;
+      const score =
+        (/entry|foyer|front|mud/i.test(r.name) ? 4 : 0) +
+        (o.kind === 'door' || o.kind === 'double' ? 2 : 0) +
+        (o.side === 'south' ? 1 : 0);
       return { x, z, nx: n[0], nz: n[1], score };
     })
     .filter((d): d is NonNullable<typeof d> => !!d)
@@ -2099,6 +2103,8 @@ export default function Scene({
   // Frames are drawn only when something changed, so an idle view costs nothing.
   const dirty = useRef(true);
   const [roomName, setRoomName] = useState('');
+  // No way in from outside: say so, rather than leave you wondering why you start indoors.
+  const [noDoor, setNoDoor] = useState(false);
   const mapFrame = useRef<{
     minX: number;
     minZ: number;
@@ -2282,7 +2288,8 @@ export default function Scene({
     let frame = 0,
       last = performance.now(),
       tickCount = 0,
-      seen = '';
+      seen = '',
+      labelStale = false;
     const tick = (now: number) => {
       frame = requestAnimationFrame(tick);
       const dt = Math.min((now - last) / 1000, 0.05);
@@ -2367,7 +2374,10 @@ export default function Scene({
         }
         const pose = [w.x, w.z, w.feet, w.yaw, w.pitch].map((n) => n.toFixed(4)).join();
         const force = dirty.current;
-        if (pose === seen && !force) return;
+        // Standing still: settle the room name once, in case you stopped just past a doorway.
+        const settle = pose === seen && labelStale;
+        if (pose === seen && !force && !settle) return;
+        labelStale = pose !== seen;
         seen = pose;
         camera.position.set(w.x, w.feet + EYE, w.z);
         camera.rotation.set(w.pitch, w.yaw, 0);
@@ -2379,7 +2389,7 @@ export default function Scene({
           live.current.onLevel?.(level);
         }
         if (++tickCount % 3 === 0 || force) drawMap();
-        if (tickCount % 12 === 0 || force) {
+        if (tickCount % 12 === 0 || force || settle) {
           const here = live.current.p.items.find(
             (i) =>
               isRoom(i) &&
@@ -2389,7 +2399,30 @@ export default function Scene({
               w.z > i.z &&
               w.z < i.z + i.d,
           );
-          setRoomName(here ? here.name : w.level === 0 && w.feet < 0.5 ? 'Outside' : '');
+          const items = live.current.p.items;
+          const inside = (i: Item) =>
+            i.floor === w.level && w.x > i.x && w.x < i.x + i.w && w.z > i.z && w.z < i.z + i.d;
+          // A curved bay belongs to the room it opens off; a deck or porch goes by its own name.
+          const bay = !here && items.find((i) => i.kind === 'curve' && inside(i));
+          const bayRoom =
+            bay &&
+            items.find((r) => {
+              if (!isRoom(r) || r.floor !== w.level) return false;
+              const [cx, cz] = toWorld(bay, curveCircle(bay).cu, curveCircle(bay).D + 0.3);
+              return cx > r.x && cx < r.x + r.w && cz > r.z && cz < r.z + r.d;
+            });
+          const deck = !here && items.find((i) => i.kind === 'landing' && inside(i));
+          setRoomName(
+            here
+              ? here.name
+              : bayRoom
+                ? bayRoom.name
+                : deck
+                  ? deck.name
+                  : w.level === 0 && w.feet < 0.5
+                    ? 'Outside'
+                    : '',
+          );
         }
       } else if (!controls.update() && !dirty.current) return;
       dirty.current = false;
@@ -2433,12 +2466,28 @@ export default function Scene({
     mapFrame.current = { minX, minZ, scale, ox, oz };
     const X = (x: number) => ox + (x - minX) * scale,
       Z = (z: number) => oz + (z - minZ) * scale;
+    // Decks and porches under the rooms, curved bays drawn round their curve.
+    for (const l of p.items.filter((i) => i.kind === 'landing' && i.floor === w.level)) {
+      g.fillStyle = '#d8c6a8';
+      g.fillRect(X(l.x), Z(l.z), l.w * scale, l.d * scale);
+    }
     for (const r of rooms) {
       g.fillStyle = r.color;
       g.fillRect(X(r.x), Z(r.z), r.w * scale, r.d * scale);
       g.strokeStyle = '#56645d';
       g.lineWidth = 1.5;
       g.strokeRect(X(r.x), Z(r.z), r.w * scale, r.d * scale);
+    }
+    for (const c of p.items.filter((i) => i.kind === 'curve' && i.floor === w.level)) {
+      const pts = arcOutline(c, curveCircle(c).r, 24).map(([u, v]) => toWorld(c, u, v));
+      g.beginPath();
+      pts.forEach(([x, z], n) => (n ? g.lineTo(X(x), Z(z)) : g.moveTo(X(x), Z(z))));
+      g.closePath();
+      g.fillStyle = '#e8e0d0';
+      g.fill();
+      g.strokeStyle = '#56645d';
+      g.lineWidth = 1.5;
+      g.stroke();
     }
     for (const s of p.items.filter((i) => i.kind === 'stairs')) {
       const { lower, upper } = stairLevels(s);
@@ -2656,7 +2705,8 @@ export default function Scene({
         while (d < 6 && world.free(x + dx * (d + 0.2), z + dz * (d + 0.2), f)) d += 0.2;
         return d;
       };
-      if (clear(yaw) < 2) {
+      // With no door or stairs to face, look down the longest open view.
+      if (clear(yaw) < (found ? 2 : 99)) {
         let best = yaw,
           most = clear(yaw);
         for (let k = 1; k < 8; k++) {
@@ -2681,6 +2731,9 @@ export default function Scene({
       fall: 0,
     });
     setWalkLevel(level);
+    setNoDoor(
+      level === 0 && !at && !frontDoor(p) && p.items.some((i) => isRoom(i) && i.floor === 0),
+    );
     setHint(true);
     dirty.current = true;
   };
@@ -2926,7 +2979,17 @@ export default function Scene({
               </button>
             </div>
           </div>
-          {hint && (
+          {hint && noDoor && (
+            <div className="walk-hint" role="status">
+              <Footprints size={16} />
+              <strong>No way in yet.</strong>
+              <span>
+                There's no door in an outside wall, so you start inside. Add one and the walkthrough
+                begins at your front door.
+              </span>
+            </div>
+          )}
+          {hint && !noDoor && (
             <div className="walk-hint" role="status">
               <Footprints size={16} />
               <strong>You're home.</strong>
