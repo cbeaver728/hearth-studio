@@ -46,6 +46,7 @@ import {
   localSize,
   RAIL_H,
   RISE,
+  stairEnds,
   subtractRects,
   toWorld,
   type Banister,
@@ -2444,6 +2445,28 @@ export default function Scene({
       if (lower !== w.level && upper !== w.level) continue;
       g.fillStyle = 'rgba(199,133,81,0.55)';
       g.fillRect(X(s.x), Z(s.z), s.w * scale, s.d * scale);
+      // An arrow from the step you get on at, on this floor, to the other end of the flight.
+      const ends = stairEnds(s);
+      const pts = [ends.bottom, ...layoutFor(s).path.map(([u, v]) => toWorld(s, u, v)), ends.top];
+      if (w.level !== lower) pts.reverse();
+      g.strokeStyle = '#7a4a26';
+      g.fillStyle = '#7a4a26';
+      g.lineWidth = 2;
+      g.beginPath();
+      pts.slice(1, -1).forEach(([x, z], n) => (n ? g.lineTo(X(x), Z(z)) : g.moveTo(X(x), Z(z))));
+      g.stroke();
+      const [ax, az] = pts[pts.length - 2],
+        [bx, bz] = pts[pts.length - 3] || pts[0];
+      const heading = Math.atan2(Z(az) - Z(bz), X(ax) - X(bx));
+      g.beginPath();
+      g.moveTo(X(ax) + Math.cos(heading) * 5, Z(az) + Math.sin(heading) * 5);
+      g.lineTo(X(ax) + Math.cos(heading + 2.4) * 5, Z(az) + Math.sin(heading + 2.4) * 5);
+      g.lineTo(X(ax) + Math.cos(heading - 2.4) * 5, Z(az) + Math.sin(heading - 2.4) * 5);
+      g.fill();
+      const [sx, sz] = pts[1];
+      g.beginPath();
+      g.arc(X(sx), Z(sz), 3, 0, Math.PI * 2);
+      g.fill();
     }
     const px = X(w.x),
       pz = Z(w.z);
@@ -2543,7 +2566,9 @@ export default function Scene({
       z = 0,
       yaw = Math.PI,
       found = false,
-      outsideDoor = false;
+      outsideDoor = false,
+      // At the foot of a flight, looking up it: the way on is up the stairs.
+      facingStairs = false;
     const face = (dx: number, dz: number) => Math.atan2(-dx, -dz);
     if (at) {
       x = at.x;
@@ -2576,6 +2601,7 @@ export default function Scene({
         x = b[0] + (dx / len) * 0.9;
         z = b[1] + (dz / len) * 0.9;
         yaw = arriving ? face(dx, dz) : face(-dx, -dz);
+        facingStairs = !arriving;
         found = true;
       }
     }
@@ -2609,12 +2635,37 @@ export default function Scene({
         }
         if (r === 0) break;
       }
+    // Indoors, don't arrive nose to a wall: if the way ahead is blocked within a couple of
+    // steps, turn to face the most open direction instead.
+    if (!at && indoors && !facingStairs) {
+      const f = world.support(x, z, feet0 + 0.1);
+      const clear = (heading: number) => {
+        const dx = -Math.sin(heading),
+          dz = -Math.cos(heading);
+        let d = 0;
+        while (d < 6 && world.free(x + dx * (d + 0.2), z + dz * (d + 0.2), f)) d += 0.2;
+        return d;
+      };
+      if (clear(yaw) < 2) {
+        let best = yaw,
+          most = clear(yaw);
+        for (let k = 1; k < 8; k++) {
+          const heading = yaw + (k * Math.PI) / 4;
+          const c = clear(heading);
+          if (c > most + 0.3) {
+            best = heading;
+            most = c;
+          }
+        }
+        yaw = best;
+      }
+    }
     Object.assign(w, {
       x,
       z,
       yaw,
       // From the street, look up enough to take in the whole house.
-      pitch: outsideDoor ? 0.16 : -0.05,
+      pitch: outsideDoor ? 0.16 : level === 0 && found && !facingStairs && !at ? 0.1 : -0.05,
       feet: world.support(x, z, feet0 + 0.1),
       level,
       fall: 0,

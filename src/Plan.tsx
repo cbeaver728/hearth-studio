@@ -1,3 +1,4 @@
+import { moveFurniture, placeFurniture, roomAt } from './placement';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   Compass,
@@ -95,6 +96,7 @@ export default function Plan({
   const [view, setView] = useState({ x: -14, z: -12, w: 29, h: 27 });
   // How wide the panel is on screen, so labels can stay a readable size at any zoom.
   const [pixels, setPixels] = useState(600);
+  const lastWidth = useRef(0);
   const [draft, setDraft] = useState<Item[] | null>(null);
   const [slide, setSlide] = useState<{ id: string; offset: number } | null>(null);
   const [hover, setHover] = useState<{ x: number; z: number } | null>(null);
@@ -116,10 +118,15 @@ export default function Plan({
     const ro = new ResizeObserver(() => {
       const r = el.getBoundingClientRect();
       if (!r.width || !r.height) return;
+      // Keep the zoom and the middle of the view where they were: a wider panel (switching from
+      // split view to the full plan, say) shows more around the same spot, not a bigger drawing.
+      const before = lastWidth.current;
+      lastWidth.current = r.width;
       setPixels(r.width);
       setView((v) => {
-        const h = (v.w * r.height) / r.width;
-        return { ...v, z: v.z + (v.h - h) / 2, h };
+        const w = before > 0 ? (v.w * r.width) / before : v.w;
+        const h = (w * r.height) / r.width;
+        return { x: v.x + (v.w - w) / 2, z: v.z + (v.h - h) / 2, w, h };
       });
       if (!fitted.current) {
         fitted.current = true;
@@ -212,8 +219,11 @@ export default function Plan({
   // Pieces nudge flush against the inside face of nearby walls.
   const wallSnap = (i: Item) => {
     if (!snapping || isRoom(i) || isOutside(i)) return i;
-    const xs = roomsHere.flatMap((r) => [r.x + 0.08, r.x + r.w - 0.08]),
-      zs = roomsHere.flatMap((r) => [r.z + 0.08, r.z + r.d - 0.08]);
+    // Only the walls of the room it stands in: the far side of a wall belongs to the next room.
+    const host = roomAt(roomsHere, i.x + i.w / 2, i.z + i.d / 2);
+    if (!host) return i;
+    const xs = [host.x + 0.08, host.x + host.w - 0.08],
+      zs = [host.z + 0.08, host.z + host.d - 0.08];
     const near = (v: number, list: number[]) => list.find((c) => Math.abs(v - c) < 0.22);
     const out = { ...i };
     const l = near(i.x, xs),
@@ -229,6 +239,7 @@ export default function Plan({
 
   const placeOpening = (a: { x: number; z: number }, kind: OpeningKind) => {
     let best: { r: Item; side: Side; dist: number; offset: number } | undefined;
+    const all: { r: Item; side: Side; dist: number; offset: number }[] = [];
     // Curved walls take openings too, measured along the curve.
     let curved: { c: Item; dist: number; t: number } | undefined;
     for (const c of p.items.filter((i) => i.kind === 'curve' && i.floor === floor)) {
@@ -258,7 +269,23 @@ export default function Plan({
           offset: (a.z - r.z) / r.d,
         },
       ];
-      for (const c of candidates) if (!best || c.dist < best.dist) best = { r, ...c };
+      for (const c of candidates) {
+        all.push({ r, ...c });
+        if (!best || c.dist < best.dist) best = { r, ...c };
+      }
+    }
+    // A door in a wall two rooms share opens into the more private one: into the bedroom from
+    // the hall, not out into the hall.
+    if (best && ['door', 'double', 'french'].includes(kind)) {
+      const publicness = (r: Item) =>
+        /hall|corridor|landing|foyer|entry|stair|mud/i.test(r.name)
+          ? 3
+          : /living|family|great|kitchen|dining/i.test(r.name)
+            ? 2
+            : 1;
+      const tied = all.filter((c) => c.dist < best!.dist + 0.12);
+      tied.sort((a, b) => publicness(a.r) - publicness(b.r) || a.r.w * a.r.d - b.r.w * b.r.d);
+      if (tied.length > 1) best = tied[0];
     }
     if (curved && curved.dist < 0.8 && (!best || curved.dist < best.dist)) {
       if (kind === 'open') {
@@ -387,8 +414,11 @@ export default function Plan({
       return;
     }
     let i = createItem(tool, floor, 0, 0);
-    i.x = snap(a.x - i.w / 2, snapping);
-    i.z = snap(a.z - i.d / 2, snapping);
+    if (snapping) i = placeFurniture(roomsHere, i, a.x, a.z, (v) => snap(v, true));
+    else {
+      i.x = snap(a.x - i.w / 2, snapping);
+      i.z = snap(a.z - i.d / 2, snapping);
+    }
     i = wallSnap(i);
     if (i.kind === 'stairs') {
       i.dir = stairDir;
@@ -448,7 +478,11 @@ export default function Plan({
       g.moved = true;
       i.x = snap(src.x + a.x - g.x, snapping);
       i.z = snap(src.z + a.z - g.z, snapping);
-      i = isRoom(i) ? roomSnap(i, { move: true }) : wallSnap(i);
+      i = isRoom(i)
+        ? roomSnap(i, { move: true })
+        : snapping
+          ? wallSnap(moveFurniture(roomsHere, i))
+          : i;
       const dx = i.x - src.x,
         dz = i.z - src.z;
       setDraft([i, ...(g.carried || []).map((c) => ({ ...c, x: c.x + dx, z: c.z + dz }))]);
@@ -492,8 +526,12 @@ export default function Plan({
           onChange({ ...p, items: [...p.items, d] });
           onSelect(d.id);
           onTool('select');
+          // The full how-to the first couple of times; after that, just say what happened.
+          const what = d.kind === 'garage' ? 'Garage' : 'Room';
           onNotice(
-            `${d.kind === 'garage' ? 'Garage' : 'Room'} added. Rename it on the right, then add doors and windows.`,
+            p.items.filter((i) => isRoom(i)).length < 2
+              ? `${what} added. Name it on the right, then add doors and windows.`
+              : `${what} added.`,
           );
         } else onNotice('Drag across the grid to draw a room.');
       } else {
@@ -537,11 +575,12 @@ export default function Plan({
       setView({ x: -12, z: -12 * ratio, w: 24, h: 24 * ratio });
       return;
     }
-    const minX = Math.min(...items.map((i) => i.x)) - 1.5,
-      minZ = Math.min(...items.map((i) => i.z)) - 2.5,
-      maxX = Math.max(...items.map((i) => i.x + i.w)) + 1.5,
-      maxZ = Math.max(...items.map((i) => i.z + i.d)) + 3;
-    const w = Math.max(maxX - minX, (maxZ - minZ) / ratio, 10),
+    // Room to spare all round, so there's space to draw the next room.
+    const minX = Math.min(...items.map((i) => i.x)) - 3,
+      minZ = Math.min(...items.map((i) => i.z)) - 3,
+      maxX = Math.max(...items.map((i) => i.x + i.w)) + 3,
+      maxZ = Math.max(...items.map((i) => i.z + i.d)) + 3.5;
+    const w = Math.max(maxX - minX, (maxZ - minZ) / ratio, 16),
       h = w * ratio;
     setView({ x: (minX + maxX) / 2 - w / 2, z: (minZ + maxZ) / 2 - h / 2, w, h });
   };
@@ -633,9 +672,12 @@ export default function Plan({
     if (!hover || !placing(tool)) return null;
     const e = catalogEntry(tool);
     if (!e) return null;
-    const i = createItem(tool, floor, 0, 0);
-    i.x = snap(hover.x - i.w / 2, snapping);
-    i.z = snap(hover.z - i.d / 2, snapping);
+    let i = createItem(tool, floor, 0, 0);
+    if (snapping) i = placeFurniture(roomsHere, i, hover.x, hover.z, (v) => snap(v, true));
+    else {
+      i.x = snap(hover.x - i.w / 2, snapping);
+      i.z = snap(hover.z - i.d / 2, snapping);
+    }
     return wallSnap(i);
   })();
   const u = p.units;
@@ -915,7 +957,7 @@ export default function Plan({
           );
         })}
         {items
-          .filter((i) => isRoom(i) && i.w > 1 && i.d > 1)
+          .filter((i) => isRoom(i) && i.w > 0.6 && i.d > 0.6)
           .map((i) => {
             // Names stay at least 11px on screen, but never wider than the room.
             const perMeter = pixels / view.w;
@@ -924,6 +966,7 @@ export default function Plan({
             const name = Math.min(
               Math.max(Math.min(0.5, (i.w / letters) * 1.5), 11 / perMeter),
               (i.w * 0.9) / (letters * 0.56),
+              i.d * 0.6,
             );
             const small = Math.max(0.3, 9.5 / perMeter);
             // The size line only shows when it fits and is big enough to read.

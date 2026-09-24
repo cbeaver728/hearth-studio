@@ -1076,6 +1076,8 @@ export default function App() {
   const changeSceneMode = (m: SceneMode) => {
     setSceneMode(m);
     if (m === 'walk') {
+      // Editing messages would sit over the walkthrough's own hint.
+      setNotice('');
       setTool('select');
       setMode('3d');
     } else if (sceneMode === 'walk') setMode('split');
@@ -1383,7 +1385,10 @@ export default function App() {
                     onClick={() => {
                       commit({
                         ...project,
-                        items: [...project.items, landingFor(s, st.upper, 'Landing')],
+                        items: [
+                          ...project.items,
+                          landingFor(s, st.upper, 'Landing', project.items),
+                        ],
                       });
                       notify(`Landing added on ${floorName(project, st.upper)}.`);
                     }}
@@ -2387,7 +2392,11 @@ export default function App() {
           </button>
           <button
             className="primary-button walk-button"
-            onClick={() => changeSceneMode(walking ? 'dollhouse' : 'walk')}
+            onClick={() => {
+              // A walkthrough begins at the front door, whichever floor you were working on.
+              if (!walking && hasFloor(project, 0)) setFloor(0);
+              changeSceneMode(walking ? 'dollhouse' : 'walk');
+            }}
           >
             <Footprints size={17} />
             {walking ? 'Back to editing' : phone ? 'Walk' : 'Walk through'}
@@ -2773,7 +2782,8 @@ export default function App() {
                 {u === 'ft' ? 'sq ft' : 'm²'}
               </span>
               <span>
-                <strong>{project.items.filter((i) => i.kind === 'room').length}</strong> rooms
+                <strong>{project.items.filter((i) => i.kind === 'room').length}</strong>{' '}
+                {project.items.filter((i) => i.kind === 'room').length === 1 ? 'room' : 'rooms'}
               </span>
               <span>
                 <strong>{project.floors.length}</strong>{' '}

@@ -201,6 +201,8 @@ function flatRoof(k: RoofKit, w: Wing) {
       (x, z) => [x / k.roofTile, z / k.roofTile],
     ),
   );
+  // Underneath, a proper ceiling rather than the roofing.
+  k.add(sheet(roundedRect(x0, z0, x1, z1, w.round), (x, z) => [x, w.base - 0.01, z], 0, k.ceiling));
 }
 
 function pitchedRoof(k: RoofKit, w: Wing, index: number) {

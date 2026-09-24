@@ -9,7 +9,7 @@ import {
   type Project,
   type StairStyle,
 } from './model';
-import { stairEnds } from './stairs';
+import { layoutFor, stairEnds, toWorld } from './stairs';
 
 const overlaps = (a: Item, b: { x: number; z: number; w: number; d: number }) =>
   a.x < b.x + b.w - 0.01 &&
@@ -75,18 +75,53 @@ export function findStairSpot(p: Project, level: number, style: StairStyle) {
   return { x: -e.w / 2, z: -e.d / 2, rotation: 0 };
 }
 
-/** A room around a staircase on the floor it arrives at, to step off onto. */
-export function landingFor(stair: Item, level: number, name: string) {
-  const m = 1.25;
+/**
+ * A room around a staircase on the floor it arrives at, to step off onto: a little way round the
+ * sides, and a couple of meters out past the step you come off at. It keeps within the footprint of
+ * the house below (or above, for a basement), so it never hangs out over the garden.
+ */
+export function landingFor(stair: Item, level: number, name: string, rooms: Item[] = []) {
+  const { lower, upper } = stairLevels(stair);
+  const path = layoutFor(stair).path.map(([u, v]) => toWorld(stair, u, v));
+  const ends = stairEnds(stair);
+  // The step you come off at on this level, and which way you're heading as you do.
+  const [from, to] = level === upper ? [path[path.length - 1], ends.top] : [path[0], ends.bottom];
+  const ex = to[0] - from[0],
+    ez = to[1] - from[1];
+  const side = 0.9,
+    ahead = 2.2;
+  let x0 = stair.x - side,
+    x1 = stair.x + stair.w + side,
+    z0 = stair.z - side,
+    z1 = stair.z + stair.d + side;
+  if (Math.abs(ex) > Math.abs(ez)) {
+    if (ex > 0) x1 = Math.max(x1, to[0] + ahead);
+    else x0 = Math.min(x0, to[0] - ahead);
+  } else if (ez > 0) z1 = Math.max(z1, to[1] + ahead);
+  else z0 = Math.min(z0, to[1] - ahead);
+  // Trim to the house on the neighbouring floor, but never smaller than the stairs themselves.
+  const other = rooms.filter((r) => isRoom(r) && r.floor === (level === upper ? lower : upper));
+  if (other.length) {
+    x0 = Math.min(Math.max(x0, Math.min(...other.map((r) => r.x))), stair.x);
+    z0 = Math.min(Math.max(z0, Math.min(...other.map((r) => r.z))), stair.z);
+    x1 = Math.max(Math.min(x1, Math.max(...other.map((r) => r.x + r.w))), stair.x + stair.w);
+    z1 = Math.max(Math.min(z1, Math.max(...other.map((r) => r.z + r.d))), stair.z + stair.d);
+  }
+  // Whatever the trim, there's always somewhere to step off onto.
+  const room = 0.35;
+  x0 = Math.min(x0, to[0] - room);
+  x1 = Math.max(x1, to[0] + room);
+  z0 = Math.min(z0, to[1] - room);
+  z1 = Math.max(z1, to[1] + room);
   const landing = createItem('room', level, 0, 0);
-  const x = Math.floor((stair.x - m) * 4) / 4,
-    z = Math.floor((stair.z - m) * 4) / 4;
+  const x = Math.floor(x0 * 4) / 4,
+    z = Math.floor(z0 * 4) / 4;
   Object.assign(landing, {
     name,
     x,
     z,
-    w: Math.ceil((stair.x + stair.w + m - x) * 4) / 4,
-    d: Math.ceil((stair.z + stair.d + m - z) * 4) / 4,
+    w: Math.ceil((x1 - x) * 4) / 4,
+    d: Math.ceil((z1 - z) * 4) / 4,
   });
   return landing;
 }
@@ -146,7 +181,7 @@ export function addLevel(p: Project, o: AddLevelOptions) {
   }
   // A landing gives the new floor somewhere to stand at the top (or bottom) of the stairs.
   if (stair && !items.some((i) => isRoom(i) && i.floor === level && overlaps(i, stair!))) {
-    items.push(landingFor(stair, level, o.type === 'upper' ? 'Landing' : 'Stair hall'));
+    items.push(landingFor(stair, level, o.type === 'upper' ? 'Landing' : 'Stair hall', items));
   }
   const name = o.name?.trim() || defaultFloorName(level);
   return {
