@@ -54,7 +54,8 @@ Pieces from the show era are in the catalog too: a tube TV on its stand, a compu
 Choose **Walk through**. You start outside the front door, full screen. Or double-click any room in the 3D view to start right there (a single click selects things in 3D, too). Set **Walkthrough starts → Out on the street** (bottom of the Finishes panel) to begin at the curb and walk up the path.
 
 - **W A S D** or the on-screen arrows to walk, **drag** to look around, **Q/E** or ←/→ to turn, **Shift** to hurry.
-- Walk onto the stairs to climb to the next floor. Walls, rails, and furniture block you; doorways don't.
+- Walk onto the stairs to climb to the next floor. Walls, rails, and furniture block you; doorways don't. Brush a door frame, a newel post or the end of a rail and you slide past it instead of stopping dead. A basement stair can sit right under the main stair, and stairs beside each other don't get in each other's way.
+- Balconies and decks upstairs keep their rails, with a gap where outside stairs come up onto them.
 - The mini-map shows where you are on the current floor. Click it to jump somewhere. The floor buttons at the top take you straight to another level.
 - **Tour** glides through each room in turn, hands-free, with the room's name on screen. Touch any control to take over.
 - The camera button saves a picture of the view. **Esc** returns to editing.

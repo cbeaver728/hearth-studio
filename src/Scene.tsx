@@ -53,7 +53,15 @@ import {
 } from './stairs';
 import { curvePieces } from './curve';
 import { arcPieces, cornerArc, cornerArcs } from './corners';
-import { buildWalkWorld, EYE, landingRails, stairGuards, stairHoles, type WalkWorld } from './walk';
+import {
+  buildWalkWorld,
+  EYE,
+  landingRails,
+  stairGuards,
+  stairHoles,
+  stepWalker,
+  type WalkWorld,
+} from './walk';
 import { furniture, tone, type Mat } from './furniture3d';
 
 export type SceneMode = 'dollhouse' | 'exterior' | 'walk';
@@ -2182,10 +2190,11 @@ export default function Scene({
         if (m.vx || m.vz) {
           const vx = m.vx * dt,
             vz = m.vz * dt;
-          if (e.world.free(w.x + vx, w.z, w.feet)) w.x += vx;
-          else m.vx = 0;
-          if (e.world.free(w.x, w.z + vz, w.feet)) w.z += vz;
-          else m.vz = 0;
+          const step = stepWalker(e.world, w.x, w.z, w.feet, vx, vz);
+          w.x = step.x;
+          w.z = step.z;
+          if (step.stopX) m.vx = 0;
+          if (step.stopZ) m.vz = 0;
         }
         const ground = e.world.support(w.x, w.z, w.feet);
         if (ground >= w.feet) {

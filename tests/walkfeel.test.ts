@@ -7,8 +7,8 @@ import {
   sampleProject,
   type Project,
 } from '../src/model';
-import { layoutFor, stairEnds, toWorld } from '../src/stairs';
-import { buildWalkWorld } from '../src/walk';
+import { layoutFor, stairEnds, stairHeightAt, toWorld } from '../src/stairs';
+import { buildWalkWorld, stepWalker } from '../src/walk';
 import { arthurProject } from '../src/arthur';
 
 /** Holds W the way a person does, with the walkthrough's own easing and step smoothing. */
@@ -27,10 +27,11 @@ function holdForward(p: Project, start: [number, number], yaw: number, seconds: 
     const ease = Math.min(1, dt * 8);
     vx += (dx * 2.4 - vx) * ease;
     vz += (dz * 2.4 - vz) * ease;
-    if (world.free(x + vx * dt, z, feet)) x += vx * dt;
-    else vx = 0;
-    if (world.free(x, z + vz * dt, feet)) z += vz * dt;
-    else vz = 0;
+    const step = stepWalker(world, x, z, feet, vx * dt, vz * dt);
+    x = step.x;
+    z = step.z;
+    if (step.stopX) vx = 0;
+    if (step.stopZ) vz = 0;
     const ground = world.support(x, z, feet);
     if (ground >= feet) {
       feet += (ground - feet) * Math.min(1, dt * 16);
@@ -126,10 +127,11 @@ function steer(p: Project, s: ReturnType<typeof createItem>, fps = 60) {
     vz += (-Math.cos(yaw) * 2.4 * forward - vz) * ease;
     const px = x,
       pz = z;
-    if (world.free(x + vx * dt, z, feet)) x += vx * dt;
-    else vx = 0;
-    if (world.free(x, z + vz * dt, feet)) z += vz * dt;
-    else vz = 0;
+    const step = stepWalker(world, x, z, feet, vx * dt, vz * dt);
+    x = step.x;
+    z = step.z;
+    if (step.stopX) vx = 0;
+    if (step.stopZ) vz = 0;
     stuck = Math.hypot(x - px, z - pz) < 1e-4 && forward ? stuck + dt : 0;
     if (stuck > 1) break;
     const ground = world.support(x, z, feet);
@@ -185,10 +187,11 @@ function tour(p: Project, route: [number, number][], feet0 = 0) {
       const ease = Math.min(1, dt * 8);
       vx += (((tx - x) / d) * 2.4 - vx) * ease;
       vz += (((tz - z) / d) * 2.4 - vz) * ease;
-      if (world.free(x + vx * dt, z, feet)) x += vx * dt;
-      else vx = 0;
-      if (world.free(x, z + vz * dt, feet)) z += vz * dt;
-      else vz = 0;
+      const step = stepWalker(world, x, z, feet, vx * dt, vz * dt);
+      x = step.x;
+      z = step.z;
+      if (step.stopX) vx = 0;
+      if (step.stopZ) vz = 0;
       const ground = world.support(x, z, feet);
       if (ground >= feet) {
         feet += (ground - feet) * Math.min(1, dt * 16);
@@ -231,4 +234,112 @@ describe("walking round Arthur's House", () => {
     // Under the upper flight, coming from the front door.
     expect(world.free(-0.3, -5.6, 0)).toBe(false);
   });
+});
+
+/** The walk points up (or down) a flight: in front of it, along its middle, and off the end. */
+function flight(s: ReturnType<typeof createItem>, down = false): [number, number][] {
+  const pts = [
+    stairEnds(s).bottom,
+    ...layoutFor(s).path.map(([u, v]) => toWorld(s, u, v)),
+    stairEnds(s).top,
+  ];
+  const h = (pt: [number, number]) => stairHeightAt(s, pt[0], pt[1]) ?? 0;
+  const up = h(pts[1]) <= h(pts[pts.length - 2]) ? pts : [...pts].reverse();
+  return down ? [...up].reverse() : up;
+}
+const box = (floor: number, x: number, z: number, w: number, d: number) =>
+  Object.assign(createItem('room', floor, x, z), { w, d });
+
+describe('stairs next to other stairs', () => {
+  // A main flight up, and a basement flight either beside it or tucked right under it.
+  for (const [name, x] of [
+    ['beside it', 1],
+    ['stacked under it', 0],
+  ] as const)
+    it(`walks both flights with the basement stair ${name}`, () => {
+      const p = blankProject();
+      p.floors.push({ level: 1, name: 'Upstairs' }, { level: -1, name: 'Basement' });
+      const up = Object.assign(createItem('stairs', 0, 0, -3), { w: 1, d: 3.4 });
+      const down = Object.assign(createItem('stairs', 0, x, -3), { w: 1, d: 3.4, dir: 'down' });
+      p.items = [...[-1, 0, 1].map((f) => box(f, -5, -5, 10, 10)), up, down];
+      const climb = tour(p, flight(up));
+      expect(climb.stuckBefore, JSON.stringify(climb)).toBeNull();
+      expect(climb.feet).toBeCloseTo(FLOOR_H, 1);
+      const descend = tour(p, flight(down, true));
+      expect(descend.stuckBefore, JSON.stringify(descend)).toBeNull();
+      expect(descend.feet).toBeCloseTo(-FLOOR_H, 1);
+      const back = tour(p, flight(down), -FLOOR_H);
+      expect(back.stuckBefore, JSON.stringify(back)).toBeNull();
+      expect(back.feet).toBeCloseTo(0, 1);
+    });
+});
+
+describe('a deck off an upstairs bedroom', () => {
+  const p = blankProject();
+  p.floors.push({ level: 1, name: 'Upstairs' });
+  const living = box(0, -4, -4, 8, 6),
+    bed = box(1, -4, -4, 8, 6);
+  const deck = Object.assign(createItem('landing', 1, -2, -7), { w: 4, d: 3 });
+  const patio = Object.assign(createItem('deck', 0, -9, -9), { w: 5, d: 4 });
+  // Outside stairs climb from the yard straight up to the deck's far edge.
+  const stairs = Object.assign(createItem('stairs', 0, -0.5, -10.4), {
+    w: 1,
+    d: 3.4,
+    rotation: 180,
+  });
+  p.items = [living, bed, deck, patio, stairs];
+  p.openings = [
+    { id: 'a', roomId: bed.id, side: 'north', offset: 0.5, width: 1.6, kind: 'french' },
+    { id: 'b', roomId: living.id, side: 'north', offset: 0.5, width: 2.4, kind: 'slider' },
+  ] as Project['openings'];
+  it('goes out through the French doors onto the deck', () => {
+    const r = tour(
+      p,
+      [
+        [0, -2],
+        [0, -5.5],
+      ],
+      FLOOR_H,
+    );
+    expect(r.stuckBefore).toBeNull();
+    expect(r.feet).toBeCloseTo(FLOOR_H, 1);
+  });
+  it('climbs from the yard onto the deck, and back down', () => {
+    const up = tour(p, [[0, -12], ...flight(stairs), [0, -5.5]]);
+    expect(up.stuckBefore, JSON.stringify(up)).toBeNull();
+    expect(up.feet).toBeCloseTo(FLOOR_H, 1);
+    const down = tour(p, [[0, -5.5], ...flight(stairs, true)], FLOOR_H);
+    expect(down.stuckBefore, JSON.stringify(down)).toBeNull();
+    expect(down.feet).toBeLessThan(0.3);
+  });
+  it('walks out the slider and across the patio', () => {
+    const r = tour(p, [
+      [0, -2],
+      [0, -4.8],
+      [-3.5, -4.8],
+      [-6, -7],
+    ]);
+    expect(r.stuckBefore).toBeNull();
+  });
+  it('keeps the rail everywhere else round the deck', () => {
+    const world = buildWalkWorld(p);
+    // Off the side of the deck is a drop, so the rail stays there.
+    expect(world.free(-2, -5.5, FLOOR_H)).toBe(false);
+    expect(world.free(1.5, -7, FLOOR_H)).toBe(false);
+  });
+});
+
+describe('walking through a doorway a little off line', () => {
+  for (const off of [-0.3, -0.2, 0, 0.2, 0.3])
+    it(`gets through an 80 cm door ${off} m off center, holding W`, () => {
+      const p = blankProject();
+      const a = box(0, -3, -3, 6, 3),
+        b = box(0, -3, 0, 6, 3);
+      p.items = [a, b];
+      p.openings = [
+        { id: 'd', roomId: a.id, side: 'south', offset: 0.5, width: 0.8, kind: 'door' },
+      ] as Project['openings'];
+      const r = holdForward(p, [off, -1.6], Math.PI, 2.5);
+      expect(r.z, JSON.stringify(r)).toBeGreaterThan(0.6);
+    });
 });

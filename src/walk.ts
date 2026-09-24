@@ -17,6 +17,7 @@ import {
   RAIL_H,
   layoutFor,
   rectToWorld,
+  stairEnds,
   stairHeightAt,
   subtractRects,
   toWorld,
@@ -29,7 +30,7 @@ import { arcPieces, cornerArcs } from './corners';
 import { lowHeadroom, planRoof, wingPoint } from './roof';
 
 export const EYE = 1.62;
-const RADIUS = 0.24;
+const RADIUS = 0.17;
 const STEP_UP = 0.36;
 export interface Box extends Rect {
   y0: number;
@@ -62,7 +63,9 @@ export function floorRects(p: Project, level: number): Rect[] {
 }
 /** Which edges of a landing need a rail: those not butted up against a room. */
 export function landingRails(p: Project, l: Item) {
-  const rooms = p.items.filter((i) => isRoom(i) && i.floor === l.floor);
+  const rooms = p.items.filter(
+    (i) => (isRoom(i) || (i.kind === 'landing' && i.id !== l.id)) && i.floor === l.floor,
+  );
   const e = 0.06;
   // An edge counts as attached only where a room runs along a real length of it,
   // not where one merely reaches the same corner.
@@ -103,7 +106,44 @@ export function landingRails(p: Project, l: Item) {
       to: l.z + l.d,
     },
   ];
-  return edges.filter((e) => !attached(e.along, e.line, e.from, e.to)).map((e) => e.rect);
+  // Stairs that come up onto this landing leave a gap in the rail as wide as the flight.
+  const arriving = p.items
+    .filter((i) => i.kind === 'stairs' && stairLevels(i).upper === l.floor)
+    .map((s) => {
+      const path = layoutFor(s).path.map(([u, v]) => toWorld(s, u, v));
+      const last = path[path.length - 1],
+        top = stairEnds(s).top;
+      return { last, top, xs: [s.x, s.x + s.w], zs: [s.z, s.z + s.d] };
+    });
+  const rails: Rect[] = [];
+  for (const edge of edges) {
+    if (attached(edge.along, edge.line, edge.from, edge.to)) continue;
+    const gaps: [number, number][] = [];
+    for (const s of arriving) {
+      // The flight has to cross this edge on its way up onto the landing.
+      const across = (pt: [number, number]) => (edge.along === 'x' ? pt[1] : pt[0]) - edge.line;
+      const a = across(s.last),
+        b = across(s.top);
+      if (a * b > 0 && Math.min(Math.abs(a), Math.abs(b)) > 0.15) continue;
+      const span = edge.along === 'x' ? s.xs : s.zs;
+      gaps.push([Math.min(...span) - 0.02, Math.max(...span) + 0.02]);
+    }
+    let at = edge.from;
+    const piece = (from: number, to: number) => {
+      if (to - from < 0.05) return;
+      rails.push(
+        edge.along === 'x'
+          ? { x0: from, x1: to, z0: edge.rect.z0, z1: edge.rect.z1 }
+          : { x0: edge.rect.x0, x1: edge.rect.x1, z0: from, z1: to },
+      );
+    };
+    for (const [g0, g1] of gaps.sort((m, n) => m[0] - n[0])) {
+      piece(at, Math.min(g0, edge.to));
+      at = Math.max(at, g1);
+    }
+    piece(at, edge.to);
+  }
+  return rails;
 }
 
 /** Whether a wall on this level runs along the segment, so a rail there would be pointless. */
@@ -158,8 +198,50 @@ export function stairGuards(p: Project, s: Item, walls: Wall[] = buildWalls(p)) 
     const standable = floors.some((f) => x >= f.x0 && x <= f.x1 && z >= f.z0 && z <= f.z1);
     return standable && !wallAlong(walls, upper, ...ends(r));
   });
+  // A flight going on up from this level can sit right over the opening, like a main stair
+  // stacked over the basement stair. Where its steps are lower than your head, the steps
+  // themselves are the edge, so the rail stops there.
+  const over = p.items.filter(
+    (t) => t.kind === 'stairs' && t.id !== s.id && stairLevels(t).lower === upper,
+  );
+  const covered = (u: number, v: number) => {
+    const [x, z] = toWorld(s, u + (hu - u) * 0.1, v + (hv - v) * 0.1);
+    return over.some((t) => {
+      const h = stairHeightAt(t, x, z);
+      return h !== undefined && h - upper * FLOOR_H < 1.9;
+    });
+  };
+  const kept: Segment[] = [];
+  for (const r of rails) {
+    if (!over.length) {
+      kept.push(r);
+      continue;
+    }
+    const len = Math.hypot(r.b[0] - r.a[0], r.b[1] - r.a[1]);
+    const pieces = Math.max(1, Math.ceil(len / 0.2));
+    let run: [number, number] | null = null;
+    const flush = () => {
+      if (run && run[1] - run[0] > 1e-6) {
+        const at = (f: number): [number, number] => [
+          r.a[0] + (r.b[0] - r.a[0]) * f,
+          r.a[1] + (r.b[1] - r.a[1]) * f,
+        ];
+        kept.push({ ...r, a: at(run[0]), b: at(run[1]) });
+      }
+      run = null;
+    };
+    for (let n = 0; n < pieces; n++) {
+      const f0 = n / pieces,
+        f1 = (n + 1) / pieces;
+      const mid = (f0 + f1) / 2;
+      if (covered(r.a[0] + (r.b[0] - r.a[0]) * mid, r.a[1] + (r.b[1] - r.a[1]) * mid)) flush();
+      else if (run) run[1] = f1;
+      else run = [f0, f1];
+    }
+    flush();
+  }
   const banisters = layout.banisters.filter((r) => !wallAlong(walls, lower, ...ends(r)));
-  return { rails, banisters };
+  return { rails: kept, banisters };
 }
 
 const segBox = (a: [number, number], b: [number, number], t: number, y0: number, y1: number) => ({
@@ -262,6 +344,54 @@ const SOLID = new Set([
   'pool',
   'fence',
 ]);
+
+/**
+ * Moves the walker by (dx, dz) as far as the world allows. Blocked, it slides along walls, and
+ * glances off corners (door frames, newel posts, the end of a banister) rather than stopping
+ * dead, so a step that's slightly off line still carries you onto the stairs or through the door.
+ * Walking straight into a wall still stops you.
+ */
+export function stepWalker(
+  world: WalkWorld,
+  x: number,
+  z: number,
+  feet: number,
+  dx: number,
+  dz: number,
+) {
+  const len = Math.hypot(dx, dz);
+  if (!len) return { x, z, stopX: false, stopZ: false };
+  if (world.free(x + dx, z + dz, feet)) return { x: x + dx, z: z + dz, stopX: false, stopZ: false };
+  let nx = x,
+    nz = z,
+    stopX = false,
+    stopZ = false;
+  if (world.free(x + dx, z, feet)) nx = x + dx;
+  else stopX = true;
+  if (world.free(nx, z + dz, feet)) nz = z + dz;
+  else stopZ = true;
+  if (Math.hypot(nx - x, nz - z) >= len * 0.5) return { x: nx, z: nz, stopX, stopZ };
+  for (const a of [0.4, -0.4, 0.8, -0.8, 1.2, -1.2]) {
+    const c = Math.cos(a),
+      s = Math.sin(a);
+    const rx = (dx * c - dz * s) * c,
+      rz = (dx * s + dz * c) * c;
+    if (world.free(x + rx, z + rz, feet))
+      return { x: x + rx, z: z + rz, stopX: false, stopZ: false };
+  }
+  // Just clipping the edge of a door frame or the end of a rail: if the way ahead opens up a
+  // hand's width to one side, ease over toward it.
+  const px = -dz / len,
+    pz = dx / len;
+  for (const shift of [0.03, 0.06, 0.09, 0.12])
+    for (const side of [1, -1]) {
+      if (!world.free(x + px * shift * side + dx, z + pz * shift * side + dz, feet)) continue;
+      const nudge = Math.min(shift, len * 0.7) * side;
+      if (world.free(x + px * nudge, z + pz * nudge, feet))
+        return { x: x + px * nudge, z: z + pz * nudge, stopX: false, stopZ: false };
+    }
+  return { x: nx, z: nz, stopX, stopZ };
+}
 
 export function buildWalkWorld(p: Project): WalkWorld {
   const levels = p.floors.map((f) => f.level);
@@ -433,7 +563,13 @@ export function buildWalkWorld(p: Project): WalkWorld {
     // there'd be no way up.
     for (const s of stairs) {
       const h = stairHeightAt(s, x, z);
-      if (h !== undefined && h > feet + STEP_UP) return false;
+      if (h === undefined || h <= feet + STEP_UP) continue;
+      const onAnother = stairs.some((t) => {
+        if (t === s) return false;
+        const ht = stairHeightAt(t, x, z);
+        return ht !== undefined && Math.abs(ht - feet) <= STEP_UP;
+      });
+      if (!onAnother) return false;
     }
     const top = feet + 1.8,
       bottom = feet + 0.25;
