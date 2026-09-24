@@ -116,6 +116,21 @@ export function cornerRadius(r: Item, c: Corner) {
 }
 /** Floor-to-floor height in meters. */
 export const FLOOR_H = 3.2;
+export type RoofStyle = 'gable' | 'hip' | 'gambrel' | 'cape' | 'flat';
+export const roofStyles: { id: RoofStyle; name: string; hint: string }[] = [
+  { id: 'gable', name: 'Classic gable', hint: 'Two slopes, with a triangle of wall at each end' },
+  { id: 'hip', name: 'Hip', hint: 'Slopes on every side, no gable walls' },
+  { id: 'gambrel', name: 'Gambrel (barn)', hint: 'Steep lower slopes and gentle upper ones' },
+  { id: 'cape', name: 'Cape Cod', hint: 'The top floor sits in the roof' },
+  { id: 'flat', name: 'Modern flat', hint: 'Flat, with a deep edge' },
+];
+export type CurveRoof = 'cone' | 'dome' | 'flat';
+export const curveRoofs: { id: CurveRoof; name: string }[] = [
+  { id: 'cone', name: 'Cone' },
+  { id: 'dome', name: 'Dome' },
+  { id: 'flat', name: 'Flat' },
+];
+
 export interface Item {
   id: string;
   kind: Kind;
@@ -159,6 +174,8 @@ export interface Item {
   covered?: boolean;
   /** Fences only: the original close-board fence or spaced, pointed pickets. */
   fenceStyle?: 'privacy' | 'picket';
+  /** Curved walls only: the roof over the space the curve closes in (a cone when unset). */
+  curveRoof?: CurveRoof;
   /** Rooms only: how high the ceiling goes (standard when unset). */
   ceiling?: Ceiling;
 }
@@ -269,7 +286,9 @@ export interface Project {
   roof: string;
   /** What the roof is covered with (shingles when unset). */
   roofFinish?: RoofFinish;
-  roofStyle: 'gable' | 'cape' | 'flat';
+  roofStyle: RoofStyle;
+  /** How steep the pitched roofs are (medium when unset). */
+  roofPitch?: 'low' | 'steep';
   /** Direction the gable ridge runs. Existing projects use the north-south ridge. */
   roofAxis?: 'x' | 'z';
   units: 'ft' | 'm';
@@ -1532,7 +1551,8 @@ export function validateProject(raw: unknown): Project {
     (p.siding !== undefined && !sidings.some((s) => s.id === p.siding)) ||
     (p.roofFinish !== undefined && !roofFinishes.some((r) => r.id === p.roofFinish)) ||
     !color(p.roof) ||
-    !['gable', 'cape', 'flat'].includes(p.roofStyle) ||
+    !roofStyles.some((r) => r.id === p.roofStyle) ||
+    (p.roofPitch !== undefined && !['low', 'steep'].includes(p.roofPitch)) ||
     (p.roofAxis !== undefined && !['x', 'z'].includes(p.roofAxis)) ||
     !['ft', 'm'].includes(p.units) ||
     (p.notes !== undefined && (typeof p.notes !== 'string' || p.notes.length > 4000)) ||
@@ -1576,6 +1596,7 @@ export function validateProject(raw: unknown): Project {
         (typeof i.posterText !== 'string' || i.posterText.length > 40)) ||
       (i.covered !== undefined && typeof i.covered !== 'boolean') ||
       (i.fenceStyle !== undefined && !['privacy', 'picket'].includes(i.fenceStyle)) ||
+      (i.curveRoof !== undefined && !curveRoofs.some((c) => c.id === i.curveRoof)) ||
       (i.ceiling !== undefined && !['standard', 'tall', 'open'].includes(i.ceiling))
     )
       throw new Error('Invalid shape in project.');

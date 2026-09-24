@@ -133,6 +133,8 @@ import {
   flipItem,
   sidings,
   roofFinishes,
+  roofStyles,
+  curveRoofs,
   windowStyles,
   windowDresses,
   type WindowStyle,
@@ -1764,6 +1766,27 @@ export default function App() {
             <Trash2 size={16} />
           </button>
         </div>
+        {s.kind === 'curve' && (
+          <>
+            <div className="field-label">Roof over the curve</div>
+            <div className="segmented wide" role="group" aria-label="Roof over the curve">
+              {curveRoofs.map((c) => (
+                <button
+                  key={c.id}
+                  className={(s.curveRoof || 'cone') === c.id ? 'active' : ''}
+                  aria-pressed={(s.curveRoof || 'cone') === c.id}
+                  onClick={() => patchItem({ curveRoof: c.id === 'cone' ? undefined : c.id })}
+                >
+                  {c.name}
+                </button>
+              ))}
+            </div>
+            <p className="hint-text">
+              The space inside the curve gets a floor and a ceiling. Set two curves back to back for
+              a round room with a turret roof.
+            </p>
+          </>
+        )}
         {(isRoom(s) || s.kind === 'curve') && (
           <>
             <div className="section-heading opening-heading">WINDOWS & DOORS</div>
@@ -2147,16 +2170,46 @@ export default function App() {
               commit({ ...project, roofStyle: e.target.value as Project['roofStyle'] })
             }
           >
-            <option value="gable">Classic gable</option>
-            <option value="cape">Cape Cod — top floor in the roof</option>
-            <option value="flat">Modern flat</option>
+            {roofStyles.map((r) => (
+              <option key={r.id} value={r.id}>
+                {r.name}
+              </option>
+            ))}
           </select>
         </label>
+        {project.roofStyle !== 'cape' && project.roofStyle !== 'flat' && (
+          <p className="hint-text">{roofStyles.find((r) => r.id === project.roofStyle)?.hint}.</p>
+        )}
         {project.roofStyle === 'cape' && (
           <p className="hint-text">
             Rooms on the top floor sit under the roof, with knee walls and sloping ceilings. Add
             dormers from Build → Roof details to stand at a window.
           </p>
+        )}
+        {project.roofStyle !== 'flat' && (
+          <>
+            <div className="field-label">Roof pitch</div>
+            <div className="segmented wide" role="group" aria-label="Roof pitch">
+              {(
+                [
+                  ['low', 'Low'],
+                  ['medium', 'Medium'],
+                  ['steep', 'Steep'],
+                ] as const
+              ).map(([id, label]) => (
+                <button
+                  key={id}
+                  className={(project.roofPitch || 'medium') === id ? 'active' : ''}
+                  aria-pressed={(project.roofPitch || 'medium') === id}
+                  onClick={() =>
+                    commit({ ...project, roofPitch: id === 'medium' ? undefined : id })
+                  }
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </>
         )}
         {project.roofStyle !== 'flat' && (
           <label className="field">

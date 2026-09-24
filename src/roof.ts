@@ -54,6 +54,13 @@ export interface Wing {
   top: boolean;
   /** Corners of the wing where the rooms below are rounded, and by how much. */
   round: Partial<Record<Corner, number>>;
+  /**
+   * Gable: two slopes and a wall at each free end. Hip: the free ends slope too. Gambrel: each
+   * side breaks halfway up, steep below and gentle above, like a barn.
+   */
+  shape: 'gable' | 'hip' | 'gambrel';
+  /** A gambrel's break, in from the eave: shared across a roof so its valleys stay true. */
+  bend?: number;
 }
 export interface Dormer {
   item: Item;
@@ -95,6 +102,24 @@ function roofAlong(w: Wing): [number, number] {
   const hi = w.joined === (w.axis === 'x' ? 'x1' : 'z1') ? a1 + w.reach : a1;
   return [lo, hi];
 }
+/** Where a gambrel's slope breaks, as a share of the way from eave to ridge. */
+export const GAMBREL_BREAK = 0.5;
+/** How much steeper a gambrel's lower slope is than its upper one. */
+export const GAMBREL_STEEP = 3;
+/** Height of a wing's roof above its eaves, a horizontal distance s in from an eave. */
+export function rise(w: Wing, s: number) {
+  if (w.shape !== 'gambrel') return s * w.tan;
+  const b = Math.min(halfSpan(w), w.bend ?? halfSpan(w) * GAMBREL_BREAK);
+  return s <= b ? s * w.tan * GAMBREL_STEEP : b * w.tan * GAMBREL_STEEP + (s - b) * w.tan;
+}
+/** The ends of a wing that slope down (hip) rather than standing as gable walls. */
+export function hippedEnds(w: Wing): { lo: boolean; hi: boolean } {
+  if (w.shape !== 'hip') return { lo: false, hi: false };
+  return {
+    lo: w.joined !== (w.axis === 'x' ? 'x0' : 'z0'),
+    hi: w.joined !== (w.axis === 'x' ? 'x1' : 'z1'),
+  };
+}
 /** Height of the underside of a wing's roof over a plan point, or undefined if it isn't over it. */
 export function undersideAt(w: Wing, x: number, z: number): number | undefined {
   if (w.flat) return undefined;
@@ -103,12 +128,16 @@ export function undersideAt(w: Wing, x: number, z: number): number | undefined {
   const a = aOf(w, x, z),
     c = cOf(w, x, z);
   if (a < lo - 1e-6 || a > hi + 1e-6 || c < c0 - 1e-6 || c > c1 + 1e-6) return undefined;
-  const d = Math.min(c - c0, c1 - c);
+  let d = Math.min(c - c0, c1 - c);
   // Past the joined end, the roof only shows where it rises above the neighbour's.
   const [a0, a1] = alongRange(w);
   const past = a < a0 ? a0 - a : a > a1 ? a - a1 : 0;
   if (past > d + 1e-6) return undefined;
-  return w.base + d * w.tan;
+  // A hipped end slopes down just like the sides.
+  const hips = hippedEnds(w);
+  if (hips.lo) d = Math.min(d, a - a0);
+  if (hips.hi) d = Math.min(d, a1 - a);
+  return w.base + rise(w, Math.max(0, d));
 }
 
 // --- Building the plan -----------------------------------------------------------------------
@@ -184,7 +213,9 @@ function sharedEdge(a: Rect, b: Rect): Edge | undefined {
 }
 const axisAcross = (e: Edge): 'x' | 'z' => (e === 'x0' || e === 'x1' ? 'x' : 'z');
 const longer = (r: Rect): 'x' | 'z' => (r.x1 - r.x0 >= r.z1 - r.z0 ? 'x' : 'z');
-const gableTan = (half: number) => Math.min(0.46, 2.2 / Math.max(half, 0.1));
+const PITCH = { low: 0.62, medium: 1, steep: 1.5 };
+const gableTan = (half: number, pitch: keyof typeof PITCH = 'medium') =>
+  Math.min(0.46, 2.2 / Math.max(half, 0.1)) * PITCH[pitch];
 
 const cache = new WeakMap<Project, RoofPlan>();
 /** The roof for a project. Projects are replaced, not changed, so each one is worked out once. */
@@ -258,6 +289,7 @@ function computeRoof(p: Project): RoofPlan {
           reach: 0,
           top: isTop,
           round: {},
+          shape: p.roofStyle === 'hip' ? 'hip' : p.roofStyle === 'gambrel' ? 'gambrel' : 'gable',
         };
         wings.push(w);
       });
@@ -265,15 +297,18 @@ function computeRoof(p: Project): RoofPlan {
       const mine = wings.slice(firstOfLevel);
       if (!mine.length) continue;
       if (isTop) {
-        const tan = cape ? CAPE_TAN : gableTan(halfSpan(mine[0]));
-        for (const w of mine) w.tan = tan;
+        const tan = cape ? CAPE_TAN : gableTan(halfSpan(mine[0]), p.roofPitch);
+        for (const w of mine) {
+          w.tan = tan;
+          w.bend = halfSpan(mine[0]) * GAMBREL_BREAK;
+        }
         for (const w of mine.slice(1)) {
           if (!w.joined) continue;
           const host = mine.find((o) => o !== w && sharedEdge(w.rect, o.rect) === w.joined);
           // Only a wing that meets the host along its eave runs on into it.
           if (host && host.axis !== w.axis) w.reach = Math.min(halfSpan(w), halfSpan(host));
         }
-      } else for (const w of mine) w.tan = gableTan(halfSpan(w));
+      } else for (const w of mine) w.tan = gableTan(halfSpan(w), p.roofPitch);
     }
   });
 
@@ -283,7 +318,7 @@ function computeRoof(p: Project): RoofPlan {
     let best: Dormer | null = null,
       bestGap = 1.2;
     wings.forEach((w, n) => {
-      if (w.flat || !w.top || w.level !== item.floor) return;
+      if (w.flat || !w.top || w.level !== item.floor || w.shape === 'gambrel') return;
       const r = rectOf(item);
       const [c0, c1] = crossRange(w);
       const [a0, a1] = alongRange(w);
@@ -461,4 +496,4 @@ export function roofOver(plan: RoofPlan, level: number, x: number, z: number) {
   return best;
 }
 /** Height of a wing's ridge. */
-export const ridgeOf = (w: Wing) => w.base + halfSpan(w) * w.tan;
+export const ridgeOf = (w: Wing) => w.base + rise(w, halfSpan(w));

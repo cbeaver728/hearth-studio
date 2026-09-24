@@ -9,7 +9,12 @@ import {
   collarRun,
   crossRange,
   dormerRect,
+  GAMBREL_BREAK,
+  GAMBREL_STEEP,
   halfSpan,
+  hippedEnds,
+  ridgeOf,
+  rise,
   roofTopAt,
   wingPoint,
   wingCorner,
@@ -48,6 +53,23 @@ function roundedRect(
 
 type V2 = [number, number];
 type V3 = [number, number, number];
+
+/** Keeps the part of a polygon where side(u, v) <= 0, cutting straight across the rest. */
+export function clipPoly(poly: V2[], side: (u: number, v: number) => number): V2[] {
+  const out: V2[] = [];
+  for (let n = 0; n < poly.length; n++) {
+    const p = poly[n],
+      q = poly[(n + 1) % poly.length];
+    const fp = side(...p),
+      fq = side(...q);
+    if (fp <= 1e-9) out.push(p);
+    if ((fp < -1e-9 && fq > 1e-9) || (fp > 1e-9 && fq < -1e-9)) {
+      const t = fp / (fp - fq);
+      out.push([p[0] + (q[0] - p[0]) * t, p[1] + (q[1] - p[1]) * t]);
+    }
+  }
+  return out;
+}
 
 /**
  * A slab following a flat outline in some 2D frame, mapped into the world. With no thickness it
@@ -193,6 +215,12 @@ function pitchedRoof(k: RoofKit, w: Wing, index: number) {
   const ov = OVERHANG;
   const sc = w.cape ? collarRun(w.tan) : 0;
   const slope = Math.sqrt(1 + w.tan * w.tan);
+  const hips = hippedEnds(w);
+  const bend = w.shape === 'gambrel' ? Math.min(half, w.bend ?? half * GAMBREL_BREAK) : 0;
+  const steep = Math.sqrt(1 + (w.tan * GAMBREL_STEEP) ** 2);
+  /** Distance up the slope from the eave line, for laying the roofing texture. */
+  const upSlope = (s: number) =>
+    bend ? (s <= bend ? s * steep : bend * steep + (s - bend) * slope) : s * slope;
   const levelY = w.level * FLOOR_H;
 
   // Wings whose roofs run on into this one, and the side of this roof they meet.
@@ -219,7 +247,7 @@ function pitchedRoof(k: RoofKit, w: Wing, index: number) {
       (lift: number) =>
       (a: number, s: number): V3 => {
         const [x, z] = wingPoint(w, side, a, s);
-        return [x, w.base + s * w.tan + lift, z];
+        return [x, w.base + rise(w, s) + lift, z];
       };
     const leftA = joinedLo ? a0 : a0 - ov,
       rightA = joinedHi ? a1 : a1 + ov;
@@ -256,8 +284,10 @@ function pitchedRoof(k: RoofKit, w: Wing, index: number) {
     const outline: V2[] = [];
     // A rounded room corner at either end of this eave: the eave follows the curve, out by the
     // overhang, round onto the gable end.
-    const rLo = joinedLo ? 0 : Math.min(w.round[wingCorner(w, 0, side)] || 0, half - 0.05);
-    const rHi = joinedHi ? 0 : Math.min(w.round[wingCorner(w, 1, side)] || 0, half - 0.05);
+    const rLo =
+      joinedLo || hips.lo ? 0 : Math.min(w.round[wingCorner(w, 0, side)] || 0, half - 0.05);
+    const rHi =
+      joinedHi || hips.hi ? 0 : Math.min(w.round[wingCorner(w, 1, side)] || 0, half - 0.05);
     if (joinedLo && w.reach) {
       outline.push([a0 - w.reach, half]);
       if (w.reach < half - 1e-6) outline.push([a0 - w.reach, w.reach]);
@@ -280,24 +310,38 @@ function pitchedRoof(k: RoofKit, w: Wing, index: number) {
       outline.push(...quarter(a1 - rHi, rHi, rHi + ov, Math.PI * 1.5, Math.PI * 2));
       outline.push([rightA, half]);
     } else outline.push([rightA, -ov], [rightA, half]);
-    k.add(
-      sheet(
-        outline,
-        map(0),
-        ROOF_T,
-        k.roof,
-        (a, s) => [a / k.roofTile, (s * slope) / k.roofTile],
-        // A dormer set up the slope opens a hole in it, with roof still running below.
-        dormers
-          .filter((d) => d.side === side && d.setback)
-          .map((d) => [
-            [d.a0, d.setback],
-            [d.a1, d.setback],
-            [d.a1, d.depth],
-            [d.a0, d.depth],
-          ]),
-      ),
-    );
+    // A hipped end cuts the side off along the hip, where the end's slope takes over; a
+    // gambrel side is laid in two pieces, so the break between its slopes stays sharp.
+    let faces: V2[][] = [outline];
+    if (hips.lo) faces = faces.map((f) => clipPoly(f, (a, s) => s - (a - a0)));
+    if (hips.hi) faces = faces.map((f) => clipPoly(f, (a, s) => s - (a1 - a)));
+    if (bend)
+      faces = faces.flatMap((f) => [
+        clipPoly(f, (_, s) => s - bend),
+        clipPoly(f, (_, s) => bend - s),
+      ]);
+    const whole = faces.length === 1 && !hips.lo && !hips.hi;
+    for (const face of faces)
+      k.add(
+        sheet(
+          face,
+          map(0),
+          ROOF_T,
+          k.roof,
+          (a, s) => [a / k.roofTile, upSlope(s) / k.roofTile],
+          // A dormer set up the slope opens a hole in it, with roof still running below.
+          whole
+            ? dormers
+                .filter((d) => d.side === side && d.setback)
+                .map((d) => [
+                  [d.a0, d.setback],
+                  [d.a1, d.setback],
+                  [d.a1, d.depth],
+                  [d.a0, d.depth],
+                ])
+            : [],
+        ),
+      );
 
     if (!w.cape) continue;
     // The sloping ceiling inside, from the knee wall up to where it levels off.
@@ -404,21 +448,52 @@ function pitchedRoof(k: RoofKit, w: Wing, index: number) {
     );
   }
 
+  // Hipped ends: the roof slopes down to the eave here too.
+  for (const lo of [true, false]) {
+    if (!(lo ? hips.lo : hips.hi)) continue;
+    const length = a1 - a0;
+    const cap = hips.lo && hips.hi ? length / 2 : length;
+    let face: V2[] = [
+      [c0 - ov, -ov],
+      [c1 + ov, -ov],
+      [c1 + ov, cap],
+      [c0 - ov, cap],
+    ];
+    face = clipPoly(face, (c, t) => t - (c - c0));
+    face = clipPoly(face, (c, t) => t - (c1 - c));
+    k.add(
+      sheet(
+        face,
+        (c, t) => {
+          const a = lo ? a0 + t : a1 - t;
+          const y = w.base + rise(w, t);
+          return w.axis === 'x' ? [a, y, c] : [c, y, a];
+        },
+        ROOF_T,
+        k.roof,
+        (c, t) => [c / k.roofTile, (t * slope) / k.roofTile],
+      ),
+    );
+  }
+
   // Gable ends, in the siding, where the ends aren't joined to anything.
-  const ridge = w.base + half * w.tan;
+  const ridge = ridgeOf(w);
   const bottom = w.cape ? levelY + CAPE_CEIL : w.base;
   const inset = w.cape ? sc : 0;
   for (const end of [lowEnd, highEnd]) {
-    if (end === w.joined) continue;
+    if (end === w.joined || (end === lowEnd ? hips.lo : hips.hi)) continue;
     const line = end === lowEnd ? a0 : a1;
     const e = end === lowEnd ? 0 : 1;
     const inLo = Math.max(inset, Math.min(w.round[wingCorner(w, e, 'lo')] || 0, half - 0.05)),
       inHi = Math.max(inset, Math.min(w.round[wingCorner(w, e, 'hi')] || 0, half - 0.05));
     if (c1 - c0 <= inLo + inHi + 0.01) continue;
     const tri: V2[] = [[c0 + inLo, bottom]];
-    if (inLo > inset + 1e-6) tri.push([c0 + inLo, w.base + inLo * w.tan]);
+    if (inLo > inset + 1e-6) tri.push([c0 + inLo, w.base + rise(w, inLo)]);
+    // A gambrel's end follows its broken slope.
+    if (bend > inLo + 1e-6 && bend < half - 1e-6) tri.push([c0 + bend, w.base + rise(w, bend)]);
     tri.push([(c0 + c1) / 2, ridge + 0.02]);
-    if (inHi > inset + 1e-6) tri.push([c1 - inHi, w.base + inHi * w.tan]);
+    if (bend > inHi + 1e-6 && bend < half - 1e-6) tri.push([c1 - bend, w.base + rise(w, bend)]);
+    if (inHi > inset + 1e-6) tri.push([c1 - inHi, w.base + rise(w, inHi)]);
     tri.push([c1 - inHi, bottom]);
     tri.reverse();
     k.add(
@@ -615,7 +690,7 @@ function chimney(k: RoofKit, c: Item) {
     roof,
     ...k.plan.wings
       .filter((w) => !w.flat && roofTopAt({ ...k.plan, wings: [w] }, cx, cz) !== undefined)
-      .map((w) => w.base + halfSpan(w) * w.tan + ROOF_T),
+      .map((w) => ridgeOf(w) + ROOF_T),
   );
   const bottom = roof - 1.2,
     top = Math.max(roof + 1.1, ridge + 0.7);

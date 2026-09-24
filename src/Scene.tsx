@@ -38,7 +38,8 @@ import {
   CORNERS,
   bayDepth,
 } from './model';
-import { capeCeilingAt, crossRange, planRoof, roofOver } from './roof';
+import { capeCeilingAt, crossRange, OVERHANG, planRoof, roofOver } from './roof';
+import { arcOutline, curveCircle, curveRoofGrid } from './curveroof';
 import { buildRoofs, sheet, uprightPanel } from './roof3d';
 import {
   layoutFor,
@@ -1500,13 +1501,15 @@ function buildContent(p: Project, mode: SceneMode, floor: number, evening: boole
     group.add(g);
     const height = mode === 'dollhouse' && cw.floor === floor ? 1.15 : WALL_H;
     const thick = 0.16;
+    // Outside, a curved wall wears the house's siding, unless it has been given its own paint.
+    const sided = cw.color === '#f0e9dc' || cw.color === p.exterior;
     const faces = [
       mat(cw.color),
       mat(cw.color),
       mat(interior),
       mat(interior),
       mat(interior),
-      mat(cw.color),
+      sided ? sidingMat() : mat(cw.color),
     ];
     const glass = mat(evening ? '#f3d19a' : '#a9d0d6', {
       opacity: evening ? 0.8 : 0.3,
@@ -1522,7 +1525,18 @@ function buildContent(p: Project, mode: SceneMode, floor: number, evening: boole
       t = thick,
     ) => {
       if (y1 - y0 < 0.01) return;
-      const m = new T.Mesh(new T.BoxGeometry(piece.len, y1 - y0, t), material);
+      const geo = new T.BoxGeometry(piece.len, y1 - y0, t);
+      if (sided && material === faces) {
+        // Lay the siding to scale, its boards lined up from one length of wall to the next.
+        const uv = geo.attributes.uv as T.BufferAttribute;
+        for (let n = 0; n < uv.count; n++)
+          uv.setXY(
+            n,
+            (uv.getX(n) * piece.len) / SIDING_TILE,
+            (uv.getY(n) * (y1 - y0) + y0) / SIDING_TILE,
+          );
+      }
+      const m = new T.Mesh(geo, material);
       m.position.set(piece.u - LW / 2, (y0 + y1) / 2, piece.v - LD / 2);
       m.rotation.y = -piece.angle;
       m.castShadow = m.receiveShadow = true;
@@ -1539,6 +1553,132 @@ function buildContent(p: Project, mode: SceneMode, floor: number, evening: boole
         put(piece, 0.95, Math.min(1, height), mat('#52675f'), thick + 0.04);
         if (height >= 2.25) put(piece, 2.2, 2.25, mat('#52675f'), thick + 0.04);
       } else if (height > 2.2) put(piece, 2.2, height, faces);
+    }
+
+    // The space the curve closes in: a floor, a ceiling at the top of the wall, and a roof.
+    const here = (u: number, v: number, h: number): [number, number, number] => [
+      u - LW / 2,
+      h,
+      v - LD / 2,
+    ];
+    const { cu, r, D } = curveCircle(cw);
+    // The floor matches the room it opens off, if there is one.
+    const behind = insideRoom(cw.floor, ...toWorld(cw, cu, D + 0.4));
+    const floorLook =
+      behind && behind.kind === 'room'
+        ? new T.MeshStandardMaterial({
+            color: behind.color,
+            map: floorTexture(behind.finish || 'wood'),
+            roughness: behind.finish === 'tile' ? 0.35 : behind.finish === 'carpet' ? 0.95 : 0.7,
+            side: T.DoubleSide,
+          })
+        : new T.MeshStandardMaterial({
+            color: '#d9c2a0',
+            map: floorTexture('wood'),
+            roughness: 0.7,
+            side: T.DoubleSide,
+          });
+    const inside = arcOutline(cw, r - thick / 2);
+    const floorSheet = sheet(
+      inside,
+      (u, v) => here(u, v, 0.006),
+      0,
+      floorLook,
+      (u, v) => [u / 1.6, v / 1.6],
+    );
+    if (floorSheet) g.add(floorSheet);
+    if (mode !== 'dollhouse') {
+      const ceiling = sheet(
+        inside,
+        (u, v) => here(u, v, WALL_H - 0.01),
+        0,
+        mat('#f3f0ea', { double: true }),
+      );
+      if (ceiling) g.add(ceiling);
+      // A roof, unless the floor above carries on over the curve.
+      if (!insideRoom(cw.floor + 1, ...toWorld(cw, cu, D * 0.5))) {
+        const style = cw.curveRoof || 'cone';
+        const roofing = roofMaterial();
+        if (style === 'flat') {
+          const slab = sheet(
+            arcOutline(cw, r + OVERHANG),
+            (u, v) => here(u, v, WALL_H),
+            0.22,
+            roofing,
+            (u, v) => [u / ROOF_TILE, v / ROOF_TILE],
+          );
+          if (slab) g.add(slab);
+        } else {
+          const tan = p.roofPitch === 'low' ? 0.7 : p.roofPitch === 'steep' ? 1.5 : 1;
+          // Set just high enough to clear the top of the wall all the way across.
+          const { rows, chord } = curveRoofGrid(
+            cw,
+            style,
+            OVERHANG,
+            tan,
+            WALL_H + 0.09 * tan + 0.02,
+          );
+          const position: number[] = [],
+            uvs: number[] = [];
+          const vert = ([u, h, v]: [number, number, number], drop = 0) => {
+            position.push(...here(u, v, h - drop));
+            uvs.push(u / ROOF_TILE, v / ROOF_TILE);
+          };
+          for (let k = 0; k < rows.length - 1; k++)
+            for (let j = 0; j < rows[k].length - 1; j++) {
+              const a = rows[k][j],
+                b = rows[k + 1][j],
+                c = rows[k + 1][j + 1],
+                d = rows[k][j + 1];
+              for (const q of [a, b, c, a, c, d]) vert(q);
+            }
+          // A fascia round the eave gives the roof its thickness.
+          for (let k = 0; k < rows.length - 1; k++) {
+            const a = rows[k][0],
+              b = rows[k + 1][0];
+            vert(a);
+            vert(b, 0.14);
+            vert(b);
+            vert(a);
+            vert(a, 0.14);
+            vert(b, 0.14);
+          }
+          const geo = new T.BufferGeometry();
+          geo.setAttribute('position', new T.Float32BufferAttribute(position, 3));
+          geo.setAttribute('uv', new T.Float32BufferAttribute(uvs, 2));
+          geo.computeVertexNormals();
+          const cap = new T.Mesh(geo, roofing);
+          cap.castShadow = cap.receiveShadow = true;
+          g.add(cap);
+          // Where the roof meets the house (or stands free), close it in with siding.
+          const [ea] = arcOutline(cw, r, 1)[0],
+            [eb] = arcOutline(cw, r, 1)[1];
+          const panel: number[] = [],
+            puv: number[] = [];
+          const steps = 16;
+          for (let k = 0; k < steps; k++) {
+            const u0 = ea + ((eb - ea) * k) / steps,
+              u1 = ea + ((eb - ea) * (k + 1)) / steps;
+            const pts: [number, number][] = [
+              [u0, WALL_H - 0.02],
+              [u1, WALL_H - 0.02],
+              [u1, chord(u1)],
+              [u0, WALL_H - 0.02],
+              [u1, chord(u1)],
+              [u0, chord(u0)],
+            ];
+            for (const [u, h] of pts) {
+              panel.push(...here(u, D, h));
+              puv.push(u / SIDING_TILE, h / SIDING_TILE);
+            }
+          }
+          const end = new T.BufferGeometry();
+          end.setAttribute('position', new T.Float32BufferAttribute(panel, 3));
+          end.setAttribute('uv', new T.Float32BufferAttribute(puv, 2));
+          end.computeVertexNormals();
+          g.add(new T.Mesh(end, sidingMat(true)));
+        }
+      }
     }
   }
 

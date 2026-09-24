@@ -26,6 +26,7 @@ import {
   type Segment,
 } from './stairs';
 import { curvePieces } from './curve';
+import { curveFloor } from './curveroof';
 import { arcPieces, cornerArcs } from './corners';
 import { lowHeadroom, planRoof, wingPoint } from './roof';
 
@@ -94,6 +95,12 @@ export function floorRects(p: Project, level: number): Rect[] {
           : { x0: i.x, z0: i.z, x1: i.x + i.w, z1: i.z + i.d },
         holes,
       ),
+    )
+    .concat(
+      // The floor inside a curved wall.
+      p.items
+        .filter((i) => i.kind === 'curve' && i.floor === level)
+        .flatMap((i) => curveFloor(i).flatMap((r) => subtractRects(r, holes))),
     );
 }
 /** Which edges of a landing need a rail: those not butted up against a room. */
