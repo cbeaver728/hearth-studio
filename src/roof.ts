@@ -19,6 +19,8 @@ import {
   type Project,
 } from './model';
 import { subtractRects, type Rect } from './stairs';
+import { cornerArcs } from './corners';
+import type { Corner } from './model';
 
 export const CAPE_TAN = 1.2;
 /** Cape dormers sit a little way up the slope, with roof running below them. */
@@ -50,6 +52,8 @@ export interface Wing {
   reach: number;
   /** The top floor of its building; lower wings sit against taller walls. */
   top: boolean;
+  /** Corners of the wing where the rooms below are rounded, and by how much. */
+  round: Partial<Record<Corner, number>>;
 }
 export interface Dormer {
   item: Item;
@@ -253,6 +257,7 @@ function computeRoof(p: Project): RoofPlan {
           joined,
           reach: 0,
           top: isTop,
+          round: {},
         };
         wings.push(w);
       });
@@ -307,6 +312,31 @@ function computeRoof(p: Project): RoofPlan {
       }
     });
     if (best) dormers.push(best);
+  }
+  // A wing's roof rounds off over a room corner that is rounded, where the two meet.
+  const arcs = cornerArcs(p);
+  for (const w of wings) {
+    const { x0, z0, x1, z1 } = w.rect;
+    const at: Record<Corner, [number, number]> = {
+      nw: [x0, z0],
+      ne: [x1, z0],
+      sw: [x0, z1],
+      se: [x1, z1],
+    };
+    for (const a of arcs) {
+      if (a.room.floor !== w.level) continue;
+      const [cx, cz] = at[a.corner];
+      const { x, z, w: rw, d: rd } = a.room;
+      const [rx, rz] =
+        a.corner === 'nw'
+          ? [x, z]
+          : a.corner === 'ne'
+            ? [x + rw, z]
+            : a.corner === 'sw'
+              ? [x, z + rd]
+              : [x + rw, z + rd];
+      if (Math.abs(rx - cx) < 0.02 && Math.abs(rz - cz) < 0.02) w.round[a.corner] = a.r;
+    }
   }
   return { wings, dormers };
 }
@@ -412,6 +442,21 @@ export function roofTopAt(plan: RoofPlan, x: number, z: number): number | undefi
     }
     const h = undersideAt(w, x, z);
     if (h !== undefined) best = Math.max(best ?? -Infinity, h + ROOF_T);
+  }
+  return best;
+}
+/** Which corner of a wing sits at one of its ends (0 = low, 1 = high) on one eave side. */
+export function wingCorner(w: Wing, end: 0 | 1, side: 'lo' | 'hi'): Corner {
+  if (w.axis === 'x') return ((side === 'lo' ? 'n' : 's') + (end === 0 ? 'w' : 'e')) as Corner;
+  return ((end === 0 ? 'n' : 's') + (side === 'lo' ? 'w' : 'e')) as Corner;
+}
+/** Underside of the roof over a plan point on a floor, from any pitched wing of that floor. */
+export function roofOver(plan: RoofPlan, level: number, x: number, z: number) {
+  let best: number | undefined;
+  for (const w of plan.wings) {
+    if (w.flat || w.level !== level) continue;
+    const h = undersideAt(w, x, z);
+    if (h !== undefined) best = Math.max(best ?? -Infinity, h);
   }
   return best;
 }

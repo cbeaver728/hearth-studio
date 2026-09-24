@@ -2,6 +2,9 @@ import { describe, it, expect } from 'vitest';
 import { blankProject, buildWalls, createItem, uid, validateProject } from '../src/model';
 import { cornerArcs, roomPath } from '../src/corners';
 import { buildWalkWorld } from '../src/walk';
+import * as T from 'three';
+import { buildRoofs } from '../src/roof3d';
+import { planRoof } from '../src/roof';
 
 function roundRoom(rounded?: ('nw' | 'ne' | 'sw' | 'se')[]) {
   const p = blankProject();
@@ -65,4 +68,67 @@ describe('rounded room corners', () => {
     bad.items[0].rounded = ['middle'];
     expect(() => validateProject(bad)).toThrow();
   });
+});
+
+describe('roofs over rounded corners', () => {
+  const house = (roofStyle: 'gable' | 'flat' | 'cape') => {
+    const p = blankProject();
+    p.roofStyle = roofStyle;
+    const r = createItem('room', 0, 0, 0);
+    Object.assign(r, { w: 8, d: 6, radius: 1.5, rounded: ['sw', 'se'] });
+    p.items = [r];
+    if (roofStyle === 'cape') {
+      p.floors.push({ level: 1, name: 'Upstairs' });
+      const up = createItem('room', 1, 0, 0);
+      Object.assign(up, { w: 8, d: 6, radius: 1.5, rounded: ['sw', 'se'] });
+      p.items.push(up);
+    }
+    return p;
+  };
+  /** Every roof vertex in plan, from the real roof builder. */
+  const roofPoints = (p: ReturnType<typeof house>) => {
+    const pts: [number, number, number][] = [];
+    const m = new T.MeshBasicMaterial();
+    buildRoofs({
+      p,
+      plan: planRoof(p),
+      add: (mesh) => {
+        if (!mesh || mesh.material !== m) return;
+        mesh.updateMatrixWorld();
+        const pos = mesh.geometry.attributes.position;
+        const v = new T.Vector3();
+        for (let n = 0; n < pos.count; n++) {
+          v.fromBufferAttribute(pos, n).applyMatrix4(mesh.matrixWorld);
+          pts.push([v.x, v.y, v.z]);
+        }
+      },
+      mat: () => new T.MeshBasicMaterial(),
+      roof: m,
+      roofTile: 1.4,
+      siding: () => new T.MeshBasicMaterial(),
+      sidingTile: 1.6,
+      ceiling: new T.MeshBasicMaterial(),
+      paintAt: () => new T.MeshBasicMaterial(),
+      evening: false,
+    });
+    return pts;
+  };
+  for (const style of ['gable', 'flat', 'cape'] as const)
+    it(`rounds a ${style} roof where the room below is rounded`, () => {
+      const p = house(style);
+      const level = style === 'cape' ? 1 : 0;
+      const wing = planRoof(p).wings.find((w) => w.top && w.level === level)!;
+      expect(wing.round).toEqual({ sw: 1.5, se: 1.5 });
+      const pts = roofPoints(p);
+      expect(pts.length).toBeGreaterThan(0);
+      // No roof reaches the square corners that were rounded off...
+      const outside = (x: number, z: number) => {
+        const cx = x < 4 ? 1.5 : 6.5,
+          cz = 4.5;
+        return z > cz && (x < 1.5 || x > 6.5) && Math.hypot(x - cx, z - cz) > 1.5 + 0.35;
+      };
+      expect(pts.filter(([x, , z]) => outside(x, z))).toEqual([]);
+      // ...but the square ones keep their full overhang.
+      expect(pts.some(([x, , z]) => x < -0.25 && z < -0.25)).toBe(true);
+    });
 });

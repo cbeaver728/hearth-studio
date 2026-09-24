@@ -12,9 +12,39 @@ import {
   halfSpan,
   roofTopAt,
   wingPoint,
+  wingCorner,
   type RoofPlan,
   type Wing,
 } from './roof';
+
+/** Points round a quarter circle, from angle t0 to t1 (radians), in a 2D frame. */
+function quarter(cx: number, cy: number, r: number, t0: number, t1: number, n = 10): V2[] {
+  const out: V2[] = [];
+  for (let k = 0; k <= n; k++) {
+    const t = t0 + ((t1 - t0) * k) / n;
+    out.push([cx + r * Math.cos(t), cy + r * Math.sin(t)]);
+  }
+  return out;
+}
+/** A rectangle with some corners rounded, as an outline in plan (x, z). */
+function roundedRect(
+  x0: number,
+  z0: number,
+  x1: number,
+  z1: number,
+  r: Partial<Record<'nw' | 'ne' | 'sw' | 'se', number>>,
+): V2[] {
+  const nw = r.nw || 0,
+    ne = r.ne || 0,
+    se = r.se || 0,
+    sw = r.sw || 0;
+  return [
+    ...(nw ? quarter(x0 + nw, z0 + nw, nw, Math.PI, Math.PI * 1.5) : [[x0, z0] as V2]),
+    ...(ne ? quarter(x1 - ne, z0 + ne, ne, Math.PI * 1.5, Math.PI * 2) : [[x1, z0] as V2]),
+    ...(se ? quarter(x1 - se, z1 - se, se, 0, Math.PI / 2) : [[x1, z1] as V2]),
+    ...(sw ? quarter(x0 + sw, z1 - sw, sw, Math.PI / 2, Math.PI) : [[x0, z1] as V2]),
+  ];
+}
 
 type V2 = [number, number];
 type V3 = [number, number, number];
@@ -139,14 +169,16 @@ export function buildRoofs(k: RoofKit) {
 function flatRoof(k: RoofKit, w: Wing) {
   const ov = w.top ? OVERHANG : 0.12;
   const { x0, z0, x1, z1 } = w.rect;
-  const geo = new T.BoxGeometry(x1 - x0 + ov * 2, 0.22, z1 - z0 + ov * 2);
-  const uv = geo.attributes.uv as T.BufferAttribute;
-  for (let n = 0; n < uv.count; n++)
-    uv.setXY(n, (uv.getX(n) * (x1 - x0)) / k.roofTile, (uv.getY(n) * (z1 - z0)) / k.roofTile);
-  const m = new T.Mesh(geo, k.roof);
-  m.position.set((x0 + x1) / 2, w.base + 0.11, (z0 + z1) / 2);
-  m.castShadow = m.receiveShadow = true;
-  k.add(m);
+  const grow = Object.fromEntries(Object.entries(w.round).map(([c, r]) => [c, (r || 0) + ov]));
+  k.add(
+    sheet(
+      roundedRect(x0 - ov, z0 - ov, x1 + ov, z1 + ov, grow),
+      (x, z) => [x, w.base, z],
+      0.22,
+      k.roof,
+      (x, z) => [x / k.roofTile, z / k.roofTile],
+    ),
+  );
 }
 
 function pitchedRoof(k: RoofKit, w: Wing, index: number) {
@@ -222,12 +254,19 @@ function pitchedRoof(k: RoofKit, w: Wing, index: number) {
 
     // The outside of the roof.
     const outline: V2[] = [];
+    // A rounded room corner at either end of this eave: the eave follows the curve, out by the
+    // overhang, round onto the gable end.
+    const rLo = joinedLo ? 0 : Math.min(w.round[wingCorner(w, 0, side)] || 0, half - 0.05);
+    const rHi = joinedHi ? 0 : Math.min(w.round[wingCorner(w, 1, side)] || 0, half - 0.05);
     if (joinedLo && w.reach) {
       outline.push([a0 - w.reach, half]);
       if (w.reach < half - 1e-6) outline.push([a0 - w.reach, w.reach]);
       outline.push([a0, 0], [a0, -ov]);
+    } else if (rLo > 0) {
+      outline.push([leftA, half]);
+      outline.push(...quarter(a0 + rLo, rLo, rLo + ov, Math.PI, Math.PI * 1.5));
     } else outline.push([leftA, half], [leftA, -ov]);
-    let at = leftA;
+    let at = rLo > 0 ? a0 + rLo : leftA;
     for (const nt of notches) {
       if (nt.from < at + 0.02) continue;
       outline.push([nt.from, -ov], ...nt.inner, [nt.to, -ov]);
@@ -237,6 +276,9 @@ function pitchedRoof(k: RoofKit, w: Wing, index: number) {
       outline.push([a1, -ov], [a1, 0]);
       if (w.reach < half - 1e-6) outline.push([a1 + w.reach, w.reach]);
       outline.push([a1 + w.reach, half]);
+    } else if (rHi > 0) {
+      outline.push(...quarter(a1 - rHi, rHi, rHi + ov, Math.PI * 1.5, Math.PI * 2));
+      outline.push([rightA, half]);
     } else outline.push([rightA, -ov], [rightA, half]);
     k.add(
       sheet(
@@ -330,7 +372,8 @@ function pitchedRoof(k: RoofKit, w: Wing, index: number) {
         [a1, sc],
         [from, sc],
       ]);
-    for (const piece of pieces) k.add(sheet(piece, lining, 0, k.ceiling));
+    const rounded = pieces.map((piece) => roundLining(piece, a0, a1, sc, rLo, rHi));
+    for (const piece of rounded) k.add(sheet(piece, lining, 0, k.ceiling));
   }
 
   if (w.cape) {
@@ -357,17 +400,7 @@ function pitchedRoof(k: RoofKit, w: Wing, index: number) {
     // A flat ceiling hides the attic.
     const { x0, z0, x1, z1 } = w.rect;
     k.add(
-      sheet(
-        [
-          [x0, z0],
-          [x1, z0],
-          [x1, z1],
-          [x0, z1],
-        ],
-        (x, z) => [x, w.base - 0.01, z],
-        0,
-        k.ceiling,
-      ),
+      sheet(roundedRect(x0, z0, x1, z1, w.round), (x, z) => [x, w.base - 0.01, z], 0, k.ceiling),
     );
   }
 
@@ -378,12 +411,16 @@ function pitchedRoof(k: RoofKit, w: Wing, index: number) {
   for (const end of [lowEnd, highEnd]) {
     if (end === w.joined) continue;
     const line = end === lowEnd ? a0 : a1;
-    if (c1 - c0 <= inset * 2 + 0.01) continue;
-    const tri: V2[] = [
-      [c0 + inset, bottom],
-      [c1 - inset, bottom],
-      [(c0 + c1) / 2, ridge + 0.02],
-    ];
+    const e = end === lowEnd ? 0 : 1;
+    const inLo = Math.max(inset, Math.min(w.round[wingCorner(w, e, 'lo')] || 0, half - 0.05)),
+      inHi = Math.max(inset, Math.min(w.round[wingCorner(w, e, 'hi')] || 0, half - 0.05));
+    if (c1 - c0 <= inLo + inHi + 0.01) continue;
+    const tri: V2[] = [[c0 + inLo, bottom]];
+    if (inLo > inset + 1e-6) tri.push([c0 + inLo, w.base + inLo * w.tan]);
+    tri.push([(c0 + c1) / 2, ridge + 0.02]);
+    if (inHi > inset + 1e-6) tri.push([c1 - inHi, w.base + inHi * w.tan]);
+    tri.push([c1 - inHi, bottom]);
+    tri.reverse();
     k.add(
       uprightPanel(
         tri,
@@ -397,6 +434,31 @@ function pitchedRoof(k: RoofKit, w: Wing, index: number) {
       ),
     );
   }
+}
+
+/** Rounds a lining piece's eave corners at the ends of the wing, following the wall below. */
+function roundLining(piece: V2[], a0: number, a1: number, sc: number, rLo: number, rHi: number) {
+  let out = piece;
+  const swap = (at: V2, arc: V2[], drop: V2) => {
+    const n = out.findIndex(([u, v]) => Math.abs(u - at[0]) < 1e-6 && Math.abs(v - at[1]) < 1e-6);
+    if (n < 0) return;
+    const kept = out.filter(
+      ([u, v], m) => m === n || !(Math.abs(u - drop[0]) < 1e-6 && Math.abs(v - drop[1]) < 1e-6),
+    );
+    const k = kept.findIndex(([u, v]) => Math.abs(u - at[0]) < 1e-6 && Math.abs(v - at[1]) < 1e-6);
+    out = [...kept.slice(0, k), ...arc, ...kept.slice(k + 1)];
+  };
+  // Only as far up as the lining goes: past that the flat ceiling takes over.
+  const clip = (arc: V2[]) => arc.filter(([, v]) => v <= sc + 1e-6);
+  if (rLo > 0) {
+    const start = rLo > sc ? Math.PI + Math.asin((rLo - sc) / rLo) : Math.PI;
+    swap([a0, 0], clip(quarter(a0 + rLo, rLo, rLo, start, Math.PI * 1.5)), [a0, sc]);
+  }
+  if (rHi > 0) {
+    const stop = rHi > sc ? Math.PI * 2 - Math.asin((rHi - sc) / rHi) : Math.PI * 2;
+    swap([a1, 0], clip(quarter(a1 - rHi, rHi, rHi, Math.PI * 1.5, stop)), [a1, sc]);
+  }
+  return out;
 }
 
 /** A gabled dormer pushing out of the slope, with a window and a nook inside. */

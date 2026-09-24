@@ -37,7 +37,7 @@ import {
   KNEE,
   CORNERS,
 } from './model';
-import { capeCeilingAt, crossRange, planRoof } from './roof';
+import { capeCeilingAt, crossRange, planRoof, roofOver } from './roof';
 import { buildRoofs, uprightPanel } from './roof3d';
 import {
   layoutFor,
@@ -1084,10 +1084,24 @@ function buildContent(p: Project, mode: SceneMode, floor: number, evening: boole
         group.add(m);
         wallUv(m, Math.abs(Math.cos(piece.angle)) > 0.7 ? 'x' : 'z');
       };
+      // Under a pitched roof, an outside curve carries on up to meet it, as a gable wall does.
+      let top = height;
+      if (!neighbour && mode !== 'dollhouse') {
+        const ends = [piece.len / 2, -piece.len / 2].map((d) =>
+          roofOver(
+            plan,
+            room.floor,
+            piece.x + Math.cos(piece.angle) * d,
+            piece.z + Math.sin(piece.angle) * d,
+          ),
+        );
+        if (ends.every((h) => h !== undefined))
+          top = Math.max(height, Math.max(...(ends as number[])) - y + 0.05);
+      }
       if (room.wainscot && height > 0.95) {
         put(0, 0.95, faces(low));
-        put(0.95, height, faces(inside));
-      } else put(0, height, faces(inside));
+        put(0.95, top, faces(inside));
+      } else put(0, top, faces(inside));
       put(0, Math.min(0.09, height), mat('#d2caba'), 0.18);
     }
   }
