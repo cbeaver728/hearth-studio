@@ -54,12 +54,47 @@ export function stairHoles(p: Project, level: number): Rect[] {
     .flatMap((i) => layoutFor(i).holes.map((h) => rectToWorld(i, h)));
 }
 
+/**
+ * Where a landing or deck really reaches. One set down a hand's width short of a room (easy to
+ * do, snapping to the grid beside a room of any size) still meets its wall: the floor carries
+ * on across the gap, and that side counts as joined to the house.
+ */
+export function landingReach(p: Project, l: Item): Rect {
+  const r = { x0: l.x, z0: l.z, x1: l.x + l.w, z1: l.z + l.d };
+  const GAP = 0.45;
+  const overlap = (a0: number, a1: number, b0: number, b1: number) =>
+    Math.min(a1, b1) - Math.max(a0, b0) >= Math.min(0.6, (a1 - a0) * 0.5);
+  for (const o of p.items) {
+    if (!isRoom(o) || o.floor !== l.floor) continue;
+    const o0x = o.x,
+      o1x = o.x + o.w,
+      o0z = o.z,
+      o1z = o.z + o.d;
+    if (overlap(l.x, l.x + l.w, o0x, o1x)) {
+      if (o1z <= l.z + 0.001 && l.z - o1z < GAP) r.z0 = Math.min(r.z0, o1z);
+      if (o0z >= l.z + l.d - 0.001 && o0z - (l.z + l.d) < GAP) r.z1 = Math.max(r.z1, o0z);
+    }
+    if (overlap(l.z, l.z + l.d, o0z, o1z)) {
+      if (o1x <= l.x + 0.001 && l.x - o1x < GAP) r.x0 = Math.min(r.x0, o1x);
+      if (o0x >= l.x + l.w - 0.001 && o0x - (l.x + l.w) < GAP) r.x1 = Math.max(r.x1, o0x);
+    }
+  }
+  return r;
+}
+
 /** Room floors and landings on a level, minus stair openings. */
 export function floorRects(p: Project, level: number): Rect[] {
   const holes = [...stairHoles(p, level), ...openCeilings(p, level)];
   return p.items
     .filter((i) => (isRoom(i) || i.kind === 'landing') && i.floor === level)
-    .flatMap((i) => subtractRects({ x0: i.x, z0: i.z, x1: i.x + i.w, z1: i.z + i.d }, holes));
+    .flatMap((i) =>
+      subtractRects(
+        i.kind === 'landing'
+          ? landingReach(p, i)
+          : { x0: i.x, z0: i.z, x1: i.x + i.w, z1: i.z + i.d },
+        holes,
+      ),
+    );
 }
 /** Which edges of a landing need a rail: those not butted up against a room. */
 export function landingRails(p: Project, l: Item) {
@@ -67,6 +102,8 @@ export function landingRails(p: Project, l: Item) {
     (i) => (isRoom(i) || (i.kind === 'landing' && i.id !== l.id)) && i.floor === l.floor,
   );
   const e = 0.06;
+  const reach = landingReach(p, l);
+  l = { ...l, x: reach.x0, z: reach.z0, w: reach.x1 - reach.x0, d: reach.z1 - reach.z0 };
   // An edge counts as attached only where a room runs along a real length of it,
   // not where one merely reaches the same corner.
   const attached = (along: 'x' | 'z', line: number, from: number, to: number) =>

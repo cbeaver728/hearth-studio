@@ -56,6 +56,7 @@ import { arcPieces, cornerArc, cornerArcs } from './corners';
 import {
   buildWalkWorld,
   EYE,
+  landingReach,
   landingRails,
   stairGuards,
   stairHoles,
@@ -1597,7 +1598,16 @@ function buildContent(p: Project, mode: SceneMode, floor: number, evening: boole
   }
 
   // Landings and balconies.
-  for (const l of p.items.filter((i) => i.kind === 'landing' && shown.includes(i.floor))) {
+  for (const item of p.items.filter((i) => i.kind === 'landing' && shown.includes(i.floor))) {
+    // Drawn out to the wall it meets, if it was set down a little short.
+    const reach = landingReach(p, item);
+    const l = {
+      ...item,
+      x: reach.x0,
+      z: reach.z0,
+      w: reach.x1 - reach.x0,
+      d: reach.z1 - reach.z0,
+    };
     const y = l.floor * FLOOR_H;
     slab({ x0: l.x, z0: l.z, x1: l.x + l.w, z1: l.z + l.d }, y - 0.2, y, l.color)!.userData.itemId =
       l.id;

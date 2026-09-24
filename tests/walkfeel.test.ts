@@ -343,3 +343,33 @@ describe('walking through a doorway a little off line', () => {
       expect(r.z, JSON.stringify(r)).toBeGreaterThan(0.6);
     });
 });
+
+describe('a deck set down a little short of the house', () => {
+  for (const gap of [0.1, 0.2, 0.35])
+    it(`still joins the bedroom across a ${gap * 100} cm gap`, async () => {
+      const { landingRails } = await import('../src/walk');
+      const p = blankProject();
+      p.floors.push({ level: 1, name: 'Upstairs' });
+      const living = box(0, -4, -4, 8, 6),
+        bed = box(1, -4, -4.13, 8, 6.13);
+      const deck = Object.assign(createItem('landing', 1, -2, -7.13 - gap), { w: 4, d: 3 });
+      p.items = [living, bed, deck];
+      p.openings = [
+        { id: 'a', roomId: bed.id, side: 'north', offset: 0.5, width: 1.6, kind: 'french' },
+      ] as Project['openings'];
+      // Rails on the three open sides only, none against the house.
+      const rails = landingRails(p, deck);
+      expect(rails).toHaveLength(3);
+      expect(rails.some((r) => r.z0 > -4.3 && r.x1 - r.x0 > 0.5)).toBe(false);
+      const r = tour(
+        p,
+        [
+          [0, -2],
+          [0, -6],
+        ],
+        FLOOR_H,
+      );
+      expect(r.stuckBefore, JSON.stringify(r)).toBeNull();
+      expect(r.feet).toBeCloseTo(FLOOR_H, 1);
+    });
+});
