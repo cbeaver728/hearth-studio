@@ -1,8 +1,8 @@
 {
   "version": 1,
-  "id": "arthur-read-house-v4",
+  "id": "arthur-read-house-v5",
   "name": "Arthur's House",
-  "updated": "2026-09-24T02:22:49.564Z",
+  "updated": "2026-09-24T23:48:14.129Z",
   "floors": [
     {
       "level": -1,
@@ -19,7 +19,7 @@
   ],
   "items": [
     {
-      "id": "e78b0567-a068-410d-ae83-4ba5fe77bc0a",
+      "id": "8b5087b6-98da-4536-9312-a99c279c4f00",
       "kind": "room",
       "name": "The den",
       "x": -5.5,
@@ -34,7 +34,7 @@
       "wainscot": "#f7f4ec"
     },
     {
-      "id": "b70e752f-5856-4ffe-8ae3-603c5420dad7",
+      "id": "dbef6890-9062-4508-a971-7c68a12c9236",
       "kind": "room",
       "name": "Entry hall",
       "x": -1.05,
@@ -48,7 +48,7 @@
       "wainscot": "#f7f4ec"
     },
     {
-      "id": "8790ef00-7656-4030-9b8a-2ee9cca0eb9a",
+      "id": "718e4f93-28eb-483a-9fef-ba8d8650ab4e",
       "kind": "room",
       "name": "Living room",
       "x": 0.5,
@@ -62,7 +62,7 @@
       "wainscot": "#d8d4e6"
     },
     {
-      "id": "656706df-5244-47df-bfcc-826019c2f52c",
+      "id": "9f307d75-e880-49fd-9e07-35c5a87b4988",
       "kind": "room",
       "name": "Foyer",
       "x": -5.5,
@@ -76,7 +76,7 @@
       "wainscot": "#f7f4ec"
     },
     {
-      "id": "d11387f5-321d-4aae-8f12-b8ca23190c0b",
+      "id": "e59465d4-58dd-4242-a681-d20db782d20d",
       "kind": "room",
       "name": "Dining room",
       "x": 0.2,
@@ -91,7 +91,7 @@
       "wainscot": "#c9c0e4"
     },
     {
-      "id": "4288b880-4c78-4e2c-936b-bdb5b74b630d",
+      "id": "79a1a6b1-c955-4b1c-b86d-e5f9c319c9c9",
       "kind": "room",
       "name": "Basement stairs",
       "x": -0.6,
@@ -104,7 +104,7 @@
       "wallColor": "#e8e2d6"
     },
     {
-      "id": "a26cf0d8-2120-4bdf-999f-9993d49d3dd7",
+      "id": "7b266cf9-f766-4c73-a649-d6ea71cad14d",
       "kind": "room",
       "name": "Kitchen",
       "x": 1,
@@ -119,7 +119,7 @@
       "wallpaper": "check"
     },
     {
-      "id": "97d0913a-b8c1-4a37-ba2c-888979312b30",
+      "id": "b6b23ea2-0c8f-463d-baa0-2e1dadff6996",
       "kind": "stairs",
       "name": "The stairs",
       "x": -2.4,
@@ -134,7 +134,7 @@
       "trimColor": "#f7f4ec"
     },
     {
-      "id": "ef65d265-901e-45c1-9c87-ea7f7a3a6231",
+      "id": "8db2ee21-f6ba-419b-be07-c0c50b21b2ed",
       "kind": "stairs",
       "name": "Stairs to the basement",
       "x": -0.45,
@@ -148,7 +148,7 @@
       "dir": "down"
     },
     {
-      "id": "8c03066a-1d01-43e2-a1c2-fe9604756c17",
+      "id": "c19f5a98-0b3a-400e-b0a5-26872be9c23b",
       "kind": "sofa",
       "name": "Pink sofa",
       "x": 2.05,
@@ -161,7 +161,7 @@
       "fabric": "floral"
     },
     {
-      "id": "7f381799-8ba1-46bc-a763-e2d5ef369348",
+      "id": "877910bd-1f08-46c9-a73a-dedcae4aafa9",
       "kind": "coffee",
       "name": "Coffee table",
       "x": 2.55,
@@ -173,7 +173,7 @@
       "rotation": 0
     },
     {
-      "id": "c5054459-5a55-4b58-9e47-03005acb8c60",
+      "id": "70ff5b52-0f60-41e3-a013-4d21421912e5",
       "kind": "rugRound",
       "name": "Pink rug",
       "x": 1.7,
@@ -185,7 +185,7 @@
       "rotation": 0
     },
     {
-      "id": "dba17968-417d-49cc-b3dd-8b9445137be6",
+      "id": "37f36644-f920-438a-9653-219e4058cbc1",
       "kind": "upright",
       "name": "Upright piano",
       "x": 4.8,
@@ -197,7 +197,7 @@
       "rotation": 90
     },
     {
-      "id": "fd573820-2f88-41ff-870c-2c382a12a5e7",
+      "id": "381f20b5-b071-4d91-b906-5cbce30bc197",
       "kind": "clock",
       "name": "Grandfather clock",
       "x": 0.6,
@@ -209,7 +209,7 @@
       "rotation": 180
     },
     {
-      "id": "17a475d2-3212-4bca-b5f9-1b7d8be0e666",
+      "id": "b684ed62-0b1c-4990-af4f-315370566bbb",
       "kind": "fireplace",
       "name": "Fireplace",
       "x": 0.52,
@@ -221,7 +221,7 @@
       "rotation": 270
     },
     {
-      "id": "38ffe6eb-4d4d-4265-8148-d36a2feecb58",
+      "id": "164a98cb-c128-4641-9a9e-570908e2faa9",
       "kind": "floorlamp",
       "name": "Reading lamp",
       "x": 1.35,
@@ -233,7 +233,7 @@
       "rotation": 0
     },
     {
-      "id": "6e88e1f3-31b8-4673-8d52-a3e4657dda12",
+      "id": "194808cf-7ee0-4ea8-8c6f-e12b7c8c904c",
       "kind": "ottoman",
       "name": "Footstool",
       "x": 4,
@@ -246,7 +246,7 @@
       "fabric": "floral"
     },
     {
-      "id": "5b634e5d-e04f-4c30-9c03-10c2a2111aba",
+      "id": "51c1411f-25fc-4edc-b82c-fc812e416555",
       "kind": "curtains",
       "name": "Yellow curtains",
       "x": 1,
@@ -259,7 +259,7 @@
       "fabric": "check"
     },
     {
-      "id": "4fa37b89-f1b2-4af6-a4a1-be4768ccd4c2",
+      "id": "8878f9ef-cd1c-43b5-b67a-e5673311344f",
       "kind": "curtains",
       "name": "Yellow curtains",
       "x": 3.4,
@@ -272,7 +272,7 @@
       "fabric": "check"
     },
     {
-      "id": "77f9ac3d-7224-42ba-bb53-fd9a5ff4bb43",
+      "id": "aa4923d6-6ed5-4fba-9fd5-ebc6c0ae7da0",
       "kind": "radiator",
       "name": "Radiator",
       "x": 5.26,
@@ -284,7 +284,7 @@
       "rotation": 90
     },
     {
-      "id": "c05e4db0-1208-4e57-9b1e-afece395a2ed",
+      "id": "959ed531-a95b-43f9-b0d0-1444324ff591",
       "kind": "picture",
       "name": "Family photos",
       "x": 3.4,
@@ -296,7 +296,7 @@
       "rotation": 0
     },
     {
-      "id": "995ae06a-db1c-4b98-8928-6b6a9e4d3515",
+      "id": "04c58fff-7bad-451b-9de8-7630dc2d343d",
       "kind": "sofa",
       "name": "Striped sofa",
       "x": -2.1,
@@ -309,7 +309,7 @@
       "fabric": "stripes"
     },
     {
-      "id": "31aec56b-3cf9-410a-ba57-dc02fb7bc94c",
+      "id": "bdc0c32f-fd70-4495-9b45-28aebd94a411",
       "kind": "crt",
       "name": "Television",
       "x": -5.45,
@@ -321,7 +321,7 @@
       "rotation": 270
     },
     {
-      "id": "90125f59-c948-4897-8d30-4284b5f43ae5",
+      "id": "f184fb25-975c-43c7-aa48-f0c27890198e",
       "kind": "rugRound",
       "name": "Braided rug",
       "x": -4.6,
@@ -333,7 +333,7 @@
       "rotation": 0
     },
     {
-      "id": "24f79a5e-b55c-494d-8d07-0ab43f84ae5d",
+      "id": "ef558e9e-a3c2-4ce4-b6db-13cf1bc288ae",
       "kind": "coffee",
       "name": "Red coffee table",
       "x": -3.8,
@@ -345,7 +345,7 @@
       "rotation": 0
     },
     {
-      "id": "7f6c69bc-1a01-42f4-a173-82393cc4a93d",
+      "id": "d4cb15f4-cdf5-4924-8fe7-ec74fd10b275",
       "kind": "floorlamp",
       "name": "Arc lamp",
       "x": -1.6,
@@ -357,7 +357,7 @@
       "rotation": 0
     },
     {
-      "id": "890ba46f-9834-423c-99c2-cc72b102c82f",
+      "id": "f604b358-3ef6-4c2f-b3d5-4092f0e691ff",
       "kind": "computer",
       "name": "Mom's computer",
       "x": -5.4,
@@ -369,7 +369,7 @@
       "rotation": 0
     },
     {
-      "id": "304f2b40-05b4-47de-abc0-ebb603688ee7",
+      "id": "8c7ecf60-1c3a-4229-b7cf-7032f232a456",
       "kind": "picture",
       "name": "Ship painting",
       "x": -1.17,
@@ -381,7 +381,7 @@
       "rotation": 90
     },
     {
-      "id": "bd29533c-518f-47e9-99ef-d684f7e5c43e",
+      "id": "22e5b122-52b3-4468-b0fb-fd9f0867827c",
       "kind": "curtains",
       "name": "Den curtains",
       "x": -4.95,
@@ -393,7 +393,7 @@
       "rotation": 180
     },
     {
-      "id": "ab74c704-0573-4d48-bfdb-dffc90f28f9a",
+      "id": "6befb442-eccf-48bb-87c8-be87f3e4a1a6",
       "kind": "curtains",
       "name": "Den curtains",
       "x": -2.91,
@@ -405,7 +405,7 @@
       "rotation": 180
     },
     {
-      "id": "a0c441e9-987c-42c4-8292-314d03a8d53e",
+      "id": "1c064c9a-c582-4c6c-9323-081a8c4ef43b",
       "kind": "rug",
       "name": "Hall runner",
       "x": -0.8,
@@ -417,7 +417,7 @@
       "rotation": 0
     },
     {
-      "id": "34e8e413-0446-4bd3-a2e2-e76886bc1899",
+      "id": "522d6dca-4f77-49cb-bd57-b876c09d5030",
       "kind": "phonetable",
       "name": "Telephone table",
       "x": -5.45,
@@ -429,7 +429,7 @@
       "rotation": 270
     },
     {
-      "id": "e1871dd8-b03f-4674-8831-2743ff6fb2af",
+      "id": "17e68a4b-2600-4dbf-bd18-6c3eb8c08cfa",
       "kind": "rug",
       "name": "Foyer rug",
       "x": -4.4,
@@ -442,7 +442,7 @@
       "fabric": "floral"
     },
     {
-      "id": "859f5094-7166-4696-b97d-aec16c1c8a0d",
+      "id": "6b3b7bc0-4988-48fa-8022-2aed26d5a412",
       "kind": "picture",
       "name": "Hall picture",
       "x": -5.38,
@@ -454,7 +454,7 @@
       "rotation": 270
     },
     {
-      "id": "bc93754d-f53d-4ab1-962e-513e2d48be7a",
+      "id": "c041c037-a487-4ae8-abf0-b9fdc2d3aab6",
       "kind": "roundTable",
       "name": "Dining table",
       "x": 2.2,
@@ -466,7 +466,7 @@
       "rotation": 0
     },
     {
-      "id": "f2624335-e665-4773-9be5-2c7e97c94b0a",
+      "id": "fb86e52e-4840-4beb-80d9-baa92b2cb07a",
       "kind": "rug",
       "name": "Green rug",
       "x": 1.6,
@@ -478,7 +478,7 @@
       "rotation": 0
     },
     {
-      "id": "5fbf2171-f2c3-4843-b701-55ed2ab55b33",
+      "id": "6f381315-6447-4840-ba8b-23c8d57eb4c5",
       "kind": "mirror",
       "name": "Dining mirror",
       "x": 3.6,
@@ -490,7 +490,7 @@
       "rotation": 0
     },
     {
-      "id": "ea6e3276-988a-4971-8915-d99c89f2e057",
+      "id": "b77c7370-33c1-4b51-8370-ba3846d5cfa0",
       "kind": "picture",
       "name": "Plates",
       "x": 5.36,
@@ -502,7 +502,7 @@
       "rotation": 90
     },
     {
-      "id": "24136d1a-f326-448d-90b9-7945478d6aa8",
+      "id": "e78e9b74-cd01-4550-969a-46fd9e289db3",
       "kind": "counterPlain",
       "name": "Counter",
       "x": 1.5,
@@ -514,7 +514,7 @@
       "rotation": 0
     },
     {
-      "id": "e1a87d08-729f-4a67-8071-24a9c07036f1",
+      "id": "e71e5b8e-7381-48ad-ba28-6b2a3614ffd3",
       "kind": "counterSink",
       "name": "Sink under the window",
       "x": 2.3,
@@ -526,7 +526,7 @@
       "rotation": 0
     },
     {
-      "id": "62163b84-9436-4c52-b023-85b1d5288011",
+      "id": "c5261635-8bcc-4d47-bb2a-f67252465007",
       "kind": "range",
       "name": "Stove",
       "x": 4.55,
@@ -538,7 +538,7 @@
       "rotation": 0
     },
     {
-      "id": "6b779d1e-7f08-43a1-b54d-453f23bd3df6",
+      "id": "6b776ac6-5287-4a1e-85ec-fb8e9694f619",
       "kind": "uppers",
       "name": "Wall cupboards",
       "x": 1.05,
@@ -550,7 +550,7 @@
       "rotation": 0
     },
     {
-      "id": "1156cfff-24da-4dfc-ac7e-46137aab47e8",
+      "id": "8d271d12-4473-466f-9700-ef893f8bd8fc",
       "kind": "fridge",
       "name": "Refrigerator",
       "x": 1.02,
@@ -562,7 +562,7 @@
       "rotation": 270
     },
     {
-      "id": "ad347127-745e-4d05-958c-4b1c917f2726",
+      "id": "bcf33d68-6561-46e8-9edd-706eaf1a8a0f",
       "kind": "hutch",
       "name": "Green hutch",
       "x": 1.02,
@@ -574,7 +574,7 @@
       "rotation": 270
     },
     {
-      "id": "a73f161b-5102-40e3-a360-fabd3a7c35fa",
+      "id": "15f41cca-f60b-4a41-bdae-2ed8c8deb7fe",
       "kind": "table",
       "name": "Kitchen table",
       "x": 2.55,
@@ -587,7 +587,7 @@
       "fabric": "check"
     },
     {
-      "id": "76d3ec47-e0f4-411c-8948-6a09a8581955",
+      "id": "5ec69bca-f2a4-48f0-bffa-ec82304dcd2e",
       "kind": "highchair",
       "name": "Kate's highchair",
       "x": 4.5,
@@ -599,7 +599,7 @@
       "rotation": 270
     },
     {
-      "id": "4a400878-0065-46ad-8ed3-8558145fbb92",
+      "id": "67f4b928-dad8-4a2b-adc9-3b642b036005",
       "kind": "curtains",
       "name": "Kitchen curtains",
       "x": 2.69,
@@ -611,7 +611,7 @@
       "rotation": 0
     },
     {
-      "id": "0045088e-6959-47b6-a133-aff72448143f",
+      "id": "2253b5ec-8051-4b5e-af68-f283599966d6",
       "kind": "room",
       "name": "D.W. and Kate's bedroom",
       "x": -5.5,
@@ -626,7 +626,7 @@
       "wainscot": "#a88fc4"
     },
     {
-      "id": "96c8dc4e-ce93-40cb-975b-80162ec98f1f",
+      "id": "89c48dcb-8a75-428e-a2d0-d1dca34b414d",
       "kind": "room",
       "name": "Upstairs hall",
       "x": -2.4,
@@ -639,7 +639,7 @@
       "wallColor": "#9fcfa8"
     },
     {
-      "id": "33eb6737-5da4-4f8a-93d0-ab478be177a7",
+      "id": "6edf8430-a5d0-43ab-8fcd-a22167ec2395",
       "kind": "room",
       "name": "Closet",
       "x": -2.4,
@@ -652,7 +652,7 @@
       "wallColor": "#e8e2d6"
     },
     {
-      "id": "3edf5e40-9c3e-495b-be04-39b30ba06413",
+      "id": "f8dfcc75-5555-4383-b471-b0f50a6f0e7f",
       "kind": "room",
       "name": "Closet",
       "x": -0.4,
@@ -665,7 +665,7 @@
       "wallColor": "#e8e2d6"
     },
     {
-      "id": "b41fa924-bd74-4cbe-bfa8-8bbc0ec4dea1",
+      "id": "71beb470-8772-4290-b9b6-9ea9b6a58798",
       "kind": "room",
       "name": "Arthur's bedroom",
       "x": 1.6,
@@ -678,7 +678,7 @@
       "wallColor": "#6fbf73"
     },
     {
-      "id": "2cf6d9fd-61c9-4877-9ea7-54be1454e563",
+      "id": "6bda64cb-65c8-41ff-9277-ae90e6a0098a",
       "kind": "room",
       "name": "Bathroom",
       "x": 1.6,
@@ -693,7 +693,7 @@
       "wainscot": "#f7f4ec"
     },
     {
-      "id": "8a8c2664-b743-4b48-8abd-f3c7165da55d",
+      "id": "0286e7f7-e7d7-4e3a-9a1f-d499a3daf9de",
       "kind": "room",
       "name": "Mom and Dad's bedroom",
       "x": 0.4,
@@ -706,9 +706,9 @@
       "wallColor": "#e9dcc0"
     },
     {
-      "id": "cf92f388-c4be-4c04-9d6d-997bafea85d0",
+      "id": "7d1d4550-1202-41f7-bab1-2f8a7bbaec06",
       "kind": "room",
-      "name": "Walk-in closet",
+      "name": "Eaves storage",
       "x": -0.6,
       "z": -12,
       "w": 1,
@@ -719,7 +719,7 @@
       "wallColor": "#e8e2d6"
     },
     {
-      "id": "d30713a3-00e8-473f-afed-3f0853e00052",
+      "id": "5f12b5e4-90b4-45ed-a671-c19f1c918b4d",
       "kind": "dormer",
       "name": "D.W.'s dormer",
       "x": -4.6,
@@ -731,7 +731,7 @@
       "rotation": 0
     },
     {
-      "id": "cdeaa69a-80bf-40e2-a284-77793169786d",
+      "id": "032e863a-c8ea-44a7-868a-2b53aea6a497",
       "kind": "dormer",
       "name": "Arthur's dormer",
       "x": 2.85,
@@ -743,7 +743,7 @@
       "rotation": 0
     },
     {
-      "id": "1bd84692-eef6-403a-b70a-60f157caf0b4",
+      "id": "2f66ddcb-ec53-454c-87c4-262414fe95d9",
       "kind": "dormer",
       "name": "D.W.'s back dormer",
       "x": -4.75,
@@ -755,7 +755,7 @@
       "rotation": 0
     },
     {
-      "id": "414a66c8-5a7c-44ec-bba3-81b7b2312604",
+      "id": "6d0d7e8b-ed9d-472c-af0f-b1b91bfad45b",
       "kind": "chimney",
       "name": "Chimney",
       "x": 0.55,
@@ -767,7 +767,7 @@
       "rotation": 0
     },
     {
-      "id": "80ee94d4-36c5-47d9-89d2-3e007707e405",
+      "id": "8b2278bd-af2f-4683-a099-a72355e604d5",
       "kind": "bed",
       "name": "Arthur's bed",
       "x": 4.2,
@@ -779,7 +779,7 @@
       "rotation": 0
     },
     {
-      "id": "48f9eb64-79d3-43a6-8f91-bdbdf31bf7fc",
+      "id": "53019457-6c37-4c30-8da7-2a1c7b9ee3a6",
       "kind": "desk",
       "name": "Homework desk",
       "x": 1.62,
@@ -791,7 +791,7 @@
       "rotation": 270
     },
     {
-      "id": "ce28ae4f-ad0c-42da-a708-ed2ab3fcf45e",
+      "id": "36b44e91-130a-4dd0-9e7c-b4783ab904df",
       "kind": "shelf",
       "name": "Bookshelf",
       "x": 1.62,
@@ -803,7 +803,7 @@
       "rotation": 270
     },
     {
-      "id": "ad3b57a7-1a29-4e48-84b1-ffbf73d6235b",
+      "id": "7b750099-7371-4924-a9b7-4450c764cf3b",
       "kind": "picture",
       "name": "Bionic Bunny poster",
       "x": 1.62,
@@ -816,7 +816,7 @@
       "posterText": "BIONIC BUNNY"
     },
     {
-      "id": "9fc0827b-6e55-4377-b8a8-825e57b8988b",
+      "id": "c216d20f-4c97-4e95-ab0e-9b48c30bb2bc",
       "kind": "rug",
       "name": "Orange rug",
       "x": 2.5,
@@ -828,7 +828,7 @@
       "rotation": 0
     },
     {
-      "id": "61755e11-3153-43b3-a7b0-211a5b6472ba",
+      "id": "2f1f661d-c1f1-4452-8adc-88796a819ef3",
       "kind": "radiator",
       "name": "Radiator",
       "x": 5.26,
@@ -840,7 +840,7 @@
       "rotation": 90
     },
     {
-      "id": "ce653482-405c-4de9-98b1-17a13c5f32f6",
+      "id": "9563187f-6997-456c-baec-8fc392ce9b1e",
       "kind": "toybox",
       "name": "Toy chest",
       "x": 2.9,
@@ -852,7 +852,7 @@
       "rotation": 0
     },
     {
-      "id": "8c7ce525-ad6b-4eb9-bc19-7170749f8c06",
+      "id": "119da704-90e9-4ea5-9770-5e336dc5f43d",
       "kind": "bed",
       "name": "D.W.'s bed",
       "x": -4.35,
@@ -864,7 +864,7 @@
       "rotation": 180
     },
     {
-      "id": "a296679e-ac72-4eab-9f1f-9d2d28d0270c",
+      "id": "560c40fe-028a-48bd-b57c-20a072b9849e",
       "kind": "crib",
       "name": "Kate's crib",
       "x": -5.45,
@@ -876,7 +876,7 @@
       "rotation": 270
     },
     {
-      "id": "40d3857d-8678-478c-abf6-1d1dd55f43e5",
+      "id": "9b100e4a-df4a-45fc-8dae-d1fa21a77b0f",
       "kind": "changing",
       "name": "Changing table",
       "x": -5.45,
@@ -888,7 +888,7 @@
       "rotation": 270
     },
     {
-      "id": "029ed06a-a348-4086-8e5b-ea9af88516f2",
+      "id": "e12a6bef-ed90-4213-a105-1b410bcb8ee5",
       "kind": "dollhouse",
       "name": "Dollhouse",
       "x": -2.87,
@@ -900,7 +900,7 @@
       "rotation": 90
     },
     {
-      "id": "11c02608-b2eb-4fa3-80e2-e01f1a5b5056",
+      "id": "3f09027d-0d34-4bd5-8f9b-8ac652c699fa",
       "kind": "dresser",
       "name": "Nightstand",
       "x": -3.3,
@@ -912,7 +912,7 @@
       "rotation": 0
     },
     {
-      "id": "f839a080-fbf6-4f2d-99e2-5e6c67c2509c",
+      "id": "a76b280f-3f1b-40db-a30a-fd1a6f28fae9",
       "kind": "toybox",
       "name": "Toy crate",
       "x": -4.1,
@@ -924,7 +924,7 @@
       "rotation": 0
     },
     {
-      "id": "077e486b-44aa-4601-905a-6501d843dafa",
+      "id": "59a6ab9d-6252-4058-9fab-5d33b41d4fba",
       "kind": "picture",
       "name": "Mary Moo Cow poster",
       "x": -2.52,
@@ -937,7 +937,7 @@
       "posterText": "MARY MOO COW"
     },
     {
-      "id": "2bbf623d-4b54-42fb-9837-6021b2f68ff2",
+      "id": "ecd84f9a-b22b-4201-8abb-76977effbd2e",
       "kind": "curtains",
       "name": "D.W.'s curtains",
       "x": -4.6,
@@ -949,7 +949,7 @@
       "rotation": 180
     },
     {
-      "id": "2c642010-8fe5-467a-a176-1b0ee578cfb0",
+      "id": "034bf967-a908-457e-a929-916f67322b6a",
       "kind": "rug",
       "name": "Play rug",
       "x": -4.7,
@@ -961,7 +961,7 @@
       "rotation": 0
     },
     {
-      "id": "aab87f9d-aeef-4c98-bcdb-1ee13e99ade4",
+      "id": "e9c56987-cf47-4863-8dd3-0a5e14530ba7",
       "kind": "bathtub",
       "name": "Bathtub",
       "x": 2.3,
@@ -973,7 +973,7 @@
       "rotation": 0
     },
     {
-      "id": "d7072eeb-031a-454c-9f65-919f2eb37394",
+      "id": "53f3d789-acf0-4542-8fb0-4f0f15a7721d",
       "kind": "toilet",
       "name": "Toilet",
       "x": 4.78,
@@ -985,7 +985,7 @@
       "rotation": 90
     },
     {
-      "id": "14f74e62-8241-4b5e-9848-35816c339cd8",
+      "id": "874089b1-0a5d-42bd-80f3-0ae6db9b4346",
       "kind": "vanity",
       "name": "Sink",
       "x": 4.35,
@@ -997,7 +997,7 @@
       "rotation": 180
     },
     {
-      "id": "a29b4681-8cb4-4e06-9d59-05a9ddd3e106",
+      "id": "9b4d361f-a2ce-4d8a-ac87-1fe65e537f8e",
       "kind": "mirror",
       "name": "Bathroom mirror",
       "x": 4.45,
@@ -1009,7 +1009,7 @@
       "rotation": 180
     },
     {
-      "id": "0e10479f-0caa-494b-82f1-8f33f29bc083",
+      "id": "acf47a53-4584-4776-a5d1-f51356c4758d",
       "kind": "bed",
       "name": "Big bed",
       "x": 2.1,
@@ -1021,7 +1021,7 @@
       "rotation": 0
     },
     {
-      "id": "da8d41bc-0142-480c-a45a-1bb1efab7fe8",
+      "id": "5b6837d0-e46e-46d0-8ee7-af830d023d10",
       "kind": "dresser",
       "name": "Nightstand",
       "x": 1.55,
@@ -1033,7 +1033,7 @@
       "rotation": 0
     },
     {
-      "id": "e803222a-bd7b-41cb-8e54-5d6a4c85abd6",
+      "id": "3f8153b4-c034-4325-8007-fae5f21806a6",
       "kind": "dresser",
       "name": "Nightstand",
       "x": 3.5,
@@ -1045,7 +1045,7 @@
       "rotation": 0
     },
     {
-      "id": "91ed4a48-f6f0-4c1d-ae6f-838feeb168db",
+      "id": "6062bf13-7532-499f-99b7-316673b5fe12",
       "kind": "dresser",
       "name": "Dresser",
       "x": 3.8,
@@ -1057,7 +1057,7 @@
       "rotation": 180
     },
     {
-      "id": "f8446f68-cbdc-47d3-add5-d7663d1e822f",
+      "id": "3c09772e-bd1a-4ffd-ba0d-ad622289a11b",
       "kind": "armchair",
       "name": "Reading chair",
       "x": 4.45,
@@ -1069,7 +1069,19 @@
       "rotation": 90
     },
     {
-      "id": "fe0df8e5-304e-463b-a4eb-e45175432354",
+      "id": "c396a2b4-6c36-4560-9c84-287260665895",
+      "kind": "wardrobe",
+      "name": "Wardrobe",
+      "x": 2.4,
+      "z": -8.18,
+      "w": 1.4,
+      "d": 0.6,
+      "color": "#8a6a4e",
+      "floor": 1,
+      "rotation": 180
+    },
+    {
+      "id": "9d63d41f-174d-4abd-bf45-04de16b23067",
       "kind": "room",
       "name": "Laundry room",
       "x": -0.6,
@@ -1083,7 +1095,7 @@
       "wallColor": "#e8e2d6"
     },
     {
-      "id": "338e6a6c-87e9-41cb-ab11-051821229913",
+      "id": "5f68c905-4d39-424d-802e-a997839a0f43",
       "kind": "laundry",
       "name": "Washer and dryer",
       "x": 1.2,
@@ -1095,7 +1107,7 @@
       "rotation": 0
     },
     {
-      "id": "4957e3b0-0979-48fc-99ef-8f481f02f5b6",
+      "id": "198d421b-ba98-4510-af38-cc2fb5e0a8e8",
       "kind": "utility",
       "name": "Laundry sink",
       "x": 2.8,
@@ -1107,7 +1119,7 @@
       "rotation": 0
     },
     {
-      "id": "2c5a1109-f337-43c3-9579-92057195fd2b",
+      "id": "a85693bf-6af5-4005-b76d-1965acf742a9",
       "kind": "shelf",
       "name": "Shelves",
       "x": 3.6,
@@ -1119,7 +1131,7 @@
       "rotation": 0
     },
     {
-      "id": "15caf192-08ed-4d1a-8a52-fab80557e746",
+      "id": "adb41188-2c79-4e14-89b9-f5d4ef9c76e8",
       "kind": "garage",
       "name": "Dad's catering garage",
       "x": 6.3,
@@ -1131,7 +1143,7 @@
       "rotation": 0
     },
     {
-      "id": "587ae132-c17e-4d0d-b85d-35e9b87d9ca6",
+      "id": "4e4ef77a-1c27-4948-a1fa-898f103145ce",
       "kind": "kitchen",
       "name": "Catering kitchen",
       "x": 6.4,
@@ -1143,7 +1155,7 @@
       "rotation": 0
     },
     {
-      "id": "50591276-de5b-4742-9202-37452dd98b6b",
+      "id": "67a03f4d-4710-42dd-be69-01749aae4f4c",
       "kind": "driveway",
       "name": "Driveway",
       "x": 6.4,
@@ -1155,7 +1167,7 @@
       "rotation": 0
     },
     {
-      "id": "ef42458a-6d08-4046-b8b4-db302cbcd60c",
+      "id": "0049100b-bb06-4d85-9311-82d1a02f84af",
       "kind": "driveway",
       "name": "Front walk",
       "x": -0.85,
@@ -1167,7 +1179,7 @@
       "rotation": 0
     },
     {
-      "id": "f167a86f-3cf7-4cc2-8e5c-f19d2b908697",
+      "id": "77a28a2e-ed76-4698-a065-c6734dd6dc1b",
       "kind": "landing",
       "name": "Front step",
       "x": -1.1,
@@ -1179,7 +1191,7 @@
       "rotation": 0
     },
     {
-      "id": "fea9a610-6b91-42a6-b3e2-8377824ed949",
+      "id": "f9544ad1-4807-46d9-b9ee-e5e118fc3ab8",
       "kind": "driveway",
       "name": "Sidewalk",
       "x": -13,
@@ -1191,7 +1203,7 @@
       "rotation": 0
     },
     {
-      "id": "cf87bb66-e218-4047-9d66-d96a703f26cc",
+      "id": "26465ff7-a533-4702-9250-f267f08a9ab7",
       "kind": "driveway",
       "name": "Main Street",
       "x": -13,
@@ -1203,7 +1215,7 @@
       "rotation": 0
     },
     {
-      "id": "4edaec56-cd6a-41d3-8f12-c0853ee9ae29",
+      "id": "11a54e40-aaff-4d6b-acce-567280273994",
       "kind": "grass",
       "name": "Front lawn",
       "x": -10,
@@ -1215,7 +1227,7 @@
       "rotation": 0
     },
     {
-      "id": "0a0ea84f-64a4-4ced-a950-2ebf73898d29",
+      "id": "187554c0-91e8-4988-920f-03f0aea51d22",
       "kind": "grass",
       "name": "Front lawn",
       "x": 0.35,
@@ -1227,7 +1239,7 @@
       "rotation": 0
     },
     {
-      "id": "31985bc4-df21-4bfc-b89e-44de62794b18",
+      "id": "dfa2453c-1bec-48c2-ba0f-3db7c3bfd901",
       "kind": "grass",
       "name": "Backyard",
       "x": -10,
@@ -1239,7 +1251,7 @@
       "rotation": 0
     },
     {
-      "id": "43876ca1-34cb-471f-b902-8a1417d8324f",
+      "id": "fdd8b69f-f019-43d8-8dd9-ebe4e6b19422",
       "kind": "grass",
       "name": "Side yard",
       "x": -10,
@@ -1251,7 +1263,7 @@
       "rotation": 0
     },
     {
-      "id": "f00e56bf-e118-4c59-8490-25bfece6cab5",
+      "id": "b2e9f7c8-1508-4863-bc2b-cd1591875949",
       "kind": "grass",
       "name": "Back lawn",
       "x": -5.5,
@@ -1263,7 +1275,7 @@
       "rotation": 0
     },
     {
-      "id": "ac805599-9f04-4126-b57d-9a6da872c1a9",
+      "id": "2f3e2b67-e820-4c24-8ed6-abeae07425a8",
       "kind": "grass",
       "name": "Strip by the drive",
       "x": 5.5,
@@ -1275,7 +1287,7 @@
       "rotation": 0
     },
     {
-      "id": "86d77335-9647-43c6-bf09-a5ce682f51f4",
+      "id": "8ae90d06-1c78-4cb8-bbfe-40cf70418c9a",
       "kind": "fence",
       "name": "Picket fence",
       "x": -10,
@@ -1288,7 +1300,7 @@
       "fenceStyle": "picket"
     },
     {
-      "id": "256021bd-1dff-4d0c-9f72-5fc8ba6440b2",
+      "id": "e0e9b476-6096-4267-820b-0d0e6a909038",
       "kind": "fence",
       "name": "Picket fence",
       "x": 0.55,
@@ -1301,7 +1313,7 @@
       "fenceStyle": "picket"
     },
     {
-      "id": "3d2a0f75-8c21-471d-b1b1-6588a88c720e",
+      "id": "6bd839d0-3a30-4db1-b8e5-f638b861fc73",
       "kind": "fence",
       "name": "Side fence",
       "x": -10.1,
@@ -1314,7 +1326,7 @@
       "fenceStyle": "picket"
     },
     {
-      "id": "abce15e2-b1bd-487a-b861-e4c84acb3da8",
+      "id": "09a4ac4c-57cb-4c84-a37c-b756607d12cf",
       "kind": "fence",
       "name": "Back fence",
       "x": -10,
@@ -1327,7 +1339,7 @@
       "fenceStyle": "picket"
     },
     {
-      "id": "26c0d5ee-48da-4b35-a8cb-69811fc4af10",
+      "id": "1602e6c4-8eb8-47e3-a25e-9607f94dcc51",
       "kind": "mailbox",
       "name": "Mailbox",
       "x": 5.9,
@@ -1339,7 +1351,7 @@
       "rotation": 0
     },
     {
-      "id": "ee357a49-892c-45ec-99ed-5fd539fea77c",
+      "id": "cfae0153-e54a-40c9-b6eb-c659a95b9ed1",
       "kind": "planter",
       "name": "Shrubs",
       "x": -5.2,
@@ -1351,7 +1363,7 @@
       "rotation": 0
     },
     {
-      "id": "1e89a24c-c23d-419c-9224-22386413f035",
+      "id": "cb2dc034-8abd-4e8e-b5ed-b2a146ecd9c8",
       "kind": "planter",
       "name": "Shrubs",
       "x": -4.1,
@@ -1363,7 +1375,7 @@
       "rotation": 0
     },
     {
-      "id": "693bfcaf-c657-4fa0-80fc-bb2a0a3d229c",
+      "id": "db6bf550-a58c-4e8b-807b-6140d37583f5",
       "kind": "planter",
       "name": "Shrubs",
       "x": -3,
@@ -1375,7 +1387,7 @@
       "rotation": 0
     },
     {
-      "id": "7f7acbc4-486f-460c-b8d4-f8546531e9e5",
+      "id": "08618ea8-d69f-4eb8-9008-d6dcb944b0ee",
       "kind": "planter",
       "name": "Shrubs",
       "x": -2.1,
@@ -1387,7 +1399,7 @@
       "rotation": 0
     },
     {
-      "id": "171232b6-f632-4635-a3d7-b219befaf408",
+      "id": "7fe14e3f-f83e-496c-ba5a-cb933074c38f",
       "kind": "planter",
       "name": "Shrubs",
       "x": 0.7,
@@ -1399,7 +1411,7 @@
       "rotation": 0
     },
     {
-      "id": "8f35f31f-a267-4c02-b0d2-324eecb42cc7",
+      "id": "91aae712-d8e0-4d3b-ba4e-2e570da48a9a",
       "kind": "planter",
       "name": "Shrubs",
       "x": 1.8,
@@ -1411,7 +1423,7 @@
       "rotation": 0
     },
     {
-      "id": "61b546c3-c815-4483-8fb7-809702c31332",
+      "id": "56ce16fc-05b8-46f7-961e-810c3012f794",
       "kind": "planter",
       "name": "Shrubs",
       "x": 2.9,
@@ -1423,7 +1435,7 @@
       "rotation": 0
     },
     {
-      "id": "36b40190-5c4b-437a-b1cf-f660b1bfd267",
+      "id": "9d101e02-aa39-4da6-8e00-700d9a881969",
       "kind": "planter",
       "name": "Shrubs",
       "x": 4,
@@ -1435,7 +1447,7 @@
       "rotation": 0
     },
     {
-      "id": "b59855b0-9123-4071-849f-dc036280f860",
+      "id": "07ac5206-1609-4004-805f-1c3eca340d73",
       "kind": "planter",
       "name": "Shrubs",
       "x": 4.45,
@@ -1447,7 +1459,7 @@
       "rotation": 0
     },
     {
-      "id": "4236e305-edca-4dc4-83a5-824e56cc5f66",
+      "id": "9a420200-e83b-47b4-a3d7-d7849a0f09a4",
       "kind": "tree",
       "name": "Big maple",
       "x": -8.8,
@@ -1459,7 +1471,7 @@
       "rotation": 0
     },
     {
-      "id": "6e3f73b5-7ee2-4cc4-b3c2-f92e341fc655",
+      "id": "4646dcd2-21fc-4058-a97e-19cde3e2a72b",
       "kind": "tree",
       "name": "Backyard tree",
       "x": 1.5,
@@ -1471,7 +1483,7 @@
       "rotation": 0
     },
     {
-      "id": "2a8dfbf7-ba74-426c-b4e7-b53ae9e5b56c",
+      "id": "385da59d-7e50-453b-bd7d-fe8daa7bd925",
       "kind": "tree",
       "name": "Pine",
       "x": -8.6,
@@ -1483,7 +1495,7 @@
       "rotation": 0
     },
     {
-      "id": "d2f3e896-a37b-4070-be96-6c70a89b16f3",
+      "id": "ce9a5623-8f4a-4cc9-b219-689a199ba346",
       "kind": "table",
       "name": "Picnic table",
       "x": 2.5,
@@ -1495,7 +1507,7 @@
       "rotation": 0
     },
     {
-      "id": "48ef2252-fe34-47a5-95aa-f7ac4cab9511",
+      "id": "322b9b99-201a-4b3f-904d-ac348a7129dc",
       "kind": "swing",
       "name": "Swing set",
       "x": -8.8,
@@ -1509,32 +1521,32 @@
   ],
   "openings": [
     {
-      "id": "a54b45ec-ae66-4a9f-aab5-a5fc28e24cdc",
-      "roomId": "b70e752f-5856-4ffe-8ae3-603c5420dad7",
+      "id": "b963f0b9-a704-4b8c-8f2e-b1a1db643d15",
+      "roomId": "dbef6890-9062-4508-a971-7c68a12c9236",
       "side": "south",
       "offset": 0.5,
       "width": 1,
       "kind": "door"
     },
     {
-      "id": "42e6acbf-4dbb-48a9-9506-6d1ee3a8dec1",
-      "roomId": "b70e752f-5856-4ffe-8ae3-603c5420dad7",
+      "id": "47433a5f-8154-4971-90fc-b7ff15922675",
+      "roomId": "dbef6890-9062-4508-a971-7c68a12c9236",
       "side": "north",
       "offset": 0.5,
       "width": 1.2,
       "kind": "arch"
     },
     {
-      "id": "1bbc3103-afe6-4aab-bda4-e4c58ade106e",
-      "roomId": "b70e752f-5856-4ffe-8ae3-603c5420dad7",
+      "id": "ecc5fb27-137e-47e7-b0be-ba1a8d3037e5",
+      "roomId": "dbef6890-9062-4508-a971-7c68a12c9236",
       "side": "east",
       "offset": 0.62,
       "width": 0.85,
       "kind": "door"
     },
     {
-      "id": "466ee498-dc2d-4541-83ec-47969d701f75",
-      "roomId": "e78b0567-a068-410d-ae83-4ba5fe77bc0a",
+      "id": "2051df9e-5674-4f67-a14d-844abc05810b",
+      "roomId": "8b5087b6-98da-4536-9312-a99c279c4f00",
       "side": "south",
       "offset": 0.28,
       "width": 1,
@@ -1542,8 +1554,8 @@
       "style": "grid"
     },
     {
-      "id": "7c79740e-2a02-4fe2-98c6-a2d409a56a50",
-      "roomId": "e78b0567-a068-410d-ae83-4ba5fe77bc0a",
+      "id": "27fbb4ec-fd2c-4d64-bfee-89e5fbf32a1e",
+      "roomId": "8b5087b6-98da-4536-9312-a99c279c4f00",
       "side": "south",
       "offset": 0.74,
       "width": 1,
@@ -1551,8 +1563,8 @@
       "style": "grid"
     },
     {
-      "id": "66d83c74-7ded-44a8-a963-1ee0bd57fd3d",
-      "roomId": "8790ef00-7656-4030-9b8a-2ee9cca0eb9a",
+      "id": "34cc3552-cf6a-458c-a79e-ecb7f57a9b14",
+      "roomId": "718e4f93-28eb-483a-9fef-ba8d8650ab4e",
       "side": "south",
       "offset": 0.25,
       "width": 1,
@@ -1560,8 +1572,8 @@
       "style": "grid"
     },
     {
-      "id": "a6b82576-15ce-4747-9ceb-5642faba6272",
-      "roomId": "8790ef00-7656-4030-9b8a-2ee9cca0eb9a",
+      "id": "0febbfb2-d3f6-497d-a5a4-f01a7c5b4f23",
+      "roomId": "718e4f93-28eb-483a-9fef-ba8d8650ab4e",
       "side": "south",
       "offset": 0.73,
       "width": 1,
@@ -1569,8 +1581,8 @@
       "style": "grid"
     },
     {
-      "id": "7f22923c-9d2f-4441-a8aa-dc2d1ba66756",
-      "roomId": "e78b0567-a068-410d-ae83-4ba5fe77bc0a",
+      "id": "5105688a-133e-44fe-8a65-b32f17e671ac",
+      "roomId": "8b5087b6-98da-4536-9312-a99c279c4f00",
       "side": "west",
       "offset": 0.72,
       "width": 1,
@@ -1578,8 +1590,8 @@
       "style": "grid"
     },
     {
-      "id": "a78f56ff-4a54-4be4-abd2-61512475ab79",
-      "roomId": "8790ef00-7656-4030-9b8a-2ee9cca0eb9a",
+      "id": "49937585-02a9-40b1-b8c5-b5d61d6b0d68",
+      "roomId": "718e4f93-28eb-483a-9fef-ba8d8650ab4e",
       "side": "east",
       "offset": 0.2,
       "width": 1,
@@ -1587,32 +1599,32 @@
       "style": "grid"
     },
     {
-      "id": "a02ad1ca-bbdd-40db-a539-2529977b6ec6",
-      "roomId": "e78b0567-a068-410d-ae83-4ba5fe77bc0a",
+      "id": "7efbdc3d-3764-4baa-b9c3-3bcd3f086eb9",
+      "roomId": "8b5087b6-98da-4536-9312-a99c279c4f00",
       "side": "north",
       "offset": 0.55,
       "width": 0.9,
       "kind": "door"
     },
     {
-      "id": "07b18578-fa5a-4e86-b68d-f611d58272ad",
-      "roomId": "8790ef00-7656-4030-9b8a-2ee9cca0eb9a",
+      "id": "aeebddeb-de9f-4c2a-85bc-285a0b017120",
+      "roomId": "718e4f93-28eb-483a-9fef-ba8d8650ab4e",
       "side": "north",
       "offset": 0.3,
       "width": 1.8,
       "kind": "arch"
     },
     {
-      "id": "ffc6a1d2-01a2-48dc-86ef-6e8bc20eb386",
-      "roomId": "656706df-5244-47df-bfcc-826019c2f52c",
+      "id": "2c974598-5424-46ce-babb-1dadf1a36a54",
+      "roomId": "9f307d75-e880-49fd-9e07-35c5a87b4988",
       "side": "north",
       "offset": 0.3,
       "width": 0.9,
       "kind": "door"
     },
     {
-      "id": "ec23191f-9c87-42cf-bbd5-eea0353624d8",
-      "roomId": "656706df-5244-47df-bfcc-826019c2f52c",
+      "id": "b3bcad9c-376a-48e0-ad48-af75ecf61e1c",
+      "roomId": "9f307d75-e880-49fd-9e07-35c5a87b4988",
       "side": "west",
       "offset": 0.45,
       "width": 1,
@@ -1620,16 +1632,16 @@
       "style": "grid"
     },
     {
-      "id": "9d4c319a-c22e-47f3-a0b9-cc28cf84b018",
-      "roomId": "d11387f5-321d-4aae-8f12-b8ca23190c0b",
+      "id": "0ae389e8-1fe2-40fe-bf05-8969f37cf6dc",
+      "roomId": "e59465d4-58dd-4242-a681-d20db782d20d",
       "side": "west",
       "offset": 0.83,
       "width": 1,
       "kind": "door"
     },
     {
-      "id": "04bcbae3-137e-47b9-b78f-8b035ab708d8",
-      "roomId": "d11387f5-321d-4aae-8f12-b8ca23190c0b",
+      "id": "972f7495-a62a-440d-8dbb-ff5f61bc58ed",
+      "roomId": "e59465d4-58dd-4242-a681-d20db782d20d",
       "side": "east",
       "offset": 0.5,
       "width": 1,
@@ -1637,24 +1649,24 @@
       "style": "grid"
     },
     {
-      "id": "f9bc276f-d2fe-4081-a8d9-30093ac41db2",
-      "roomId": "d11387f5-321d-4aae-8f12-b8ca23190c0b",
+      "id": "861221b1-0171-4078-b4ec-bf5c432f7e41",
+      "roomId": "e59465d4-58dd-4242-a681-d20db782d20d",
       "side": "north",
       "offset": 0.4,
       "width": 0.9,
       "kind": "door"
     },
     {
-      "id": "f3b4cc60-4a5c-4aef-b15d-acda4cd60e77",
-      "roomId": "a26cf0d8-2120-4bdf-999f-9993d49d3dd7",
+      "id": "29725b81-d028-4213-a866-7a00cbac7234",
+      "roomId": "7b266cf9-f766-4c73-a649-d6ea71cad14d",
       "side": "east",
       "offset": 0.8,
       "width": 0.9,
       "kind": "door"
     },
     {
-      "id": "e60b1505-b7b4-47c9-bab7-f1d439a72ae1",
-      "roomId": "a26cf0d8-2120-4bdf-999f-9993d49d3dd7",
+      "id": "1a2605ca-4168-473b-b7e8-9edf8fe3209f",
+      "roomId": "7b266cf9-f766-4c73-a649-d6ea71cad14d",
       "side": "east",
       "offset": 0.3,
       "width": 1,
@@ -1662,8 +1674,8 @@
       "style": "grid"
     },
     {
-      "id": "7ed77d0f-f4fd-43d9-9110-e471b3edf37e",
-      "roomId": "a26cf0d8-2120-4bdf-999f-9993d49d3dd7",
+      "id": "8f1c0489-60f2-4bb9-ab29-321b142f6d87",
+      "roomId": "7b266cf9-f766-4c73-a649-d6ea71cad14d",
       "side": "north",
       "offset": 0.58,
       "width": 1.2,
@@ -1671,72 +1683,64 @@
       "style": "grid"
     },
     {
-      "id": "74e888fe-78bc-405f-ab49-c69125ce02e5",
-      "roomId": "4288b880-4c78-4e2c-936b-bdb5b74b630d",
+      "id": "0ea6813c-427c-4bb8-bdf9-baceb5939c57",
+      "roomId": "79a1a6b1-c955-4b1c-b86d-e5f9c319c9c9",
       "side": "east",
       "offset": 0.89,
       "width": 0.8,
       "kind": "door"
     },
     {
-      "id": "8f601a8a-7128-4c90-b328-21b9b5a81a4a",
-      "roomId": "96c8dc4e-ce93-40cb-975b-80162ec98f1f",
+      "id": "505d6afd-ddff-4e23-9a84-50be9453b0b7",
+      "roomId": "89c48dcb-8a75-428e-a2d0-d1dca34b414d",
       "side": "west",
       "offset": 0.678,
       "width": 0.9,
       "kind": "door"
     },
     {
-      "id": "3fa4088e-a863-4cef-8449-4d733e3b59c9",
-      "roomId": "96c8dc4e-ce93-40cb-975b-80162ec98f1f",
+      "id": "cbd06d6e-1cde-476b-aa37-5adaccedd348",
+      "roomId": "89c48dcb-8a75-428e-a2d0-d1dca34b414d",
       "side": "east",
       "offset": 0.844,
       "width": 0.9,
       "kind": "door"
     },
     {
-      "id": "9190b4c2-4733-4b76-8db0-3dd0c26fe1b7",
-      "roomId": "96c8dc4e-ce93-40cb-975b-80162ec98f1f",
+      "id": "770d3d4d-ab03-4982-958d-dda89bd513f1",
+      "roomId": "89c48dcb-8a75-428e-a2d0-d1dca34b414d",
       "side": "east",
       "offset": 0.385,
       "width": 0.9,
       "kind": "door"
     },
     {
-      "id": "c9cebe5f-0274-449f-8b2e-fa07f6d0073e",
-      "roomId": "96c8dc4e-ce93-40cb-975b-80162ec98f1f",
+      "id": "13df1e2f-669f-45a7-b145-bb74ab13c1fa",
+      "roomId": "89c48dcb-8a75-428e-a2d0-d1dca34b414d",
       "side": "north",
       "offset": 0.85,
       "width": 0.8,
       "kind": "door"
     },
     {
-      "id": "503beb2f-2419-4c93-ad7d-85fef600867f",
-      "roomId": "33eb6737-5da4-4f8a-93d0-ab478be177a7",
+      "id": "34c99769-a8a6-4fb5-9530-9a0dfa96abdc",
+      "roomId": "6edf8430-a5d0-43ab-8fcd-a22167ec2395",
       "side": "north",
       "offset": 0.5,
       "width": 0.75,
       "kind": "door"
     },
     {
-      "id": "75fc6be5-9ed5-4179-86fd-44e1444069d0",
-      "roomId": "3edf5e40-9c3e-495b-be04-39b30ba06413",
+      "id": "91932408-07ac-4954-a581-4a8c5b257bac",
+      "roomId": "f8dfcc75-5555-4383-b471-b0f50a6f0e7f",
       "side": "north",
       "offset": 0.5,
       "width": 0.75,
       "kind": "door"
     },
     {
-      "id": "3100bd0f-6342-465b-b1b0-473e5040161c",
-      "roomId": "cf92f388-c4be-4c04-9d6d-997bafea85d0",
-      "side": "east",
-      "offset": 0.5,
-      "width": 0.8,
-      "kind": "door"
-    },
-    {
-      "id": "54485759-1fd9-4ded-9587-2cd43098ec24",
-      "roomId": "0045088e-6959-47b6-a133-aff72448143f",
+      "id": "e97e5fde-7e9e-4609-8591-fb4e323cdcab",
+      "roomId": "2253b5ec-8051-4b5e-af68-f283599966d6",
       "side": "west",
       "offset": 0.3,
       "width": 1,
@@ -1744,8 +1748,8 @@
       "style": "grid"
     },
     {
-      "id": "ae9bc40e-0f7f-4fe3-bce2-1aaf78cb6674",
-      "roomId": "0045088e-6959-47b6-a133-aff72448143f",
+      "id": "3ece23c5-9e96-443a-877f-cd351fed27d2",
+      "roomId": "2253b5ec-8051-4b5e-af68-f283599966d6",
       "side": "west",
       "offset": 0.72,
       "width": 1,
@@ -1753,8 +1757,8 @@
       "style": "grid"
     },
     {
-      "id": "4618e156-fb46-4261-b579-9bedb8bf4985",
-      "roomId": "b41fa924-bd74-4cbe-bfa8-8bbc0ec4dea1",
+      "id": "129725f9-12d0-4a63-8981-fa31f7088e5c",
+      "roomId": "71beb470-8772-4290-b9b6-9ea9b6a58798",
       "side": "east",
       "offset": 0.5,
       "width": 1,
@@ -1762,8 +1766,8 @@
       "style": "grid"
     },
     {
-      "id": "0ccc9e1e-ea2b-4f28-8874-90f9e5713316",
-      "roomId": "2cf6d9fd-61c9-4877-9ea7-54be1454e563",
+      "id": "83ac9156-3052-4ed0-862f-6e0267c4bdcf",
+      "roomId": "6bda64cb-65c8-41ff-9277-ae90e6a0098a",
       "side": "east",
       "offset": 0.55,
       "width": 0.8,
@@ -1771,8 +1775,8 @@
       "style": "grid"
     },
     {
-      "id": "d1e793df-e7b4-43ea-924c-a9b3773c0168",
-      "roomId": "8a8c2664-b743-4b48-8abd-f3c7165da55d",
+      "id": "d9446919-0b0b-474b-a9d8-4c7a7e4cc7a8",
+      "roomId": "0286e7f7-e7d7-4e3a-9a1f-d499a3daf9de",
       "side": "north",
       "offset": 0.216,
       "width": 0.9,
@@ -1780,8 +1784,8 @@
       "style": "grid"
     },
     {
-      "id": "947bbfda-44ee-469f-b45f-b9b8ed103572",
-      "roomId": "8a8c2664-b743-4b48-8abd-f3c7165da55d",
+      "id": "b44151b9-35bf-4cd4-823b-23031483a621",
+      "roomId": "0286e7f7-e7d7-4e3a-9a1f-d499a3daf9de",
       "side": "north",
       "offset": 0.696,
       "width": 0.8,
@@ -1789,21 +1793,29 @@
       "style": "grid"
     },
     {
-      "id": "76d02e5e-5947-4fbe-b648-b85de6a9aa6f",
-      "roomId": "15caf192-08ed-4d1a-8a52-fab80557e746",
+      "id": "ecc50a2a-7b77-423d-8d43-c1067ec1bd6b",
+      "roomId": "adb41188-2c79-4e14-89b9-f5d4ef9c76e8",
       "side": "south",
       "offset": 0.5,
       "width": 2.7,
       "kind": "garage"
     },
     {
-      "id": "b14009e5-ef63-43d0-8947-41ce4a2b442f",
-      "roomId": "15caf192-08ed-4d1a-8a52-fab80557e746",
+      "id": "7bcd8a06-1630-4b45-9fe3-e106ab7b3859",
+      "roomId": "adb41188-2c79-4e14-89b9-f5d4ef9c76e8",
       "side": "west",
-      "offset": 0.5,
+      "offset": 0.65,
       "width": 0.9,
       "kind": "window",
       "style": "grid"
+    },
+    {
+      "id": "ccd6d826-b364-4dff-b9f6-086c46bf7ce6",
+      "roomId": "adb41188-2c79-4e14-89b9-f5d4ef9c76e8",
+      "side": "west",
+      "offset": 0.25,
+      "width": 0.85,
+      "kind": "door"
     }
   ],
   "exterior": "#ecd06e",

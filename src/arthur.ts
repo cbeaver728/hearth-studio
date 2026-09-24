@@ -15,9 +15,13 @@ import {
   type Side,
 } from './model';
 
-export const ARTHUR_ID = 'arthur-read-house-v4';
+export const ARTHUR_ID = 'arthur-read-house-v5';
 /** Earlier builds of the house, kept under another name when a newer one arrives. */
-export const OLDER_ARTHUR_IDS = ['arthur-read-house-v2', 'arthur-read-house-v3'];
+export const OLDER_ARTHUR_IDS = [
+  'arthur-read-house-v2',
+  'arthur-read-house-v3',
+  'arthur-read-house-v4',
+];
 
 export function arthurProject(): Project {
   const p = blankProject();
@@ -238,7 +242,9 @@ export function arthurProject(): Project {
     wainscot: '#f7f4ec',
   });
   const parents = room("Mom and Dad's bedroom", 1, 0.4, -12, 5.5, -7.5, { wallColor: '#e9dcc0' });
-  const parentsCloset = room('Walk-in closet', 1, -0.6, -12, 0.4, -7.5, { wallColor: '#e8e2d6' });
+  // The strip under the west eave is too low to stand in: eaves storage behind the knee wall, not a
+  // walk-in closet. Mom and Dad keep their clothes in a wardrobe.
+  room('Eaves storage', 1, -0.6, -12, 0.4, -7.5, { wallColor: '#e8e2d6' });
 
   door(hall, 'west', 0.678);
   door(hall, 'east', 0.844);
@@ -246,7 +252,6 @@ export function arthurProject(): Project {
   door(hall, 'north', 0.85, 0.8);
   door(closetA, 'north', 0.5, 0.75);
   door(closetB, 'north', 0.5, 0.75);
-  door(parentsCloset, 'east', 0.5, 0.8);
   // Gable windows at the ends of the house, and at the back of Mom and Dad's room.
   win(dw, 'west', 0.3);
   win(dw, 'west', 0.72);
@@ -305,6 +310,7 @@ export function arthurProject(): Project {
   add('nightstand', 'Nightstand', 1, 3.5, -11.95, 0.45, 0.45, { color: '#8a6a4e' });
   add('dresser', 'Dresser', 1, 3.8, -7.95, 1.4, 0.5, { rotation: 180, color: '#8a6a4e' });
   add('armchair', 'Reading chair', 1, 4.45, -10.2, 0.9, 0.9, { rotation: 90, color: '#b88fc4' });
+  add('wardrobe', 'Wardrobe', 1, 2.4, -8.18, 1.4, 0.6, { rotation: 180, color: '#8a6a4e' });
 
   // ---- Basement ----------------------------------------------------------------------------
   const laundry = room('Laundry room', -1, -0.6, -12, 5.5, -7.5, {
@@ -321,7 +327,9 @@ export function arthurProject(): Project {
   // Dad's catering kitchen is in the garage at the end of the drive.
   const garage = add('garage', "Dad's catering garage", 0, 6.3, -19.5, 3.6, 6);
   open(garage, 'south', 0.5, 2.7, 'garage');
-  win(garage, 'west', 0.5, 0.9);
+  win(garage, 'west', 0.65, 0.9);
+  // A side door from the backyard, so you can walk in and see the catering kitchen.
+  door(garage, 'west', 0.25, 0.85);
   add('kitchen', 'Catering kitchen', 0, 6.4, -19.45, 3, 0.65, { color: '#e8e4da' });
   add('driveway', 'Driveway', 0, 6.4, -13.5, 3.2, 21.6, { color: '#b9b4a6' });
   add('driveway', 'Front walk', 0, -0.85, 0.7, 1.2, 7.4, { color: '#c9c1ae' });

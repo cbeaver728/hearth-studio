@@ -106,7 +106,7 @@ import {
 import Plan, { openingTool, type Tool } from './Plan';
 import Scene, { type SceneMode } from './Scene';
 import { ARTHUR_ID, OLDER_ARTHUR_IDS, arthurProject } from './arthur';
-const ARTHUR_FLAG = 'hearth-arthur-added-v4';
+const ARTHUR_FLAG = 'hearth-arthur-added-v5';
 import { addLevel, defaultFloorName, landingFor, nextLevel } from './floors';
 import { stairEnds, toWorld } from './stairs';
 import {

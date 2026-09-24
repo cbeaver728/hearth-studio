@@ -373,3 +373,70 @@ describe('a deck set down a little short of the house', () => {
       expect(r.feet).toBeCloseTo(FLOOR_H, 1);
     });
 });
+
+describe('walking every room of the built-in houses', () => {
+  /** Every spot a walker can get to from outside, stairs and all, on a 15 cm grid. */
+  function reachable(p: Project) {
+    const world = buildWalkWorld(p);
+    const xs = p.items.flatMap((i) => [i.x, i.x + i.w]),
+      zs = p.items.flatMap((i) => [i.z, i.z + i.d]);
+    const [x0, x1, z0, z1] = [
+      Math.min(...xs) - 2,
+      Math.max(...xs) + 2,
+      Math.min(...zs) - 2,
+      Math.max(...zs) + 2,
+    ];
+    const S = 0.15;
+    const seen = new Set<string>();
+    const out: [number, number, number][] = [];
+    const queue: [number, number, number][] = [];
+    const push = (x: number, z: number, f: number) => {
+      const k = `${Math.round(x / S)},${Math.round(z / S)},${Math.round(f * 10)}`;
+      if (seen.has(k)) return;
+      seen.add(k);
+      queue.push([x, z, f]);
+      out.push([x, z, f]);
+    };
+    push((x0 + x1) / 2, z1 - 0.5, 0);
+    for (let n = 0; n < queue.length; n++) {
+      const [x, z, f] = queue[n];
+      for (const [dx, dz] of [
+        [1, 0],
+        [-1, 0],
+        [0, 1],
+        [0, -1],
+      ]) {
+        const nx = x + dx * S,
+          nz = z + dz * S;
+        if (nx < x0 || nx > x1 || nz < z0 || nz > z1 || !world.free(nx, nz, f)) continue;
+        const g = world.support(nx, nz, f);
+        if (g < f - 0.5) continue;
+        push(nx, nz, Math.round(g * 10) / 10);
+      }
+    }
+    return out;
+  }
+  for (const [name, make] of [
+    ['the Sunday House', sampleProject],
+    ["Arthur's House", arthurProject],
+  ] as const)
+    it(`reaches every room of ${name} from the street`, () => {
+      const p = make();
+      const spots = reachable(p);
+      const missing = p.items
+        .filter((r) => (r.kind === 'room' || r.kind === 'garage') && !/eaves/i.test(r.name))
+        .filter(
+          (r) =>
+            !spots.some(
+              ([x, z, f]) =>
+                x > r.x &&
+                x < r.x + r.w &&
+                z > r.z &&
+                z < r.z + r.d &&
+                Math.abs(f - r.floor * FLOOR_H) < 0.3,
+            ),
+        )
+        .map((r) => r.name);
+      expect(missing).toEqual([]);
+    });
+});

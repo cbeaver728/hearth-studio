@@ -2050,10 +2050,15 @@ function frontDoor(p: Project) {
         z = h ? (o.side === 'north' ? r.z : r.z + r.d) : r.z + c;
       const n = { north: [0, -1], south: [0, 1], west: [-1, 0], east: [1, 0] }[o.side];
       if (inside(x + n[0] * 0.3, z + n[1] * 0.3)) return null;
+      // How far you could step back from it before meeting another part of the house.
+      let open = 0;
+      while (open < 4 && !inside(x + n[0] * (open + 0.5), z + n[1] * (open + 0.5))) open += 0.5;
       const score =
         (/entry|foyer|front|mud/i.test(r.name) ? 4 : 0) +
         (o.kind === 'door' || o.kind === 'double' ? 2 : 0) +
-        (o.side === 'south' ? 1 : 0);
+        (o.side === 'south' ? 1 : 0) +
+        // A door that opens into a tight gap between two wings is a side door.
+        (open >= 3 ? 1.5 : open < 1.5 ? -3 : 0);
       return { x, z, nx: n[0], nz: n[1], score };
     })
     .filter((d): d is NonNullable<typeof d> => !!d)
@@ -2543,6 +2548,81 @@ export default function Scene({
     tour.current = null;
     setTouring(false);
   };
+  /** The best place to stand in a room and the way to face, judged by what you'd see. */
+  const bestView = (r: Item, level: number, from: { x: number; z: number }) => {
+    const e = engine.current;
+    const world = e?.world;
+    if (!e?.content || !world) return null;
+    const feet = level * FLOOR_H;
+    const eye = feet + 1.45;
+    const ray = new T.Raycaster();
+    ray.far = 8;
+    const shown = (o: T.Object3D | null) => {
+      for (; o; o = o.parent) if (!o.visible) return false;
+      return true;
+    };
+    // Only what's near this room can block the view from it.
+    const near = new T.Box3(
+      new T.Vector3(r.x - 8, feet - 0.5, r.z - 8),
+      new T.Vector3(r.x + r.w + 8, feet + 3.5, r.z + r.d + 8),
+    );
+    const meshes: T.Object3D[] = [];
+    e.content.traverse((o) => {
+      if (!(o as T.Mesh).isMesh || !shown(o)) return;
+      const box = new T.Box3().setFromObject(o);
+      if (box.intersectsBox(near)) meshes.push(o);
+    });
+    const sight = (x: number, z: number, heading: number) => {
+      ray.set(new T.Vector3(x, eye, z), new T.Vector3(-Math.sin(heading), 0, -Math.cos(heading)));
+      const hit = ray.intersectObjects(meshes, false)[0];
+      return hit ? hit.distance : 8;
+    };
+    // Points across the room at tabletop height: the more of them you can see, the better the view.
+    const targets: [number, number][] = [];
+    const tStep = Math.max(0.5, Math.max(r.w, r.d) / 6);
+    for (let x = r.x + 0.3; x <= r.x + r.w - 0.3 + 1e-6; x += tStep)
+      for (let z = r.z + 0.3; z <= r.z + r.d - 0.3 + 1e-6; z += tStep) targets.push([x, z]);
+    const seen = (x: number, z: number, tx: number, tz: number) => {
+      const to = new T.Vector3(tx - x, feet + 0.8 - eye, tz - z);
+      const dist = to.length();
+      ray.set(new T.Vector3(x, eye, z), to.normalize());
+      const hit = ray.intersectObjects(meshes, false)[0];
+      // Seen if nothing is in the way, or what's in the way stands right there (it's what you see).
+      return !hit || hit.distance > dist - 0.6;
+    };
+    const FOV = 0.55; // half the width of the view, in radians
+    let best: { x: number; z: number; yaw: number; reach: number; score: number } | null = null;
+    const step = Math.max(0.4, Math.min(r.w, r.d) / 6);
+    for (let x = r.x + 0.45; x <= r.x + r.w - 0.45 + 1e-6; x += step)
+      for (let z = r.z + 0.45; z <= r.z + r.d - 0.45 + 1e-6; z += step) {
+        if (!world.free(x, z, feet) || Math.abs(world.support(x, z, feet + 0.1) - feet) > 0.05)
+          continue;
+        const visible = targets.filter(
+          ([tx, tz]) => Math.hypot(tx - x, tz - z) > 0.8 && seen(x, z, tx, tz),
+        );
+        for (let k = 0; k < 8; k++) {
+          const heading = (k * Math.PI) / 4;
+          // Nothing right in your face.
+          // Nothing right in your face (in a narrow room, only straight ahead has to be clear).
+          const clearAhead =
+            Math.min(r.w, r.d) < 2
+              ? sight(x, z, heading)
+              : Math.min(...[-0.35, 0, 0.35].map((d) => sight(x, z, heading + d)));
+          if (clearAhead < 1.1) continue;
+          const inView = visible.filter(([tx, tz]) => {
+            let d = Math.atan2(-(tx - x), -(tz - z)) - heading;
+            while (d > Math.PI) d -= Math.PI * 2;
+            while (d < -Math.PI) d += Math.PI * 2;
+            return Math.abs(d) < FOV;
+          }).length;
+          const score =
+            inView / Math.max(1, targets.length) - Math.hypot(x - from.x, z - from.z) * 0.01;
+          if (!best || score > best.score)
+            best = { x, z, yaw: heading, reach: sight(x, z, heading), score };
+        }
+      }
+    return best;
+  };
   const startTour = () => {
     const world = engine.current?.world;
     if (!world) return;
@@ -2554,7 +2634,14 @@ export default function Scene({
     let from = { x: w.x, z: w.z };
     for (const level of order) {
       const left = p.items.filter(
-        (i) => i.kind === 'room' && i.floor === level && Math.min(i.w, i.d) >= 2.2,
+        // Every room worth stepping into: a narrow galley kitchen counts, a closet or a strip of
+        // eaves doesn't. The garage is on the tour too.
+        (i) =>
+          isRoom(i) &&
+          i.floor === level &&
+          Math.min(i.w, i.d) >= 1.2 &&
+          i.w * i.d >= 4 &&
+          !/closet|eaves|storage|pantry/i.test(i.name),
       );
       // Visit the nearest unvisited room next, so the tour flows through the house.
       while (left.length) {
@@ -2567,32 +2654,22 @@ export default function Scene({
         const cx = r.x + r.w / 2,
           cz = r.z + r.d / 2,
           feet = level * FLOOR_H;
-        // Stand in the corner nearest where we came from and look across the room.
-        const corners = [
-          [r.x + 0.55, r.z + 0.55],
-          [r.x + r.w - 0.55, r.z + 0.55],
-          [r.x + 0.55, r.z + r.d - 0.55],
-          [r.x + r.w - 0.55, r.z + r.d - 0.55],
-        ].sort(
-          (a, b) =>
-            Math.hypot(a[0] - from.x, a[1] - from.z) - Math.hypot(b[0] - from.x, b[1] - from.z),
-        );
-        const spot = corners.find(
-          ([x, z]) =>
-            world.free(x, z, feet) && Math.abs(world.support(x, z, feet + 0.1) - feet) < 0.05,
-        ) || [cx, cz];
-        const dx = cx - spot[0],
-          dz = cz - spot[1],
-          len = Math.hypot(dx, dz) || 1;
-        const drift = Math.min(0.6, len * 0.25);
-        const end = [spot[0] + (dx / len) * drift, spot[1] + (dz / len) * drift];
+        // Stand where the room shows best: try spots across the floor, look out in eight
+        // directions along real sight lines, and take the longest clear view with nothing right
+        // in your face. Nearer where we came in wins a close call, so the tour flows.
+        const view = bestView(r, level, from);
+        const spot = view ? [view.x, view.z] : [cx, cz];
+        // Failing a clear view, look along the room's length.
+        const yaw = view ? view.yaw : r.w >= r.d ? Math.PI / 2 : 0;
+        const ahead = view ? Math.min(0.6, view.reach * 0.2) : 0;
+        const end = [spot[0] - Math.sin(yaw) * ahead, spot[1] - Math.cos(yaw) * ahead];
         const ok = world.free(end[0], end[1], feet);
         stops.push({
           x: spot[0],
           z: spot[1],
           dx: ok ? end[0] - spot[0] : 0,
           dz: ok ? end[1] - spot[1] : 0,
-          yaw: Math.atan2(-dx, -dz),
+          yaw,
           level,
         });
         from = { x: cx, z: cz };
@@ -2627,7 +2704,15 @@ export default function Scene({
     } else if (level === 0) {
       const d = frontDoor(p);
       if (d) {
-        const back = p.walkStart === 'street' ? streetDistance(p, d) : 3.6;
+        // Step back from the door to take in the house, but not past anything behind you (a
+        // garage wall, a fence), nor out of its way into a gap barely wide enough to stand in.
+        const want = p.walkStart === 'street' ? streetDistance(p, d) : 3.6;
+        let back = 0.9;
+        for (let t = 0.9; t <= want + 1e-6; t += 0.1) {
+          if (!world.free(d.x + d.nx * t, d.z + d.nz * t, 0)) break;
+          back = t;
+        }
+        if (back > 1.3) back -= 0.3;
         x = d.x + d.nx * back;
         z = d.z + d.nz * back;
         yaw = face(-d.nx, -d.nz);

@@ -1421,7 +1421,7 @@ export function sampleProject(): Project {
   add('rug', 'Wool rug', -4.6, -2.9, 3.2, 2.6);
   add('sofa', 'Linen sofa', -4.4, -1.2, 2.8, 1, undefined, 180);
   add('coffee', 'Coffee table', -3.8, -2.45, 1.6, 0.7);
-  add('fireplace', 'Fireplace', -3.8, -3.95, 1.6, 0.55);
+  add('fireplace', 'Fireplace', -3.9, -3.95, 1.6, 0.55);
   add('armchair', 'Reading chair', -1.2, -2.6, 0.9, 0.9, undefined, 90);
   add('kitchen', 'Kitchen counter', 0.1, -3.92, 2.9, 0.65);
   add('fridge', 'Refrigerator', 3.05, -3.9, 0.85, 0.75);
@@ -1491,7 +1491,8 @@ export function sampleProject(): Project {
   opening(kids, 'east', 0.5, 0.9, 'door');
   opening(upBath, 'north', 0.5, 0.8, 'window');
   opening(upBath, 'south', 0.5, 0.8, 'door');
-  opening(living, 'north', 0.45, 2.6, 'slider');
+  // Out to the terrace at the east end of the wall, clear of the fireplace.
+  opening(living, 'north', 0.81, 1.9, 'slider');
   opening(living, 'west', 0.55, 2, 'window');
   opening(living, 'east', 0.5, 2.2, 'arch');
   opening(living, 'south', 0.7, 1, 'door');

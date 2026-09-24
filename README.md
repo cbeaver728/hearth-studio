@@ -57,7 +57,7 @@ Choose **Walk through**. You start outside the front door, full screen. Or doubl
 - Walk onto the stairs to climb to the next floor. Walls, rails, and furniture block you; doorways don't. Brush a door frame, a newel post or the end of a rail and you slide past it instead of stopping dead. A basement stair can sit right under the main stair, and stairs beside each other don't get in each other's way.
 - Balconies and decks upstairs keep their rails, with a gap where outside stairs come up onto them.
 - The mini-map shows where you are on the current floor. Click it to jump somewhere. The floor buttons at the top take you straight to another level.
-- **Tour** glides through each room in turn, hands-free, with the room's name on screen. Touch any control to take over.
+- **Tour** glides through each room in turn, hands-free, with the room's name on screen — the garage and a narrow galley kitchen too. In each room it stands where the most of the room is in view, rather than nose to a fridge. Touch any control to take over.
 - The camera button saves a picture of the view. **Esc** returns to editing.
 
 ## Saving your work
