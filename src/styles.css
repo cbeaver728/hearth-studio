@@ -2079,3 +2079,73 @@ kbd {
   border-bottom-color: var(--green);
   border-right-color: var(--green);
 }
+
+.window-styles {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 5px;
+}
+.window-styles button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 6px 2px 5px;
+  border: 1px solid #e2e5da;
+  border-radius: 8px;
+  background: var(--card);
+  color: #52675f;
+  font-size: 10.5px;
+}
+.window-styles button span {
+  color: #4a5944;
+}
+.window-styles button:hover {
+  border-color: #aebca8;
+  background: #f5f8f0;
+}
+.window-styles button.active {
+  border-color: var(--green);
+  box-shadow: inset 0 0 0 1px var(--green);
+  background: var(--green-soft);
+}
+.window-styles.compact button {
+  padding: 3px 0;
+}
+.window-options {
+  display: grid;
+  gap: 6px;
+  margin: 4px 0;
+}
+.swatch-label {
+  font-size: 11.5px;
+  color: var(--muted);
+  margin-right: 2px;
+}
+.dress-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px 8px;
+}
+/* Window options sit in an opening row, whose plain divs are flex rows; undo that here. */
+.opening-row > div.window-options {
+  display: grid;
+  align-items: stretch;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.opening-row > div.window-options button {
+  margin-left: 0;
+  padding: 3px 0;
+}
+.opening-row > div.window-options .swatches button {
+  padding: 0;
+  border-radius: 50%;
+}
+.opening-row > div.window-options .swatches button.text-swatch {
+  padding: 0 9px;
+  border-radius: 12px;
+}
+.opening-row .window-options .checkbox-label {
+  font-size: 11.5px;
+}

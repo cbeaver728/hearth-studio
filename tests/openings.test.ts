@@ -11,6 +11,8 @@ import {
   TALL_H,
   validateProject,
   WALL_H,
+  windowDresses,
+  windowStyles,
   type OpeningKind,
 } from '../src/model';
 import { buildWalkWorld, floorRects, landingRails, wallBoxes } from '../src/walk';
@@ -144,5 +146,36 @@ describe('ceilings', () => {
     const { p } = twoFloors('open', false);
     const back = validateProject(JSON.parse(JSON.stringify(p)));
     expect(back.items.find((i) => i.name === 'Entry')!.ceiling).toBe('open');
+  });
+});
+
+describe('window styles', () => {
+  it('saves style, curtains and outside trim, and carries them onto the wall', () => {
+    const p = pair('window', 1.2);
+    p.openings[0] = {
+      ...p.openings[0],
+      style: 'round',
+      curtains: '#f4d33d',
+      outside: ['flowerbox', 'crown'],
+    };
+    const back = validateProject(JSON.parse(JSON.stringify(p)));
+    expect(back.openings[0]).toMatchObject({
+      style: 'round',
+      curtains: '#f4d33d',
+      outside: ['flowerbox', 'crown'],
+    });
+    const wall = buildWalls(back).find((w) => w.openings.some((o) => o.kind === 'window'))!;
+    expect(wall.openings.find((o) => o.kind === 'window')).toMatchObject({ style: 'round' });
+  });
+  it('refuses styles and trim it does not know', () => {
+    for (const bad of [{ style: 'oval' }, { curtains: 'yellow' }, { outside: ['gargoyle'] }]) {
+      const p = pair('window');
+      Object.assign(p.openings[0], bad);
+      expect(() => validateProject(JSON.parse(JSON.stringify(p)))).toThrow();
+    }
+  });
+  it('lists every style and dressing once', () => {
+    expect(windowStyles.map((w) => w.id)).toEqual(['classic', 'plain', 'grid', 'arched', 'round']);
+    expect(new Set(windowDresses.map((d) => d.id)).size).toBe(4);
   });
 });

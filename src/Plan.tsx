@@ -29,6 +29,7 @@ import {
   type Opening,
   type Project,
   type Side,
+  type WindowStyle,
 } from './model';
 import { layoutFor, localSize, toWorld } from './stairs';
 import { stairGuards } from './walk';
@@ -53,6 +54,8 @@ interface Props {
   onDelete: () => void;
   /** Which way newly laid stairs lead from this floor. */
   stairDir: 'up' | 'down';
+  /** How newly placed windows are glazed. */
+  windowStyle?: WindowStyle;
 }
 type Corner = 'nw' | 'ne' | 'sw' | 'se';
 interface Gesture {
@@ -84,6 +87,7 @@ export default function Plan({
   onDuplicate,
   onDelete,
   stairDir,
+  windowStyle,
 }: Props) {
   const svg = useRef<SVGSVGElement>(null);
   const wrap = useRef<HTMLDivElement>(null);
@@ -266,8 +270,14 @@ export default function Plan({
             roomId: curved.c.id,
             side: 'north',
             offset: Math.round(Math.max(0.08, Math.min(0.92, curved.t)) * 100) / 100,
-            width: openingKinds.find((o) => o.kind === kind)!.width,
+            width:
+              kind === 'window' && windowStyle === 'round'
+                ? 1
+                : openingKinds.find((o) => o.kind === kind)!.width,
             kind,
+            ...(kind === 'window' && windowStyle && windowStyle !== 'classic'
+              ? { style: windowStyle }
+              : {}),
           },
         ],
       });
@@ -294,8 +304,14 @@ export default function Plan({
             roomId: best.r.id,
             side: best.side,
             offset: Math.round(Math.max(0.1, Math.min(0.9, best.offset)) * 100) / 100,
-            width: openingKinds.find((o) => o.kind === kind)!.width,
+            width:
+              kind === 'window' && windowStyle === 'round'
+                ? 1
+                : openingKinds.find((o) => o.kind === kind)!.width,
             kind,
+            ...(kind === 'window' && windowStyle && windowStyle !== 'classic'
+              ? { style: windowStyle }
+              : {}),
           },
         ],
       });

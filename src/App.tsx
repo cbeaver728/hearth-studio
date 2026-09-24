@@ -98,8 +98,8 @@ import {
 } from 'lucide-react';
 import Plan, { type Tool } from './Plan';
 import Scene, { type SceneMode } from './Scene';
-import { ARTHUR_ID, arthurProject } from './arthur';
-const ARTHUR_FLAG = 'hearth-arthur-added-v2';
+import { ARTHUR_ID, OLDER_ARTHUR_IDS, arthurProject } from './arthur';
+const ARTHUR_FLAG = 'hearth-arthur-added-v3';
 import { addLevel, defaultFloorName, landingFor, nextLevel } from './floors';
 import { stairEnds } from './stairs';
 import {
@@ -129,6 +129,9 @@ import {
   flipItem,
   sidings,
   roofFinishes,
+  windowStyles,
+  windowDresses,
+  type WindowStyle,
   CORNERS,
   type Fabric,
   type Siding,
@@ -142,6 +145,7 @@ import {
   type Item,
   type Ceiling,
   type Kind,
+  type Opening,
   type OpeningKind,
   type Project,
   type StairStyle,
@@ -317,6 +321,96 @@ function roofSwatch(id: string, color: string): CSSProperties {
     };
   return { background: color };
 }
+/** A little picture of each window style. */
+function WindowIcon({ style }: { style: WindowStyle }) {
+  const s = { fill: 'none', stroke: 'currentColor', strokeWidth: 1.4 };
+  return (
+    <svg width="26" height="26" viewBox="0 0 26 26" aria-hidden="true">
+      {style === 'round' ? (
+        <>
+          <circle cx="13" cy="13" r="9" {...s} />
+          <path d="M13 4v18M4 13h18" {...s} strokeWidth={0.9} />
+        </>
+      ) : style === 'arched' ? (
+        <>
+          <path d="M5 23V11a8 8 0 0 1 16 0v12z" {...s} />
+          <path d="M13 3v20M5 11h16" {...s} strokeWidth={0.9} />
+        </>
+      ) : (
+        <>
+          <rect x="5" y="3" width="16" height="20" {...s} />
+          {style !== 'plain' && <path d="M13 3v20M5 13h16" {...s} strokeWidth={0.9} />}
+          {style === 'grid' && <path d="M9 3v20M17 3v20M5 8h16M5 18h16" {...s} strokeWidth={0.6} />}
+        </>
+      )}
+    </svg>
+  );
+}
+/** Style, curtains and outside trim for one window. */
+function WindowOptions({
+  o,
+  shuttersByDefault,
+  onChange,
+}: {
+  o: Opening;
+  shuttersByDefault: boolean;
+  onChange: (patch: Partial<Opening>) => void;
+}) {
+  const dress = o.outside ?? (shuttersByDefault ? ['shutters'] : []);
+  return (
+    <div className="window-options">
+      <div className="window-styles compact" role="group" aria-label="Window style">
+        {windowStyles.map((w) => (
+          <button
+            key={w.id}
+            className={(o.style || 'classic') === w.id ? 'active' : ''}
+            aria-pressed={(o.style || 'classic') === w.id}
+            title={w.name + ' — ' + w.hint}
+            aria-label={w.name + ' window'}
+            onClick={() => onChange({ style: w.id === 'classic' ? undefined : w.id })}
+          >
+            <WindowIcon style={w.id} />
+          </button>
+        ))}
+      </div>
+      <div className="swatches tight" role="group" aria-label="Curtains">
+        <span className="swatch-label">Curtains</span>
+        <button
+          className={!o.curtains ? 'selected text-swatch' : 'text-swatch'}
+          onClick={() => onChange({ curtains: undefined })}
+        >
+          None
+        </button>
+        {['#f4d33d', '#8fd07a', '#f0a3b8', '#6aaee0', '#f7f4ec', '#b8453c'].map((c) => (
+          <button
+            key={c}
+            aria-label={`Curtains ${c}`}
+            style={{ background: c }}
+            className={o.curtains === c ? 'selected' : ''}
+            onClick={() => onChange({ curtains: c })}
+          />
+        ))}
+      </div>
+      <div className="dress-row" role="group" aria-label="Outside">
+        {windowDresses.map((d) => {
+          const on = dress.includes(d.id);
+          return (
+            <label key={d.id} className="checkbox-label tight">
+              <input
+                type="checkbox"
+                checked={on}
+                onChange={() =>
+                  onChange({ outside: on ? dress.filter((x) => x !== d.id) : [...dress, d.id] })
+                }
+              />
+              {d.name}
+            </label>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 function initial() {
   try {
     const raw = localStorage.getItem(STORAGE);
@@ -329,8 +423,14 @@ function initial() {
         if (!localStorage.getItem(ARTHUR_FLAG)) {
           localStorage.setItem(ARTHUR_FLAG, '1');
           if (!list.some((p) => p.id === ARTHUR_ID)) {
+            // An earlier build stays, renamed, in case it was changed; the new one opens.
+            const kept = list.map((p) =>
+              OLDER_ARTHUR_IDS.includes(p.id) && !p.name.includes('earlier')
+                ? { ...p, name: `${p.name} (earlier version)` }
+                : p,
+            );
             const arthur = arthurProject();
-            return { list: [arthur, ...list], project: arthur, error: false, fresh: false };
+            return { list: [arthur, ...kept], project: arthur, error: false, fresh: false };
           }
         }
         return {
@@ -653,6 +753,7 @@ export default function App() {
   const [tool, setTool] = useState<Tool>('select');
   const [tab, setTab] = useState<'Build' | 'Furnish' | 'Landscape'>('Build');
   const [search, setSearch] = useState('');
+  const [windowStyle, setWindowStyle] = useState<WindowStyle>('classic');
   const [mode, setMode] = useState<'split' | 'plan' | '3d'>('split');
   const [sceneMode, setSceneMode] = useState<SceneMode>('dollhouse');
   const [snapping, setSnapping] = useState(true);
@@ -1725,6 +1826,20 @@ export default function App() {
                       }
                     />
                   </label>
+                  {o.kind === 'window' && (
+                    <WindowOptions
+                      o={o}
+                      shuttersByDefault={!!project.shutterColor}
+                      onChange={(patch) =>
+                        commit({
+                          ...project,
+                          openings: project.openings.map((a) =>
+                            a.id === o.id ? { ...a, ...patch } : a,
+                          ),
+                        })
+                      }
+                    />
+                  )}
                   {o.kind !== 'open' && (
                     <Numeric
                       label={`Opening width (${u})`}
@@ -2301,6 +2416,30 @@ export default function App() {
                   </div>
                 </div>
                 <div className="catalog-block">
+                  <div className="section-heading">WINDOW STYLE</div>
+                  <div className="window-styles" role="group" aria-label="New window style">
+                    {windowStyles.map((w) => (
+                      <button
+                        key={w.id}
+                        className={windowStyle === w.id ? 'active' : ''}
+                        aria-pressed={windowStyle === w.id}
+                        title={w.hint}
+                        onClick={() => {
+                          setWindowStyle(w.id);
+                          selectTool('window');
+                        }}
+                      >
+                        <WindowIcon style={w.id} />
+                        <span>{w.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                  <p className="hint-text">
+                    Pick a style, then click a wall. Change any window's style, curtains and outside
+                    trim later from its room on the right.
+                  </p>
+                </div>
+                <div className="catalog-block">
                   <div className="section-heading">STAIRS</div>
                   <div
                     className="segmented wide stair-dir"
@@ -2500,6 +2639,7 @@ export default function App() {
                 onDuplicate={duplicate}
                 onDelete={remove}
                 stairDir={stairDir}
+                windowStyle={windowStyle}
               />
             )}
             {mode !== 'plan' && (

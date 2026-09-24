@@ -844,6 +844,276 @@ function buildContent(p: Project, mode: SceneMode, floor: number, evening: boole
       }
       return low;
     };
+    /** A box set off from the wall line by `off` across it, spanning u0..u1 along it. */
+    const across = (
+      u0: number,
+      u1: number,
+      h0: number,
+      h1: number,
+      off: number,
+      t: number,
+      material: string | T.Material,
+    ) =>
+      wall.axis === 'x'
+        ? box((u0 + u1) / 2, y + (h0 + h1) / 2, wall.line + off, u1 - u0, h1 - h0, t, material)
+        : box(wall.line + off, y + (h0 + h1) / 2, (u0 + u1) / 2, t, h1 - h0, u1 - u0, material);
+    /** A flat outline in (along, height), with holes, through the wall or set off from it. */
+    const flat = (
+      outline: [number, number][],
+      holes: [number, number][][],
+      from: number,
+      to: number,
+      material: T.Material,
+    ) => {
+      const lift = (pts: [number, number][]) => pts.map(([u, h]) => [u, y + h] as [number, number]);
+      add(
+        uprightPanel(
+          lift(outline),
+          holes.map(lift),
+          wall.axis,
+          wall.line,
+          from,
+          to,
+          material,
+          SIDING_TILE,
+        ),
+      );
+    };
+    const ring = (cx: number, cy: number, r: number, from = 0, to = Math.PI * 2, n = 28, ry = r) =>
+      Array.from({ length: n + 1 }, (_, k) => {
+        const t = from + ((to - from) * k) / n;
+        return [cx + Math.cos(t) * r, cy + Math.sin(t) * ry] as [number, number];
+      });
+    const drawWindow = (
+      open: (typeof wall.openings)[number],
+      a: number,
+      b: number,
+      bottom: number,
+      top: number,
+    ) => {
+      const style = open.style || 'classic';
+      const glass = mat(evening ? '#f3d19a' : '#a9d0d6', {
+        opacity: evening ? 0.8 : 0.3,
+        rough: 0.1,
+        metal: 0.1,
+        emissive: evening ? '#be874a' : undefined,
+      });
+      const frameColor = p.windowFrames === 'white' ? '#f7f4ec' : '#52675f';
+      const frame = mat(frameColor);
+      const mid = (a + b) / 2,
+        w = b - a;
+      // Round and arched windows cut their shape out of the wall above the sill.
+      const r = Math.min(w / 2, (top - bottom) / 2);
+      const cy = (bottom + top) / 2;
+      // Arches are half-round, or flatter when the window is wide.
+      const rise = Math.min(w / 2, top - bottom - 0.35);
+      const spring = top - rise;
+      let shape: [number, number][];
+      if (style === 'round') {
+        shape = ring(mid, cy, r).reverse();
+        flat(
+          [
+            [a, bottom],
+            [b, bottom],
+            [b, top],
+            [a, top],
+          ],
+          [shape],
+          -thick / 2,
+          0,
+          neg,
+        );
+        flat(
+          [
+            [a, bottom],
+            [b, bottom],
+            [b, top],
+            [a, top],
+          ],
+          [shape],
+          0,
+          thick / 2,
+          pos,
+        );
+      } else if (style === 'arched') {
+        const arc = ring(mid, spring, w / 2, 0, Math.PI, 24, rise);
+        shape = [[a, bottom], [b, bottom], ...arc, [a, bottom]];
+        shape.pop();
+        // The corners above the arch are wall.
+        const spandrel: [number, number][] = [
+          [b, spring],
+          [b, top],
+          [a, top],
+          ...arc.slice().reverse(),
+        ];
+        spandrel.pop();
+        if (top > spring) {
+          const cut = spandrel.map(([u, h]) => [u, Math.min(h, top)] as [number, number]);
+          flat(cut, [], -thick / 2, 0, neg);
+          flat(cut, [], 0, thick / 2, pos);
+        }
+      } else
+        shape = [
+          [a, bottom],
+          [b, bottom],
+          [b, top],
+          [a, top],
+        ];
+      // Glass.
+      flat(shape, [], -0.015, 0.015, glass);
+      // Frames and bars.
+      const bar = (u0: number, u1: number, h0: number, h1: number, t = 0.06) =>
+        across(u0, u1, h0, h1, 0, t, frameColor);
+      if (style === 'round') {
+        const outer = ring(mid, cy, r);
+        const inner = ring(mid, cy, r - 0.06).reverse();
+        flat(outer, [inner], -0.035, 0.035, frame);
+        if (r > 0.3) {
+          bar(mid - 0.02, mid + 0.02, cy - r, cy + r, 0.05);
+          bar(mid - r, mid + r, cy - 0.02, cy + 0.02, 0.05);
+        }
+      } else if (style === 'arched') {
+        const outer = ring(mid, spring, w / 2, 0, Math.PI, 24, rise);
+        const inner = ring(mid, spring, w / 2 - 0.06, 0, Math.PI, 24, rise - 0.06).reverse();
+        flat([...outer, ...inner], [], -0.035, 0.035, frame);
+        for (const u of [a, b]) bar(u - 0.03, u + 0.03, bottom, spring);
+        bar(a, b, spring - 0.03, spring + 0.03, 0.07);
+        bar(mid - 0.025, mid + 0.025, bottom, top);
+        // A fan of bars in the half-round.
+        for (const t of [Math.PI / 4, (Math.PI * 3) / 4]) {
+          const len = Math.hypot((Math.cos(t) * w) / 2, Math.sin(t) * rise) - 0.05;
+          const m = across(mid - 0.02, mid + 0.02, spring, spring + len, 0, 0.05, frameColor);
+          if (m) {
+            const pivot = y + spring;
+            m.geometry.translate(0, len / 2, 0);
+            m.position.y = pivot;
+            if (wall.axis === 'x') m.rotation.z = Math.PI / 2 - t;
+            else m.rotation.x = -(Math.PI / 2 - t);
+          }
+        }
+      } else {
+        for (const u of [a, b]) bar(u - 0.03, u + 0.03, bottom, top);
+        bar(a, b, top - 0.05, top);
+        if (style === 'classic' || style === 'grid') {
+          bar(mid - 0.03, mid + 0.03, bottom, top);
+          bar(a, b, cy - 0.025, cy + 0.025, 0.07);
+        }
+        if (style === 'grid') {
+          for (const u of [a + w / 4, b - w / 4]) bar(u - 0.015, u + 0.015, bottom, top, 0.05);
+          for (const h of [bottom + (top - bottom) / 4, top - (top - bottom) / 4])
+            bar(a, b, h - 0.015, h + 0.015, 0.05);
+        }
+      }
+      if (style !== 'round')
+        across(a - 0.04, b + 0.04, bottom - 0.04, bottom, 0, thick + 0.08, trim);
+
+      // Curtains, on whichever sides have a room.
+      if (open.curtains) {
+        const cloth = mat(open.curtains, { rough: 0.95 });
+        const head = style === 'round' ? cy + r : top;
+        const low = style === 'round' ? cy - r : bottom;
+        for (const [room, sign] of [
+          [sideA, -1],
+          [sideB, 1],
+        ] as const) {
+          if (!room) continue;
+          const off = sign * (thick / 2 + 0.07);
+          across(
+            a - 0.28,
+            b + 0.28,
+            head + 0.14,
+            head + 0.17,
+            sign * (thick / 2 + 0.1),
+            0.03,
+            '#b8a27a',
+          );
+          across(a - 0.25, b + 0.25, head - 0.08, head + 0.14, off, 0.05, cloth);
+          for (const [u0, u1] of [
+            [a - 0.25, a + Math.min(0.12, w * 0.15)],
+            [b - Math.min(0.12, w * 0.15), b + 0.25],
+          ])
+            across(u0, u1, Math.max(0.05, low - 0.12), head - 0.08, off, 0.05, cloth);
+        }
+      }
+
+      // Dressing on the outside.
+      const outSign = !sideB ? 1 : !sideA ? -1 : 0;
+      if (!outSign) return;
+      const dress = open.outside ?? (p.shutterColor ? ['shutters'] : []);
+      const face = outSign * (thick / 2);
+      if (dress.includes('shutters') && style !== 'round') {
+        const color = p.shutterColor || '#2f4d6c';
+        const sw = Math.min(0.45, Math.max(0.25, w / 2));
+        const h0 = bottom,
+          h1 = style === 'arched' ? spring : top;
+        for (const [u0, u1] of [
+          [a - 0.06 - sw, a - 0.06],
+          [b + 0.06, b + 0.06 + sw],
+        ]) {
+          across(u0, u1, h0, h1, face + outSign * 0.02, 0.04, color);
+          // Louvers.
+          for (let h = h0 + 0.1; h < h1 - 0.08; h += 0.09)
+            across(
+              u0 + 0.04,
+              u1 - 0.04,
+              h,
+              h + 0.025,
+              face + outSign * 0.045,
+              0.02,
+              tone(color, 18),
+            );
+        }
+      }
+      if (dress.includes('panel') && bottom > 0.5) {
+        across(a, b, 0.3, bottom - 0.08, face + outSign * 0.015, 0.03, trim);
+        across(
+          a + 0.07,
+          b - 0.07,
+          0.37,
+          bottom - 0.15,
+          face + outSign * 0.035,
+          0.02,
+          tone(trim, -14),
+        );
+      }
+      if (dress.includes('flowerbox') && bottom > 0.4) {
+        const depth = 0.24;
+        across(
+          a - 0.05,
+          b + 0.05,
+          bottom - 0.3,
+          bottom - 0.06,
+          face + outSign * (depth / 2),
+          depth,
+          '#8a5a3c',
+        );
+        const colors = ['#d9485f', '#f2c14e', '#e889b0', '#f7f4ec'];
+        for (let u = a + 0.05, n = 0; u < b - 0.02; u += 0.12, n++) {
+          across(
+            u - 0.05,
+            u + 0.05,
+            bottom - 0.06,
+            bottom + 0.04,
+            face + outSign * (depth / 2),
+            0.16,
+            '#4f8a4a',
+          );
+          const m = new T.Mesh(new T.IcosahedronGeometry(0.05, 0), mat(colors[n % colors.length]));
+          const out = wall.line + face + outSign * (depth / 2);
+          m.position.set(
+            wall.axis === 'x' ? u : out,
+            y + bottom + 0.07,
+            wall.axis === 'x' ? out : u,
+          );
+          add(m);
+        }
+      }
+      if (dress.includes('crown')) {
+        const head = style === 'round' ? cy + r : top;
+        across(a - 0.14, b + 0.14, head + 0.03, head + 0.2, face + outSign * 0.05, 0.1, trim);
+        across(a - 0.2, b + 0.2, head + 0.2, head + 0.26, face + outSign * 0.08, 0.16, trim);
+      }
+    };
     // Dormers take the place of the knee wall where they stand.
     const dormerSpans = plan.dormers
       .filter((d) => {
@@ -886,38 +1156,8 @@ function buildContent(p: Project, mode: SceneMode, floor: number, evening: boole
         top = open.kind === 'window' ? 2.25 : open.kind === 'slider' ? 2.15 : 2.2;
       if (bottom > 0) piece(a, b, 0, Math.min(bottom, height));
       if (height > top) piece(a, b, top, height);
-      if (open.kind === 'window' && height > bottom) {
-        piece(
-          a,
-          b,
-          bottom,
-          Math.min(top, height),
-          mat(evening ? '#f3d19a' : '#a9d0d6', {
-            opacity: evening ? 0.8 : 0.3,
-            rough: 0.1,
-            metal: 0.1,
-            emissive: evening ? '#be874a' : undefined,
-          }),
-          0.03,
-        );
-        const frame = p.windowFrames === 'white' ? '#f7f4ec' : '#52675f';
-        for (const xx of [a, b, (a + b) / 2])
-          piece(xx - 0.03, xx + 0.03, bottom, Math.min(top, height), frame, 0.06);
-        if (height > (bottom + top) / 2 + 0.05)
-          piece(a, b, (bottom + top) / 2 - 0.025, (bottom + top) / 2 + 0.025, frame, 0.07);
-        piece(a - 0.04, b + 0.04, bottom - 0.04, bottom, trim, thick + 0.08);
-        if (height >= top) piece(a, b, top - 0.05, top, frame, 0.06);
-        if (p.shutterColor && (!sideA || !sideB)) {
-          for (const edgeAt of [a - 0.18, b + 0.18]) {
-            const face =
-              wall.axis === 'x'
-                ? wall.line + (sideA ? 1 : -1) * (thick / 2 + 0.035)
-                : wall.line + (sideA ? 1 : -1) * (thick / 2 + 0.035);
-            if (wall.axis === 'x') box(edgeAt, y + 1.6, face, 0.28, 1.3, 0.045, p.shutterColor);
-            else box(face, y + 1.6, edgeAt, 0.045, 1.3, 0.28, p.shutterColor);
-          }
-        }
-      }
+      if (open.kind === 'window' && height > bottom)
+        drawWindow(open, a, b, bottom, Math.min(top, height));
     }
     // Casings, door leaves, sliding glass, and garage panels.
     for (const o of wall.openings) {

@@ -15,7 +15,9 @@ import {
   type Side,
 } from './model';
 
-export const ARTHUR_ID = 'arthur-read-house-v2';
+export const ARTHUR_ID = 'arthur-read-house-v3';
+/** Earlier builds of the house, kept under another name when a newer one arrives. */
+export const OLDER_ARTHUR_IDS = ['arthur-read-house-v2'];
 
 export function arthurProject(): Project {
   const p = blankProject();
@@ -74,8 +76,11 @@ export function arthurProject(): Project {
   };
   const door = (r: Item, side: Side, offset = 0.5, width = 0.9) =>
     open(r, side, offset, width, 'door');
-  const win = (r: Item, side: Side, offset = 0.5, width = 1) =>
+  const win = (r: Item, side: Side, offset = 0.5, width = 1) => {
+    // Many-paned sashes, as the show draws them.
     open(r, side, offset, width, 'window');
+    p.openings[p.openings.length - 1].style = 'grid';
+  };
 
   // Plan: x runs east, z runs south, and the front of the house faces the street to the south.
   // The main block is 11 m wide and 7.5 m deep; the kitchen wing runs 4.5 m out the back.

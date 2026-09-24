@@ -186,6 +186,23 @@ export const sidingName = (s: Siding = 'painted') =>
   sidings.find((x) => x.id === s)?.name ?? 'Painted';
 /** Ways through (or into) a wall. 'open' takes the wall away entirely. */
 export type OpeningKind = 'door' | 'double' | 'slider' | 'garage' | 'window' | 'arch' | 'open';
+/** How a window is glazed. */
+export type WindowStyle = 'classic' | 'plain' | 'grid' | 'arched' | 'round';
+export const windowStyles: { id: WindowStyle; name: string; hint: string }[] = [
+  { id: 'classic', name: 'Classic', hint: 'Two sashes and a cross bar' },
+  { id: 'plain', name: 'Plain', hint: 'One clear pane, no bars' },
+  { id: 'grid', name: 'Many panes', hint: 'Small panes, six over six' },
+  { id: 'arched', name: 'Arched', hint: 'A half-round top' },
+  { id: 'round', name: 'Round', hint: 'A circle, like a porthole' },
+];
+/** Dressing on the outside of a window. */
+export type WindowDress = 'shutters' | 'panel' | 'flowerbox' | 'crown';
+export const windowDresses: { id: WindowDress; name: string }[] = [
+  { id: 'shutters', name: 'Shutters' },
+  { id: 'panel', name: 'Panel below' },
+  { id: 'flowerbox', name: 'Flower box' },
+  { id: 'crown', name: 'Crown above' },
+];
 export interface Opening {
   id: string;
   roomId: string;
@@ -193,6 +210,12 @@ export interface Opening {
   offset: number;
   width: number;
   kind: OpeningKind;
+  /** Windows: how it's glazed (classic when unset). */
+  style?: WindowStyle;
+  /** Windows: curtains of this color hung inside. */
+  curtains?: string;
+  /** Windows: what dresses the outside. Unset follows the house's shutters setting. */
+  outside?: WindowDress[];
 }
 export const openingKinds: {
   kind: OpeningKind;
@@ -1564,7 +1587,12 @@ export function validateProject(raw: unknown): Project {
       !['north', 'south', 'east', 'west'].includes(o.side) ||
       !openingKinds.some((k) => k.kind === o.kind) ||
       !num(o.offset, 0, 1) ||
-      !num(o.width, 0.3, 12)
+      !num(o.width, 0.3, 12) ||
+      (o.style !== undefined && !windowStyles.some((w) => w.id === o.style)) ||
+      (o.curtains !== undefined && !color(o.curtains)) ||
+      (o.outside !== undefined &&
+        (!Array.isArray(o.outside) ||
+          !o.outside.every((d) => windowDresses.some((w) => w.id === d))))
     )
       throw new Error('Invalid window or door.');
     openingIds.add(o.id);
@@ -1592,7 +1620,14 @@ export interface Wall {
   /** How tall this piece stands, from the room with the highest ceiling beside it. */
   height: number;
   /** Garage doors are marked so they can be drawn closed; other wide doors are open archways. */
-  openings: { start: number; end: number; kind: OpeningKind }[];
+  openings: {
+    start: number;
+    end: number;
+    kind: OpeningKind;
+    style?: WindowStyle;
+    curtains?: string;
+    outside?: WindowDress[];
+  }[];
 }
 export function buildWalls(p: Project): Wall[] {
   const segments: Wall[] = [];
@@ -1617,13 +1652,19 @@ export function buildWalls(p: Project): Wall[] {
         .filter((o) => o.roomId === r.id && o.side === side)
         .map((o) => {
           // Taking a wall out opens the whole side; everything else is centered on its offset.
+          const looks = { style: o.style, curtains: o.curtains, outside: o.outside };
           if (spansWall(o.kind)) return { start, end, kind: o.kind };
           const width = Math.min(o.width, end - start - 0.2);
           const c = Math.max(
             start - from + width / 2 + 0.1,
             Math.min(end - from - width / 2 - 0.1, len * o.offset),
           );
-          return { start: from + c - width / 2, end: from + c + width / 2, kind: o.kind };
+          return {
+            start: from + c - width / 2,
+            end: from + c + width / 2,
+            kind: o.kind,
+            ...looks,
+          };
         })
         .filter((o) => o.end > o.start + 0.05);
       segments.push({
