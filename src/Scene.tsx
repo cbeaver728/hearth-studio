@@ -36,9 +36,10 @@ import {
   type Wallpaper,
   KNEE,
   CORNERS,
+  bayDepth,
 } from './model';
 import { capeCeilingAt, crossRange, planRoof, roofOver } from './roof';
-import { buildRoofs, uprightPanel } from './roof3d';
+import { buildRoofs, sheet, uprightPanel } from './roof3d';
 import {
   layoutFor,
   localSize,
@@ -511,6 +512,23 @@ function buildContent(p: Project, mode: SceneMode, floor: number, evening: boole
     if (!m) {
       m = new T.MeshStandardMaterial({ map: wallTexture('wainscot', color), roughness: 0.7 });
       materials.set(key, m);
+    }
+    return m;
+  };
+  const roofMaterial = () => {
+    const roofMap = roofTexture(p.roofFinish || 'shingle', p.roof);
+    const roofKey = `roof:${p.roofFinish}:${p.roof}`;
+    let m = materials.get(roofKey);
+    if (!m) {
+      m = roofMap
+        ? new T.MeshStandardMaterial({
+            map: roofMap,
+            roughness: p.roofFinish === 'metal' ? 0.45 : 0.9,
+            metalness: p.roofFinish === 'metal' ? 0.35 : 0,
+            side: T.DoubleSide,
+          })
+        : mat(p.roof, { double: true });
+      materials.set(roofKey, m);
     }
     return m;
   };
@@ -1114,6 +1132,179 @@ function buildContent(p: Project, mode: SceneMode, floor: number, evening: boole
         across(a - 0.2, b + 0.2, head + 0.2, head + 0.26, face + outSign * 0.08, 0.16, trim);
       }
     };
+    /** A bay window: three angled faces of glass on a paneled base, a seat, and a little roof. */
+    const drawBay = (
+      open: (typeof wall.openings)[number],
+      a: number,
+      b: number,
+      seat: number,
+      head: number,
+    ) => {
+      const outSign = !sideB ? 1 : !sideA ? -1 : 0;
+      // Between two rooms there's nowhere for it to go; it stays a plain window.
+      if (!outSign) return drawWindow({ ...open, style: 'plain' }, a, b, seat, head);
+      const room = outSign > 0 ? sideA : sideB;
+      const inner = room ? wallMat(room) : mat(interior);
+      const depth = bayDepth(b - a);
+      const at = (u: number, n: number): [number, number] =>
+        wall.axis === 'x'
+          ? [u, wall.line + outSign * (thick / 2 + n)]
+          : [wall.line + outSign * (thick / 2 + n), u];
+      const outline: [number, number][] = [
+        [a, 0],
+        [a + depth, depth],
+        [b - depth, depth],
+        [b, 0],
+      ];
+      const corners = outline.map(([u, n]) => at(u, n));
+      const [cx, cz] = at((a + b) / 2, depth * 0.3);
+      const frameColor = p.windowFrames === 'white' ? '#f7f4ec' : '#52675f';
+      const glass = mat(evening ? '#f3d19a' : '#a9d0d6', {
+        opacity: evening ? 0.8 : 0.3,
+        rough: 0.1,
+        metal: 0.1,
+        emissive: evening ? '#be874a' : undefined,
+      });
+      const siding = sidingMat();
+      const edgeMat = mat(interior);
+      /** A length of the bay's side from p to q, its +z face turned outward. */
+      const facet = (
+        pt: [number, number],
+        qt: [number, number],
+        h0: number,
+        h1: number,
+        t: number,
+        material: T.Material | T.Material[],
+      ) => {
+        const dx = qt[0] - pt[0],
+          dz = qt[1] - pt[1];
+        const m = new T.Mesh(new T.BoxGeometry(Math.hypot(dx, dz) + 0.02, h1 - h0, t), material);
+        m.position.set((pt[0] + qt[0]) / 2, y + (h0 + h1) / 2, (pt[1] + qt[1]) / 2);
+        m.rotation.y = -Math.atan2(dz, dx);
+        if (
+          Math.sin(m.rotation.y) * (m.position.x - cx) +
+            Math.cos(m.rotation.y) * (m.position.z - cz) <
+          0
+        )
+          m.rotation.y += Math.PI;
+        m.castShadow = m.receiveShadow = true;
+        group.add(m);
+        wallUv(m, Math.abs(dx) > Math.abs(dz) ? 'x' : 'z');
+        return m;
+      };
+      const walls = [edgeMat, edgeMat, edgeMat, edgeMat, siding, inner];
+      for (let n = 0; n < 3; n++) {
+        const [pt, qt] = [corners[n], corners[n + 1]];
+        facet(pt, qt, 0, seat, 0.12, walls);
+        facet(pt, qt, seat - 0.04, seat + 0.03, 0.18, mat(trim));
+        facet(pt, qt, seat + 0.03, head - 0.1, 0.02, glass);
+        facet(pt, qt, head - 0.1, head, 0.08, mat(frameColor));
+        facet(pt, qt, head, head + 0.2, 0.12, walls);
+        if (n === 1) {
+          // A bar down the middle of the front pane.
+          const mx = (pt[0] + qt[0]) / 2,
+            mz = (pt[1] + qt[1]) / 2;
+          box(mx, y + (seat + head) / 2, mz, 0.05, head - seat, 0.05, frameColor);
+        }
+      }
+      for (const [px, pz] of corners)
+        box(px, y + (seat + head) / 2, pz, 0.08, head - seat, 0.08, frameColor);
+      const flatAt =
+        (h: number) =>
+        (u: number, n: number): [number, number, number] => {
+          const [x, z] = at(u, n);
+          return [x, y + h, z];
+        };
+      // The seat, the ceiling over it, and a little roof sloping away from the wall.
+      const seatTop = sheet(
+        outline,
+        flatAt(seat),
+        0.05,
+        mat(open.curtains ? tone(open.curtains, 20) : '#eadfca'),
+      );
+      const ceiling = sheet(outline, flatAt(head + 0.19), 0, mat('#f3f0ea', { double: true }));
+      for (const m of [seatTop, ceiling]) if (m) add(m);
+      const eaves: [number, number][] = [
+        [a - 0.1, 0],
+        [a + depth - 0.04, depth + 0.1],
+        [b - depth + 0.04, depth + 0.1],
+        [b + 0.1, 0],
+      ];
+      const lid = sheet(
+        eaves,
+        (u, n) => {
+          const [x, z] = at(u, n);
+          return [x, y + head + 0.2 + (depth + 0.1 - n) * 0.55, z];
+        },
+        0.07,
+        roofMaterial(),
+        (u, n) => [u / 1.4, n / 1.4],
+      );
+      if (lid) add(lid);
+      // Close in the sides under the sloping roof, so you can't see through to the wall.
+      const lidAt = (n: number) => y + head + 0.2 + (depth + 0.1 - n) * 0.55;
+      for (let n = 0; n < 3; n++) {
+        const [u0, n0] = outline[n],
+          [u1, n1] = outline[n + 1];
+        const [x0, z0] = at(u0, n0),
+          [x1, z1] = at(u1, n1);
+        const base = y + head + 0.19;
+        const g = new T.BufferGeometry();
+        g.setAttribute(
+          'position',
+          new T.Float32BufferAttribute(
+            [
+              x0,
+              base,
+              z0,
+              x1,
+              base,
+              z1,
+              x1,
+              lidAt(n1),
+              z1,
+              x0,
+              base,
+              z0,
+              x1,
+              lidAt(n1),
+              z1,
+              x0,
+              lidAt(n0),
+              z0,
+            ],
+            3,
+          ),
+        );
+        g.setAttribute('uv', new T.Float32BufferAttribute(new Array(12).fill(0), 2));
+        g.computeVertexNormals();
+        const infill = new T.Mesh(g, sidingMat(true));
+        infill.castShadow = infill.receiveShadow = true;
+        wallUv(infill, Math.abs(x1 - x0) > Math.abs(z1 - z0) ? 'x' : 'z');
+        group.add(infill);
+      }
+      // Curtains inside, across the opening in the wall.
+      if (open.curtains) {
+        const cloth = mat(open.curtains, { rough: 0.95 });
+        const sign = -outSign;
+        const off = sign * (thick / 2 + 0.07);
+        across(
+          a - 0.28,
+          b + 0.28,
+          head + 0.12,
+          head + 0.15,
+          sign * (thick / 2 + 0.1),
+          0.03,
+          '#b8a27a',
+        );
+        across(a - 0.25, b + 0.25, head - 0.1, head + 0.12, off, 0.05, cloth);
+        for (const [u0, u1] of [
+          [a - 0.25, a + 0.12],
+          [b - 0.12, b + 0.25],
+        ])
+          across(u0, u1, seat + 0.1, head - 0.1, off, 0.05, cloth);
+      }
+    };
     // Dormers take the place of the knee wall where they stand.
     const dormerSpans = plan.dormers
       .filter((d) => {
@@ -1128,6 +1319,9 @@ function buildContent(p: Project, mode: SceneMode, floor: number, evening: boole
         );
       })
       .map((d) => [d.a0, d.a1] as [number, number]);
+    // Outside walls upstairs carry on down over the edge of the floor, so no slit shows between
+    // one storey and the next.
+    if (wall.floor > 0 && (!sideA || !sideB)) piece(wall.start, wall.end, -FLOOR_H + WALL_H, 0);
     const cuts = [
       ...new Set([
         wall.start,
@@ -1148,20 +1342,31 @@ function buildContent(p: Project, mode: SceneMode, floor: number, evening: boole
         openings[0];
       if (!open) {
         piece(a, b, 0, height);
-        piece(a, b, 0, 0.09, '#d2caba', thick + 0.02);
+        // Baseboards stand proud of the wall indoors only; outside they'd show as a pale strip.
+        const outward = !sideB ? 1 : !sideA ? -1 : 0;
+        if (outward) across(a, b, 0, 0.09, -outward * 0.01, thick, '#d2caba');
+        else piece(a, b, 0, 0.09, '#d2caba', thick + 0.02);
         continue;
       }
       if (open.kind === 'open') continue; // The wall is gone here.
-      const bottom = open.kind === 'window' ? 0.95 : 0,
-        top = open.kind === 'window' ? 2.25 : open.kind === 'slider' ? 2.15 : 2.2;
+      const bottom = open.kind === 'window' ? 0.95 : open.kind === 'bay' ? 0.45 : 0,
+        top =
+          open.kind === 'window'
+            ? 2.25
+            : open.kind === 'bay'
+              ? 2.3
+              : open.kind === 'slider'
+                ? 2.15
+                : 2.2;
       if (bottom > 0) piece(a, b, 0, Math.min(bottom, height));
       if (height > top) piece(a, b, top, height);
       if (open.kind === 'window' && height > bottom)
         drawWindow(open, a, b, bottom, Math.min(top, height));
+      if (open.kind === 'bay' && height > top) drawBay(open, a, b, bottom, top);
     }
     // Casings, door leaves, sliding glass, and garage panels.
     for (const o of wall.openings) {
-      if (height < 1 || o.kind === 'window' || o.kind === 'open') continue;
+      if (height < 1 || o.kind === 'window' || o.kind === 'bay' || o.kind === 'open') continue;
       // No casing where the wall itself was taken out.
       if (wall.openings.some((x) => x.kind === 'open' && x.start <= o.start && x.end >= o.end))
         continue;
@@ -1202,7 +1407,7 @@ function buildContent(p: Project, mode: SceneMode, floor: number, evening: boole
         : null;
       const t = 0.04;
       const leaves: [number, number][] =
-        o.kind === 'double'
+        o.kind === 'double' || o.kind === 'french'
           ? [
               [o.start + t / 2 + 0.01, width / 2],
               [o.end - t / 2 - 0.01, width / 2],
@@ -1211,6 +1416,43 @@ function buildContent(p: Project, mode: SceneMode, floor: number, evening: boole
       for (const [hinge, leafWidth] of leaves) {
         const away = hinge > (o.start + o.end) / 2 ? -1 : 1;
         const center = wall.line + dir * (thick / 2 + leafWidth / 2);
+        if (o.kind === 'french') {
+          // A glazed leaf: stiles and rails round ten small panes.
+          const frameColor = '#f7f4ec';
+          const part = (
+            l0: number,
+            l1: number,
+            h0: number,
+            h1: number,
+            d: number,
+            m: string | T.Material,
+          ) => {
+            const c = wall.line + dir * (thick / 2 + (l0 + l1) / 2);
+            return wall.axis === 'x'
+              ? box(hinge, y + (h0 + h1) / 2, c, d, h1 - h0, l1 - l0, m)
+              : box(c, y + (h0 + h1) / 2, hinge, l1 - l0, h1 - h0, d, m);
+          };
+          const s = 0.07;
+          part(0, s, 0, 2.1, 0.045, frameColor);
+          part(leafWidth - s, leafWidth, 0, 2.1, 0.045, frameColor);
+          part(s, leafWidth - s, 0, 0.25, 0.045, frameColor);
+          part(s, leafWidth - s, 2.02, 2.1, 0.045, frameColor);
+          part(
+            s,
+            leafWidth - s,
+            0.25,
+            2.02,
+            0.012,
+            mat('#a9d0d6', { opacity: 0.3, rough: 0.08, metal: 0.1 }),
+          );
+          part(leafWidth / 2 - 0.013, leafWidth / 2 + 0.013, 0.25, 2.02, 0.035, frameColor);
+          for (let k = 1; k < 5; k++) {
+            const h = 0.25 + (1.77 * k) / 5;
+            part(s, leafWidth - s, h - 0.013, h + 0.013, 0.035, frameColor);
+          }
+          void away;
+          continue;
+        }
         const openLeaf =
           wall.axis === 'x'
             ? box(hinge, y + 1.05, center, t, 2.1, leafWidth, leaf)
@@ -1401,20 +1643,7 @@ function buildContent(p: Project, mode: SceneMode, floor: number, evening: boole
 
   // Roofs: one per wing, with valleys, dormers and chimneys; see roof.ts.
   if (mode !== 'dollhouse') {
-    const roofMap = roofTexture(p.roofFinish || 'shingle', p.roof);
-    const roofKey = `roof:${p.roofFinish}:${p.roof}`;
-    let roofMat = materials.get(roofKey);
-    if (!roofMat) {
-      roofMat = roofMap
-        ? new T.MeshStandardMaterial({
-            map: roofMap,
-            roughness: p.roofFinish === 'metal' ? 0.45 : 0.9,
-            metalness: p.roofFinish === 'metal' ? 0.35 : 0,
-            side: T.DoubleSide,
-          })
-        : mat(p.roof, { double: true });
-      materials.set(roofKey, roofMat);
-    }
+    const roofMat = roofMaterial();
     buildRoofs({
       p,
       plan,
@@ -1509,11 +1738,11 @@ function buildStairs(
   for (const t of layout.treads) {
     const top = t.k * RISE;
     if (t.poly) {
-      slabOf(t.poly, Math.max(0, top - 0.45), top - 0.035, body);
+      slabOf(t.poly, painted ? 0 : Math.max(0, top - 0.45), top - 0.035, body);
       slabOf(t.poly, top - 0.035, top, tread);
     } else if (t.rect) {
       const r = t.rect;
-      b(r.x0, r.x1, Math.max(0, top - 0.45), top - 0.035, r.z0, r.z1, body);
+      b(r.x0, r.x1, painted ? 0 : Math.max(0, top - 0.45), top - 0.035, r.z0, r.z1, body);
       b(r.x0 - 0.01, r.x1 + 0.01, top - 0.035, top, r.z0 - 0.015, r.z1 + 0.015, tread);
     } else if (t.wedge) {
       const w = t.wedge;

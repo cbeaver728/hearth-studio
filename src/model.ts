@@ -185,7 +185,8 @@ export const roofFinishes: { id: RoofFinish; name: string; hint: string }[] = [
 export const sidingName = (s: Siding = 'painted') =>
   sidings.find((x) => x.id === s)?.name ?? 'Painted';
 /** Ways through (or into) a wall. 'open' takes the wall away entirely. */
-export type OpeningKind = 'door' | 'double' | 'slider' | 'garage' | 'window' | 'arch' | 'open';
+export type OpeningKind =
+  'door' | 'double' | 'french' | 'slider' | 'garage' | 'window' | 'bay' | 'arch' | 'open';
 /** How a window is glazed. */
 export type WindowStyle = 'classic' | 'plain' | 'grid' | 'arched' | 'round';
 export const windowStyles: { id: WindowStyle; name: string; hint: string }[] = [
@@ -225,16 +226,20 @@ export const openingKinds: {
 }[] = [
   { kind: 'door', name: 'Door', hint: 'A single swinging door', width: 0.9 },
   { kind: 'double', name: 'Double doors', hint: 'A pair that swing open', width: 1.8 },
+  { kind: 'french', name: 'French doors', hint: 'A pair of glass-paned doors', width: 1.6 },
   { kind: 'slider', name: 'Sliding glass', hint: 'Out to a deck or patio', width: 2.4 },
   { kind: 'garage', name: 'Garage door', hint: 'Wide and closed', width: 3 },
   { kind: 'window', name: 'Window', hint: 'Let the light in', width: 1.5 },
+  { kind: 'bay', name: 'Bay window', hint: 'Pushes out, with a seat inside', width: 2.4 },
   { kind: 'arch', name: 'Wide opening', hint: 'A cased opening, no door', width: 2.4 },
   { kind: 'open', name: 'Remove wall', hint: 'Open two rooms right up', width: 12 },
 ];
 export const openingName = (k: OpeningKind) =>
   openingKinds.find((o) => o.kind === k)?.name ?? 'Opening';
 /** Whether you can walk through it. Windows and closed garage doors stop you. */
-export const isPassable = (k: OpeningKind) => k !== 'window' && k !== 'garage';
+export const isPassable = (k: OpeningKind) => k !== 'window' && k !== 'garage' && k !== 'bay';
+/** How far a bay window pushes out from its wall, for a given opening width. */
+export const bayDepth = (width: number) => Math.min(0.65, width / 3);
 /** A removed wall spans its whole side rather than a set width. */
 export const spansWall = (k: OpeningKind) => k === 'open';
 export interface Floor {

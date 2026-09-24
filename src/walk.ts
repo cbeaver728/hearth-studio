@@ -1,6 +1,7 @@
 // Walkthrough physics: which surface you stand on, and what blocks you.
 import {
   buildWalls,
+  bayDepth,
   CAPE_CEIL,
   type Wall,
   FLOOR_H,
@@ -302,6 +303,34 @@ export function buildWalkWorld(p: Project): WalkWorld {
   }
   for (const { level, rect, low } of lowHeadroom(roof))
     boxes.push({ ...rect, y0: level * FLOOR_H + low, y1: level * FLOOR_H + CAPE_CEIL });
+  // Bay windows push out past the wall: outside, you walk round them.
+  for (const wall of buildWalls(p))
+    for (const o of wall.openings) {
+      if (o.kind !== 'bay') continue;
+      const mid = (o.start + o.end) / 2;
+      const inRoom = (x: number, z: number) =>
+        p.items.some(
+          (r) =>
+            isRoom(r) &&
+            r.floor === wall.floor &&
+            x > r.x &&
+            x < r.x + r.w &&
+            z > r.z &&
+            z < r.z + r.d,
+        );
+      const probe = (s: number) =>
+        wall.axis === 'x' ? inRoom(mid, wall.line + s * 0.25) : inRoom(wall.line + s * 0.25, mid);
+      const sign = !probe(1) ? 1 : !probe(-1) ? -1 : 0;
+      if (!sign) continue;
+      const d = bayDepth(o.end - o.start) + 0.08;
+      const [n0, n1] = sign > 0 ? [wall.line, wall.line + d] : [wall.line - d, wall.line];
+      const y = wall.floor * FLOOR_H;
+      boxes.push(
+        wall.axis === 'x'
+          ? { x0: o.start, x1: o.end, z0: n0, z1: n1, y0: y, y1: y + 2.6 }
+          : { x0: n0, x1: n1, z0: o.start, z1: o.end, y0: y, y1: y + 2.6 },
+      );
+    }
   // Rounded room corners.
   for (const arc of cornerArcs(p)) {
     const y = arc.room.floor * FLOOR_H;
@@ -398,8 +427,14 @@ export function buildWalkWorld(p: Project): WalkWorld {
     return best === -Infinity ? Math.min(...surfaces(x, z), feet) : best;
   };
   const free = (x: number, z: number, feet: number) => {
-    // A surface too high to step onto but lower than your head blocks you (the side of a stair).
+    // A surface too high to step onto but lower than your head blocks you.
     for (const y of surfaces(x, z)) if (y > feet + STEP_UP && y < feet + 1.9) return false;
+    // Stairs are closed underneath: step on at the bottom, not in under the flight, where
+    // there'd be no way up.
+    for (const s of stairs) {
+      const h = stairHeightAt(s, x, z);
+      if (h !== undefined && h > feet + STEP_UP) return false;
+    }
     const top = feet + 1.8,
       bottom = feet + 0.25;
     return !boxes.some(

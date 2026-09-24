@@ -169,3 +169,66 @@ describe('steering up every stair style', () => {
           expect(r.feet).toBeGreaterThan(FLOOR_H - 0.3);
         });
 });
+
+/** Walks from point to point like a person with the keys: turn to face, hold W, ease in and out. */
+function tour(p: Project, route: [number, number][], feet0 = 0) {
+  const world = buildWalkWorld(p);
+  let [x, z] = route[0],
+    feet = feet0,
+    fall = 0,
+    vx = 0,
+    vz = 0;
+  const dt = 1 / 60;
+  for (const [tx, tz] of route.slice(1)) {
+    for (let t = 0; t < 12 && Math.hypot(tx - x, tz - z) > 0.12; t += dt) {
+      const d = Math.hypot(tx - x, tz - z);
+      const ease = Math.min(1, dt * 8);
+      vx += (((tx - x) / d) * 2.4 - vx) * ease;
+      vz += (((tz - z) / d) * 2.4 - vz) * ease;
+      if (world.free(x + vx * dt, z, feet)) x += vx * dt;
+      else vx = 0;
+      if (world.free(x, z + vz * dt, feet)) z += vz * dt;
+      else vz = 0;
+      const ground = world.support(x, z, feet);
+      if (ground >= feet) {
+        feet += (ground - feet) * Math.min(1, dt * 16);
+        fall = 0;
+      } else {
+        fall = Math.min(fall + dt * 14, 9);
+        feet = Math.max(ground, feet - Math.max(fall, 3) * dt);
+      }
+    }
+    if (Math.hypot(tx - x, tz - z) > 0.2) return { x, z, feet, stuckBefore: [tx, tz] };
+  }
+  return { x, z, feet, stuckBefore: null };
+}
+
+describe("walking round Arthur's House", () => {
+  const p = arthurProject();
+  it('goes from the front door, through the foyer and up the stairs', () => {
+    const r = tour(p, [
+      [-0.25, -1],
+      [-0.25, -4.4],
+      [-2.9, -4.4],
+      [-2.9, -7.0],
+      [-0.3, -7.0],
+      [-0.3, -4.3],
+    ]);
+    expect(r.stuckBefore).toBeNull();
+    expect(r.feet).toBeCloseTo(FLOOR_H, 1);
+  });
+  it('goes from the kitchen down to the laundry', () => {
+    const r = tour(p, [
+      [3.0, -8.0],
+      [0.05, -8.0],
+      [0.05, -11.85],
+    ]);
+    expect(r.stuckBefore).toBeNull();
+    expect(r.feet).toBeCloseTo(-FLOOR_H, 1);
+  });
+  it("won't let you walk in under the stairs and get stuck there", () => {
+    const world = buildWalkWorld(p);
+    // Under the upper flight, coming from the front door.
+    expect(world.free(-0.3, -5.6, 0)).toBe(false);
+  });
+});

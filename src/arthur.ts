@@ -15,9 +15,9 @@ import {
   type Side,
 } from './model';
 
-export const ARTHUR_ID = 'arthur-read-house-v3';
+export const ARTHUR_ID = 'arthur-read-house-v4';
 /** Earlier builds of the house, kept under another name when a newer one arrives. */
-export const OLDER_ARTHUR_IDS = ['arthur-read-house-v2'];
+export const OLDER_ARTHUR_IDS = ['arthur-read-house-v2', 'arthur-read-house-v3'];
 
 export function arthurProject(): Project {
   const p = blankProject();
@@ -106,8 +106,8 @@ export function arthurProject(): Project {
     wallpaper: 'stripes',
     wainscot: '#c9c0e4',
   });
-  const cellarStair = room('Basement stairs', 0, -0.6, -12, 0.6, -7.5, { wallColor: '#e8e2d6' });
-  const kitchen = room('Kitchen', 0, 0.6, -12, 5.5, -7.5, {
+  const cellarStair = room('Basement stairs', 0, -0.6, -12, 1.0, -7.5, { wallColor: '#e8e2d6' });
+  const kitchen = room('Kitchen', 0, 1.0, -12, 5.5, -7.5, {
     color: '#e8c79a',
     finish: 'tile',
     wallColor: '#f3a24a',
@@ -134,7 +134,7 @@ export function arthurProject(): Project {
   door(kitchen, 'east', 0.8);
   win(kitchen, 'east', 0.3);
   win(kitchen, 'north', 0.58, 1.2);
-  door(cellarStair, 'east', 0.1, 0.8);
+  door(cellarStair, 'east', 0.89, 0.8);
 
   // The white winder stairs, climbing along the back of the foyer and turning toward the front.
   add('stairs-winder', 'The stairs', 0, -2.4, -7.5, 2.6, 2.5, {
@@ -142,7 +142,9 @@ export function arthurProject(): Project {
     color: '#b07a4a',
     trimColor: '#f7f4ec',
   });
-  add('stairs', 'Stairs to the basement', 0, -0.55, -11.4, 1.1, 3.3, {
+  // Through the kitchen door onto the landing, then straight down, heading for the back.
+  add('stairs', 'Stairs to the basement', 0, -0.45, -11.4, 1.1, 2.9, {
+    rotation: 180,
     dir: 'down',
     color: '#a88a66',
   });
@@ -190,8 +192,8 @@ export function arthurProject(): Project {
 
   // Entry and foyer.
   add('rug', 'Hall runner', 0, -0.8, -3.4, 1.05, 3.0, { color: '#8a78b8' });
-  add('phonetable', 'Telephone table', 0, -2.45, -4.15, 0.95, 0.4, {
-    rotation: 180,
+  add('phonetable', 'Telephone table', 0, -5.45, -5.25, 0.4, 0.95, {
+    rotation: 270,
     color: '#b8844f',
   });
   add('rug', 'Foyer rug', 0, -4.4, -6.3, 1.9, 1.3, { color: '#a78fcf', fabric: 'floral' });
@@ -208,9 +210,9 @@ export function arthurProject(): Project {
   add('counterPlain', 'Counter', 0, 1.5, -11.95, 0.8, 0.65, { color: '#a99ad6' });
   add('counterSink', 'Sink under the window', 0, 2.3, -11.95, 2.25, 0.65, { color: '#a99ad6' });
   add('range', 'Stove', 0, 4.55, -11.97, 0.9, 0.68, { color: '#e8e4da' });
-  add('uppers', 'Wall cupboards', 0, 0.65, -11.95, 1.65, 0.35, { color: '#f7f4ec' });
-  add('fridge', 'Refrigerator', 0, 0.62, -8.4, 0.75, 0.85, { rotation: 270, color: '#9fd0ea' });
-  add('hutch', 'Green hutch', 0, 0.62, -9.75, 0.5, 1.2, { rotation: 270, color: '#3f9a7a' });
+  add('uppers', 'Wall cupboards', 0, 1.05, -11.95, 1.25, 0.35, { color: '#f7f4ec' });
+  add('fridge', 'Refrigerator', 0, 1.02, -9.45, 0.75, 0.85, { rotation: 270, color: '#9fd0ea' });
+  add('hutch', 'Green hutch', 0, 1.02, -10.95, 0.5, 1.2, { rotation: 270, color: '#3f9a7a' });
   add('table', 'Kitchen table', 0, 2.55, -10.0, 1.6, 1.0, { color: '#6aaee0', fabric: 'check' });
   add('highchair', "Kate's highchair", 0, 4.5, -9.8, 0.6, 0.55, {
     rotation: 270,

@@ -30,6 +30,7 @@ import {
   type Project,
   type Side,
   type WindowStyle,
+  bayDepth,
 } from './model';
 import { layoutFor, localSize, toWorld } from './stairs';
 import { stairGuards } from './walk';
@@ -850,9 +851,23 @@ export default function Plan({
               <path d={`M0 0H${width}`} stroke="transparent" strokeWidth=".45" />
               <path
                 d={`M0 0H${width}`}
-                stroke={o.kind === 'window' ? '#8ac0c2' : r.color}
+                stroke={o.kind === 'window' || o.kind === 'bay' ? '#8ac0c2' : r.color}
                 strokeWidth={o.kind === 'open' ? 0.24 : 0.2}
               />
+              {o.kind === 'bay' &&
+                (() => {
+                  // The bay pushes out, away from its room.
+                  const out = -into * (h ? 1 : -1);
+                  const d = bayDepth(width);
+                  return (
+                    <path
+                      d={`M0 0L${d} ${out * d}H${width - d}L${width} 0`}
+                      fill="#e8f3f2"
+                      stroke="#49868d"
+                      strokeWidth=".05"
+                    />
+                  );
+                })()}
               {o.kind === 'window' && (
                 <path d={`M0 -.075H${width}M0 .075H${width}`} stroke="#49868d" strokeWidth=".025" />
               )}
@@ -877,9 +892,9 @@ export default function Plan({
                   />
                 </>
               )}
-              {(o.kind === 'door' || o.kind === 'double') &&
-                (o.kind === 'double' ? [0, 1] : [0]).map((n) => {
-                  const leaf = o.kind === 'double' ? width / 2 : width;
+              {(o.kind === 'door' || o.kind === 'double' || o.kind === 'french') &&
+                (o.kind === 'door' ? [0] : [0, 1]).map((n) => {
+                  const leaf = o.kind === 'door' ? width : width / 2;
                   const from = n === 0 ? 0 : width;
                   const sweepIn = into > 0 === h ? 0 : 1;
                   const to = n === 0 ? leaf : width - leaf;

@@ -7,6 +7,7 @@ import {
   type ReactNode,
 } from 'react';
 import {
+  AppWindow,
   Archive,
   ArrowDownToLine,
   ArrowUpFromLine,
@@ -90,6 +91,7 @@ import {
   WashingMachine,
   X,
   Lamp,
+  LayoutPanelLeft,
   Toilet,
   CookingPot,
   RectangleHorizontal,
@@ -99,7 +101,7 @@ import {
 import Plan, { type Tool } from './Plan';
 import Scene, { type SceneMode } from './Scene';
 import { ARTHUR_ID, OLDER_ARTHUR_IDS, arthurProject } from './arthur';
-const ARTHUR_FLAG = 'hearth-arthur-added-v3';
+const ARTHUR_FLAG = 'hearth-arthur-added-v4';
 import { addLevel, defaultFloorName, landingFor, nextLevel } from './floors';
 import { stairEnds } from './stairs';
 import {
@@ -359,20 +361,22 @@ function WindowOptions({
   const dress = o.outside ?? (shuttersByDefault ? ['shutters'] : []);
   return (
     <div className="window-options">
-      <div className="window-styles compact" role="group" aria-label="Window style">
-        {windowStyles.map((w) => (
-          <button
-            key={w.id}
-            className={(o.style || 'classic') === w.id ? 'active' : ''}
-            aria-pressed={(o.style || 'classic') === w.id}
-            title={w.name + ' — ' + w.hint}
-            aria-label={w.name + ' window'}
-            onClick={() => onChange({ style: w.id === 'classic' ? undefined : w.id })}
-          >
-            <WindowIcon style={w.id} />
-          </button>
-        ))}
-      </div>
+      {o.kind === 'window' && (
+        <div className="window-styles compact" role="group" aria-label="Window style">
+          {windowStyles.map((w) => (
+            <button
+              key={w.id}
+              className={(o.style || 'classic') === w.id ? 'active' : ''}
+              aria-pressed={(o.style || 'classic') === w.id}
+              title={w.name + ' — ' + w.hint}
+              aria-label={w.name + ' window'}
+              onClick={() => onChange({ style: w.id === 'classic' ? undefined : w.id })}
+            >
+              <WindowIcon style={w.id} />
+            </button>
+          ))}
+        </div>
+      )}
       <div className="swatches tight" role="group" aria-label="Curtains">
         <span className="swatch-label">Curtains</span>
         <button
@@ -391,23 +395,25 @@ function WindowOptions({
           />
         ))}
       </div>
-      <div className="dress-row" role="group" aria-label="Outside">
-        {windowDresses.map((d) => {
-          const on = dress.includes(d.id);
-          return (
-            <label key={d.id} className="checkbox-label tight">
-              <input
-                type="checkbox"
-                checked={on}
-                onChange={() =>
-                  onChange({ outside: on ? dress.filter((x) => x !== d.id) : [...dress, d.id] })
-                }
-              />
-              {d.name}
-            </label>
-          );
-        })}
-      </div>
+      {o.kind === 'window' && (
+        <div className="dress-row" role="group" aria-label="Outside">
+          {windowDresses.map((d) => {
+            const on = dress.includes(d.id);
+            return (
+              <label key={d.id} className="checkbox-label tight">
+                <input
+                  type="checkbox"
+                  checked={on}
+                  onChange={() =>
+                    onChange({ outside: on ? dress.filter((x) => x !== d.id) : [...dress, d.id] })
+                  }
+                />
+                {d.name}
+              </label>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
@@ -730,6 +736,8 @@ function Compare({
 const OPENING_ICONS: Record<OpeningKind, typeof Home> = {
   door: DoorOpen,
   double: DoorClosed,
+  french: LayoutPanelLeft,
+  bay: AppWindow,
   slider: Columns2,
   garage: Car,
   window: Columns3,
@@ -1826,7 +1834,7 @@ export default function App() {
                       }
                     />
                   </label>
-                  {o.kind === 'window' && (
+                  {(o.kind === 'window' || o.kind === 'bay') && (
                     <WindowOptions
                       o={o}
                       shuttersByDefault={!!project.shutterColor}
