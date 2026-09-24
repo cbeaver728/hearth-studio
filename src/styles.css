@@ -1172,11 +1172,11 @@ kbd {
 }
 .stair-styles {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   gap: 6px;
 }
 .stair-styles.in-modal {
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(6, 1fr);
 }
 .stair-styles button {
   display: flex;
@@ -2007,4 +2007,75 @@ kbd {
 
 .material-grid.roof-grid {
   grid-template-columns: repeat(4, 1fr);
+}
+.swatches button.text-swatch {
+  width: auto;
+  border-radius: 12px;
+  padding: 0 9px;
+  font-size: 11.5px;
+  background: var(--card);
+}
+.swatches.tight {
+  margin-top: 2px;
+}
+/* Four corner buttons laid out like the corners of a room. */
+.corner-picker {
+  display: grid;
+  grid-template-columns: 34px 34px;
+  gap: 18px 44px;
+  justify-content: center;
+  padding: 10px;
+  margin: 8px 0 2px;
+  border: 1px dashed #cfd6c8;
+  border-radius: 8px;
+}
+.corner-picker button {
+  width: 34px;
+  height: 34px;
+  border: 3px solid #cfd6c8;
+  background: var(--card);
+}
+.corner-picker .corner-nw {
+  border-right-color: transparent;
+  border-bottom-color: transparent;
+}
+.corner-picker .corner-ne {
+  border-left-color: transparent;
+  border-bottom-color: transparent;
+}
+.corner-picker .corner-sw {
+  border-right-color: transparent;
+  border-top-color: transparent;
+}
+.corner-picker .corner-se {
+  border-left-color: transparent;
+  border-top-color: transparent;
+}
+.corner-picker button.active.corner-nw {
+  border-top-left-radius: 22px;
+}
+.corner-picker button.active.corner-ne {
+  border-top-right-radius: 22px;
+}
+.corner-picker button.active.corner-sw {
+  border-bottom-left-radius: 22px;
+}
+.corner-picker button.active.corner-se {
+  border-bottom-right-radius: 22px;
+}
+.corner-picker button.active.corner-nw {
+  border-top-color: var(--green);
+  border-left-color: var(--green);
+}
+.corner-picker button.active.corner-ne {
+  border-top-color: var(--green);
+  border-right-color: var(--green);
+}
+.corner-picker button.active.corner-sw {
+  border-bottom-color: var(--green);
+  border-left-color: var(--green);
+}
+.corner-picker button.active.corner-se {
+  border-bottom-color: var(--green);
+  border-right-color: var(--green);
 }

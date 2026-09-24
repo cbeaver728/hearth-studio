@@ -14,6 +14,8 @@ Or, without the internet: **Double-click `Hearth-Studio.html`.** That's the whol
 
 Designs save automatically in that browser. Keep opening the same file in the same browser to find them again, and use **Export project** for backups or to move a design to another computer.
 
+**Arthur's House** — the Read family home from PBS's _Arthur_ — comes built in, to tour from the street to D.W.'s dormer. It's laid out from the show's 1994 production floor plan and the Arthur Wiki: a yellow storey-and-a-half Cape with a blue roof and two dormers, the den left of the front door and the living room right, the foyer with its white winder stairs, the kitchen wing out back, the bedrooms up under the roof, the laundry in the basement, and Dad's catering garage at the end of the drive. It opens once when you update, sits in **My projects** after that (or **My projects → Tour Arthur's House**), and never replaces your own designs. It's also in `examples/Arthurs House.hearth`.
+
 > **Coming from the first version?** Your designs live in the old app's browser storage. Open the old app once, choose **Export project** for each design, then in the new app choose **My projects → Open project file**.
 
 Other ways to run it:
@@ -23,7 +25,8 @@ Other ways to run it:
 
 ## Designing
 
-1. **Rooms.** Choose **Draw room** (R) and drag on the grid. Drag a room to move it; its furniture comes along (hold Alt to move the room alone). Drag any amber corner to resize, or type exact sizes on the right.
+1. **Rooms.** Choose **Draw room** (R) and drag on the grid. Drag a room to move it; its furniture comes along (hold Alt to move the room alone). Drag any amber corner to resize, or type exact sizes on the right. **Corners → Rounded** curves a room's corners, all four or just the ones you pick, to the radius you set; the walls, floor and walkthrough follow the curve.
+   Each room has its own **wall paint**, **wallpaper** (stripes, check or floral) and **wainscot** — paneling to chair-rail height in a color of its own.
 2. **Doors and openings.** Seven kinds: door, double doors, sliding glass, garage door, window, wide opening, and **Remove wall** — which takes a whole wall out so two rooms become one (click it again to put the wall back). Click a wall to place one, drag it along the wall to move it, and change its type in the right panel.
 3. **Curved walls.** Place one from Build, then drag its depth to bow it — half the width makes a half-round. Windows and doors go in it by clicking the curve, and they bend with it. To round off the front of a room, take the straight wall out with Remove wall and set a curved one across the gap.
 4. **Ceilings.** Each room picks **Standard**, **Tall**, or **Open above**. Open runs the room right up through the floor above — a two-storey entry or stairway — and cuts the floor there; the panel warns if a room upstairs sits over it. Tall needs nothing built on top, and the roof rises to suit.
@@ -32,20 +35,23 @@ Other ways to run it:
    Beds come as king, queen or twin, plus a platform bed, a four-poster with drapes, a daybed, a loft bed with a desk under it, bunks and a crib. Seating runs from sofas and armchairs to a sectional, ottoman, daybed and bar stools; there's a pool table, a wet bar, a grand or upright piano with its bench, a grandfather clock and a Christmas tree. The kitchen has plain counter runs (straight or L-shaped), one with just a sink, the full counter with sink, cooktop and wall cabinets, islands with a sink, a cooktop, an L shape or round, ranges, dishwashers, pantry and linen cupboards, and wall cabinets. On the walls: pictures, gallery walls, mirrors and TVs; overhead: chandeliers, pendants, ceiling fans, floor lamps and wall lights.
    The Outside tab adds a shed, pergola, barbecue, swing set, trampoline, basketball hoop, mailbox, fire pit, hot tub, planter and bench. A preview follows your cursor, and pieces snap flush to walls. Press **E** (or ↻ on the selection bar) to turn the selected piece; arrow keys nudge it. **Ctrl+C** then **Ctrl+V** on another floor pastes it in the same spot, handy for stacking bathrooms.
 7. **Floors.** Use **+** beside the floor menu. Pick a stair style and Hearth lays connecting stairs on the floor below (or above, for a basement) plus a landing on the new floor to build around. Rename or delete floors in the right panel.
-8. **Stairs.** Straight, L-shaped, switchback, and spiral. Choose **Up** or **Down** before placing, or change it later on the right. Runs that turn a corner have **eight positions**: press **E** to work round the four quarter turns, again to carry on round the other way, or **Shift+E** (⇄ on the selection bar) to flip a run left for right straight away. On the plan, **UP** marks the bottom step and **DN** the top. Handrails climb beside each flight and a guard rail edges the opening upstairs — but only where they're needed: rails against a wall, or over thin air where nobody can walk, are left off. Stairs with no floor at the other end offer to create it.
+8. **Stairs.** Straight, L-shaped, winder (an L that turns on wedge-shaped steps instead of a landing), switchback, and spiral. Tick **Painted, with spindle rails** for white risers and turned spindles with a newel post, treads left in wood. Choose **Up** or **Down** before placing, or change it later on the right. Runs that turn a corner have **eight positions**: press **E** to work round the four quarter turns, again to carry on round the other way, or **Shift+E** (⇄ on the selection bar) to flip a run left for right straight away. On the plan, **UP** marks the bottom step and **DN** the top. Handrails climb beside each flight and a guard rail edges the opening upstairs — but only where they're needed: rails against a wall, or over thin air where nobody can walk, are left off. Stairs with no floor at the other end offer to create it.
 9. **Sizes.** In feet, sizes read as feet and inches; type `12 6`, `12'6"`, or `12.5`.
    **Measure** (M) drags a tape between any two points; hold Shift to keep it straight.
 10. **Share the plan.** The picture button under the plan saves the current floor as a PNG with the house name and floor as a title.
 11. **Outside.** Patios, driveways, lawns, pools, trees, and fences live on the ground floor.
     **Exterior materials:** painted, lap siding, board & batten, cedar shingle, brick, stone, or stucco, each in a choice of colors that suit it. The roof takes shingles, standing-seam metal, or clay tile, in its own color, and interior paint is set separately. Then choose **See the exterior**.
+    **Roof style** is a classic gable, a flat roof, or a **Cape Cod**: the top floor lives inside the roof, with knee walls and sloping ceilings, and a wing out the back gets its own ridge that meets the main roof in a valley. Every wing is roofed on its own, so a detached garage gets a roof of its own too. On a Cape, **dormers** (Build → Roof details) push out through the slope to make a nook you can stand in at the window; the plan hatches the eaves where the ceiling is too low to stand. Add a **chimney**, **shutters**, a **door color**, and white or dark **window frames**, and a picket fence with a gap for the gate.
 
 ### Versions, notes, and budget
 
 With nothing selected, the right panel holds **Notes for this version** (shown on the project card, handy for "what we liked about this one") and a **rough build estimate** from finished square footage and an editable cost per square foot. Use **My projects → Make a copy** before trying a big change, then pick **Compare** on two cards to see their plans, bed/bath count, square footage, and estimate side by side.
 
+Pieces from the show era are in the catalog too: a tube TV on its stand, a computer desk, a highchair, a changing table, a dollhouse, cast-iron radiators with a shelf, a round braided rug, a telephone table, a kitchen hutch and curtains. Sofas, beds, rugs, curtains and tablecloths take a **pattern** — stripes, check or floral.
+
 ## Walking through
 
-Choose **Walk through**. You start outside the front door, full screen. Or double-click any room in the 3D view to start right there (a single click selects things in 3D, too).
+Choose **Walk through**. You start outside the front door, full screen. Or double-click any room in the 3D view to start right there (a single click selects things in 3D, too). Set **Walkthrough starts → Out on the street** (bottom of the Finishes panel) to begin at the curb and walk up the path.
 
 - **W A S D** or the on-screen arrows to walk, **drag** to look around, **Q/E** or ←/→ to turn, **Shift** to hurry.
 - Walk onto the stairs to climb to the next floor. Walls, rails, and furniture block you; doorways don't.

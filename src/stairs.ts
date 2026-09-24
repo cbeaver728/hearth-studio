@@ -19,6 +19,8 @@ export interface Tread {
   rect?: Rect;
   /** Spiral wedges, in radians. Point = (cu + r·sinφ, cv + r·cosφ). */
   wedge?: { cu: number; cv: number; r0: number; r1: number; a0: number; a1: number };
+  /** Winder treads: a convex outline in local (u, v). */
+  poly?: [number, number][];
 }
 export interface Segment {
   a: [number, number];
@@ -92,6 +94,47 @@ export function stairLayout(style: StairStyle, LW: number, LD: number): StairLay
       path: [
         [fw / 2, LD - 0.25],
         [fw / 2, fw / 2],
+        [LW - 0.2, fw / 2],
+      ],
+    };
+  }
+  if (style === 'winder') {
+    // Like the L, but the corner turns on three wedge-shaped steps radiating from the inside
+    // corner instead of a flat landing.
+    const fw = Math.min(LW, LD) * 0.4,
+      a = 6,
+      b = n - a - 3,
+      run1 = (LD - fw) / a,
+      run2 = (LW - fw) / b,
+      pivot: [number, number] = [fw, fw];
+    for (let k = 1; k <= a; k++)
+      treads.push({ k, rect: R(0, LD - k * run1, fw, LD - (k - 1) * run1) });
+    const winders: [number, number][][] = [
+      [pivot, [0, fw], [0, fw / 3]],
+      [pivot, [0, fw / 3], [0, 0], [fw / 3, 0]],
+      [pivot, [fw / 3, 0], [fw, 0]],
+    ];
+    winders.forEach((poly, j) => treads.push({ k: a + 1 + j, poly }));
+    for (let j = 1; j <= b; j++)
+      treads.push({ k: a + 3 + j, rect: R(fw + (j - 1) * run2, 0, fw + j * run2, fw) });
+    const turn = (a + 2) * RISE + RAIL_H;
+    return {
+      LW,
+      LD,
+      treads,
+      holes: [R(0, 0, LW, LD)],
+      rails: [S([0, 0], [LW, 0]), S([0, 0], [0, LD]), S([0, LD], [LW, LD]), S([LW, fw], [LW, LD])],
+      dividers: [],
+      banisters: [
+        B([fw, LD], [fw, fw], RAIL_H, turn - RISE),
+        B([fw, fw], [LW, fw], turn + RISE, FLOOR_H + RAIL_H),
+        B([0, LD], [0, 0], RAIL_H, turn),
+        B([0, 0], [LW, 0], turn, FLOOR_H + RAIL_H),
+      ],
+      path: [
+        [fw / 2, LD - 0.25],
+        [fw / 2, fw * 0.55],
+        [fw * 0.55, fw / 2],
         [LW - 0.2, fw / 2],
       ],
     };
@@ -191,6 +234,7 @@ export function mirrorLayout(l: StairLayout): StairLayout {
     treads: l.treads.map((t) => ({
       k: t.k,
       rect: t.rect && R(u(t.rect.x1), t.rect.z0, u(t.rect.x0), t.rect.z1),
+      poly: t.poly && t.poly.map(([pu, pv]) => [u(pu), pv] as [number, number]),
       // Reflecting across u turns the sweep the other way: the angle runs from -a1 to -a0.
       wedge: t.wedge && {
         ...t.wedge,
@@ -261,12 +305,28 @@ export function stairEnds(i: Item) {
   };
 }
 
+/** Point in a polygon, counting points on the edge as inside. */
+export function insidePoly(poly: [number, number][], u: number, v: number) {
+  let sign = 0;
+  for (let n = 0; n < poly.length; n++) {
+    const [ax, az] = poly[n],
+      [bx, bz] = poly[(n + 1) % poly.length];
+    const cross = (bx - ax) * (v - az) - (bz - az) * (u - ax);
+    if (Math.abs(cross) < 1e-9) continue;
+    const s = Math.sign(cross);
+    if (sign && s !== sign) return false;
+    sign = s;
+  }
+  return true;
+}
 /** Which tread (if any) is under a local point. */
 export function treadAt(layout: StairLayout, u: number, v: number): Tread | undefined {
   for (const t of layout.treads) {
     if (t.rect) {
       const r = t.rect;
       if (u >= r.x0 && u <= r.x1 && v >= r.z0 && v <= r.z1) return t;
+    } else if (t.poly) {
+      if (insidePoly(t.poly, u, v)) return t;
     } else if (t.wedge) {
       const w = t.wedge,
         du = u - w.cu,

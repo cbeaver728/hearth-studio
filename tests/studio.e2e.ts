@@ -90,7 +90,9 @@ test('exports a valid portable project and imports it without replacing original
   await page.locator('input[type=file]').setInputFiles(path);
   await expect(page.getByText('Project opened as a new local copy.')).toBeVisible();
   await page.getByRole('button', { name: 'My projects', exact: true }).click();
-  await expect(page.locator('.project-card')).toHaveCount(2);
+  // The Sunday House and Arthur's House come with a fresh install; the import makes three.
+  await expect(page.locator('.project-card')).toHaveCount(3);
+  await expect(page.locator('.project-card', { hasText: "Arthur's House" })).toHaveCount(1);
 });
 test('bad project files do not erase the current design', async ({ page }) => {
   await open(page);
@@ -212,4 +214,26 @@ test('the catalog can be searched across every tab', async ({ page }) => {
   await expect(page.getByText('NOTHING FOUND')).toBeVisible();
   await page.getByRole('button', { name: 'Clear search' }).click();
   await expect(page.getByText('SPACES')).toBeVisible();
+});
+
+test("Arthur's House opens, shows its outside, and can be walked from the street", async ({
+  page,
+}) => {
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  await open(page);
+  await page.getByRole('button', { name: 'My projects', exact: true }).click();
+  await page.getByRole('button', { name: /Tour Arthur/ }).click();
+  await expect(page.getByText("Arthur's House").first()).toBeVisible();
+  await page.getByRole('button', { name: '3D view', exact: true }).click();
+  await page.getByRole('button', { name: 'Exterior', exact: true }).click();
+  await expect(page.locator('canvas')).toBeVisible();
+  await page.getByRole('button', { name: 'Walk through', exact: true }).click();
+  await expect(page.getByText("You're home.")).toBeVisible();
+  await page.keyboard.down('w');
+  await page.waitForTimeout(600);
+  await page.keyboard.up('w');
+  await page.getByRole('button', { name: 'Upstairs', exact: true }).click();
+  await page.keyboard.press('Escape');
+  expect(errors).toEqual([]);
 });

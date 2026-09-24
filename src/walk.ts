@@ -1,6 +1,7 @@
 // Walkthrough physics: which surface you stand on, and what blocks you.
 import {
   buildWalls,
+  CAPE_CEIL,
   type Wall,
   FLOOR_H,
   isPassable,
@@ -12,6 +13,7 @@ import {
   type Project,
 } from './model';
 import {
+  RAIL_H,
   layoutFor,
   rectToWorld,
   stairHeightAt,
@@ -22,6 +24,8 @@ import {
   type Segment,
 } from './stairs';
 import { curvePieces } from './curve';
+import { arcPieces, cornerArcs } from './corners';
+import { lowHeadroom, planRoof, wingPoint } from './roof';
 
 export const EYE = 1.62;
 const RADIUS = 0.24;
@@ -226,6 +230,14 @@ const SOLID = new Set([
   'counterPlain',
   'counterSink',
   'counterL',
+  'crt',
+  'computer',
+  'highchair',
+  'changing',
+  'radiator',
+  'phonetable',
+  'hutch',
+  'dollhouse',
   'canopy',
   'platform',
   'daybed',
@@ -277,6 +289,36 @@ export function buildWalkWorld(p: Project): WalkWorld {
       boxes.push({ x0: x - ax, z0: z - az, x1: x + ax, z1: z + az, y0: y, y1: y + WALL_H });
     }
   }
+  // Under a Cape Cod roof you can't stand right up against the knee walls.
+  const roof = planRoof(p);
+  // The faces of dormers set up the slope are walls you stop at, window in front of you.
+  for (const d of roof.dormers) {
+    if (!d.setback) continue;
+    const wing = roof.wings[d.wing];
+    const [ax, az] = wingPoint(wing, d.side, d.a0, d.setback),
+      [bx, bz] = wingPoint(wing, d.side, d.a1, d.setback);
+    const y = wing.level * FLOOR_H;
+    boxes.push({ ...segBox([ax, az], [bx, bz], 0.08, y, y + CAPE_CEIL) });
+  }
+  for (const { level, rect, low } of lowHeadroom(roof))
+    boxes.push({ ...rect, y0: level * FLOOR_H + low, y1: level * FLOOR_H + CAPE_CEIL });
+  // Rounded room corners.
+  for (const arc of cornerArcs(p)) {
+    const y = arc.room.floor * FLOOR_H;
+    for (const piece of arcPieces(arc)) {
+      const half = piece.len / 2;
+      const ax = Math.abs(Math.cos(piece.angle)) * half + 0.09,
+        az = Math.abs(Math.sin(piece.angle)) * half + 0.09;
+      boxes.push({
+        x0: piece.x - ax,
+        z0: piece.z - az,
+        x1: piece.x + ax,
+        z1: piece.z + az,
+        y0: y,
+        y1: y + WALL_H,
+      });
+    }
+  }
   // Landing rails and porch posts.
   for (const l of p.items.filter((i) => i.kind === 'landing')) {
     const y = l.floor * FLOOR_H;
@@ -305,17 +347,31 @@ export function buildWalkWorld(p: Project): WalkWorld {
     const guards = stairGuards(p, s, walls);
     for (const r of guards.rails)
       boxes.push(segBox(w(r.a), w(r.b), 0.03, upper * FLOOR_H, upper * FLOOR_H + 1));
-    // A banister you can lean on, but not walk through.
-    for (const r of guards.banisters)
-      boxes.push(
-        segBox(
-          w(r.a),
-          w(r.b),
-          0.04,
-          lower * FLOOR_H + Math.min(r.y0, r.y1) - 0.9,
-          lower * FLOOR_H + Math.max(r.y0, r.y1),
-        ),
-      );
+    // A banister stops you stepping off the side once you're a few steps up. It follows the
+    // flight in short lengths, each only as low as the treads beside it, and leaves the bottom
+    // steps open, so you can come at the stairs from the side in a tight hall.
+    for (const r of guards.banisters) {
+      const [ax, az] = w(r.a),
+        [bx, bz] = w(r.b);
+      const pieces = Math.max(1, Math.ceil(Math.hypot(bx - ax, bz - az) / 0.3));
+      for (let n = 0; n < pieces; n++) {
+        const f0 = n / pieces,
+          f1 = (n + 1) / pieces;
+        const y0 = r.y0 + (r.y1 - r.y0) * f0,
+          y1 = r.y0 + (r.y1 - r.y0) * f1;
+        const tread = Math.min(y0, y1) - RAIL_H;
+        if (tread < 0.45) continue;
+        boxes.push(
+          segBox(
+            [ax + (bx - ax) * f0, az + (bz - az) * f0],
+            [ax + (bx - ax) * f1, az + (bz - az) * f1],
+            0.04,
+            lower * FLOOR_H + tread,
+            lower * FLOOR_H + Math.max(y0, y1),
+          ),
+        );
+      }
+    }
     for (const r of layout.dividers)
       boxes.push(segBox(w(r.a), w(r.b), 0.04, lower * FLOOR_H, upper * FLOOR_H + 1));
     if (layout.pole) {

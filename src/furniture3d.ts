@@ -1,7 +1,7 @@
 // 3D models for furniture and fixtures, built in each piece's own frame so they can face
 // any direction. At rotation 0 the back of a piece sits on its north edge (v = 0).
 import * as T from 'three';
-import { FLOOR_H, type Item } from './model';
+import { FLOOR_H, type Fabric, type Item } from './model';
 import { localSize } from './stairs';
 
 export type Mat = (
@@ -9,12 +9,118 @@ export type Mat = (
   o?: { rough?: number; metal?: number; opacity?: number; emissive?: string; double?: boolean },
 ) => T.Material;
 
+const posterTextures = new Map<string, T.CanvasTexture>();
+function posterTexture(label: string, color: string) {
+  const key = `${label}:${color}`;
+  const saved = posterTextures.get(key);
+  if (saved) return saved;
+  const canvas = document.createElement('canvas');
+  canvas.width = 512;
+  canvas.height = 704;
+  const g = canvas.getContext('2d')!;
+  g.fillStyle = color;
+  g.fillRect(0, 0, 512, 704);
+  g.fillStyle = '#f7d875';
+  for (let n = 0; n < 16; n++) {
+    const a = (n / 16) * Math.PI * 2;
+    g.beginPath();
+    g.moveTo(256 + Math.cos(a) * 130, 380 + Math.sin(a) * 130);
+    g.lineTo(256 + Math.cos(a - 0.12) * 250, 380 + Math.sin(a - 0.12) * 250);
+    g.lineTo(256 + Math.cos(a + 0.12) * 250, 380 + Math.sin(a + 0.12) * 250);
+    g.fill();
+  }
+  g.fillStyle = '#1f3d69';
+  g.beginPath();
+  g.ellipse(256, 390, 86, 125, 0, 0, Math.PI * 2);
+  g.fill();
+  if (/bunny/i.test(label)) {
+    for (const x of [218, 292]) {
+      g.beginPath();
+      g.ellipse(x, 220, 25, 115, x < 256 ? -0.16 : 0.16, 0, Math.PI * 2);
+      g.fill();
+    }
+  }
+  g.fillStyle = '#fff9e6';
+  g.textAlign = 'center';
+  g.font = 'bold 56px Arial, sans-serif';
+  const words = label.toUpperCase().split(' ');
+  const mid = Math.ceil(words.length / 2);
+  g.fillText(words.slice(0, mid).join(' '), 256, 82, 470);
+  g.fillText(words.slice(mid).join(' '), 256, 660, 470);
+  const texture = new T.CanvasTexture(canvas);
+  texture.colorSpace = T.SRGBColorSpace;
+  texture.anisotropy = 4;
+  posterTextures.set(key, texture);
+  return texture;
+}
+
+// Woven patterns, drawn in the piece's own color. Each tile covers half a meter.
+const FABRIC_TILE = 0.5;
+const fabricTextures = new Map<string, T.CanvasTexture>();
+function fabricTexture(kind: Fabric, color: string) {
+  const key = kind + color;
+  const hit = fabricTextures.get(key);
+  if (hit) return hit;
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = 128;
+  const g = canvas.getContext('2d')!;
+  g.fillStyle = color;
+  g.fillRect(0, 0, 128, 128);
+  if (kind === 'stripes') {
+    // Broad two-tone stripes, like a den sofa.
+    g.fillStyle = tone(color, -42);
+    for (let x = 0; x < 128; x += 32) g.fillRect(x + 16, 0, 16, 128);
+    g.fillStyle = tone(color, 30);
+    for (let x = 0; x < 128; x += 32) g.fillRect(x + 6, 0, 3, 128);
+  } else if (kind === 'check') {
+    g.globalAlpha = 0.45;
+    g.fillStyle = tone(color, -55);
+    for (let n = 0; n < 128; n += 32) {
+      g.fillRect(n, 0, 16, 128);
+      g.fillRect(0, n, 128, 16);
+    }
+    g.globalAlpha = 1;
+  } else if (kind === 'floral') {
+    for (let row = 0; row < 4; row++)
+      for (let col = 0; col < 4; col++) {
+        const x = col * 32 + (row % 2) * 16 + 16,
+          y = row * 32 + 16;
+        g.fillStyle = tone(color, 38);
+        for (let p = 0; p < 5; p++) {
+          const a = (p / 5) * Math.PI * 2;
+          g.beginPath();
+          g.arc(x + Math.cos(a) * 6, y + Math.sin(a) * 6, 5, 0, Math.PI * 2);
+          g.fill();
+        }
+        g.fillStyle = tone(color, -45);
+        g.beginPath();
+        g.arc(x, y, 3, 0, Math.PI * 2);
+        g.fill();
+      }
+  }
+  const t = new T.CanvasTexture(canvas);
+  t.wrapS = t.wrapT = T.RepeatWrapping;
+  t.colorSpace = T.SRGBColorSpace;
+  t.anisotropy = 4;
+  fabricTextures.set(key, t);
+  return t;
+}
+
 export function furniture(item: Item, y: number, mat: Mat, ceiling = 3): T.Group | null {
   const g = new T.Group();
   const { LW, LD } = localSize(item);
   g.position.set(item.x + item.w / 2, y, item.z + item.d / 2);
   g.rotation.y = (-item.rotation * Math.PI) / 180;
   const c = item.color;
+  // A patterned piece wears its pattern wherever it would wear its own color.
+  const woven =
+    item.fabric && item.fabric !== 'plain'
+      ? new T.MeshStandardMaterial({ map: fabricTexture(item.fabric, c), roughness: 0.92 })
+      : null;
+  if (woven) {
+    const plain = mat;
+    mat = (color, o) => (color === c && !o ? woven : plain(color, o));
+  }
   // A box spanning u0..u1 across, y0..y1 up, v0..v1 front-to-back, in local meters.
   const b = (
     u0: number,
@@ -26,10 +132,26 @@ export function furniture(item: Item, y: number, mat: Mat, ceiling = 3): T.Group
     color: string | T.Material,
   ) => {
     if (u1 - u0 < 0.001 || y1 - y0 < 0.001 || v1 - v0 < 0.001) return;
-    const m = new T.Mesh(
-      new T.BoxGeometry(u1 - u0, y1 - y0, v1 - v0),
-      typeof color === 'string' ? mat(color) : color,
-    );
+    const material = typeof color === 'string' ? mat(color) : color;
+    const geo = new T.BoxGeometry(u1 - u0, y1 - y0, v1 - v0);
+    if (woven && material === woven) {
+      // Faces run +x, -x, +y, -y, +z, -z, four corners each.
+      const [sw, sh, sd] = [u1 - u0, y1 - y0, v1 - v0].map((n) => n / FABRIC_TILE);
+      const size = [
+        [sd, sh],
+        [sd, sh],
+        [sw, sd],
+        [sw, sd],
+        [sw, sh],
+        [sw, sh],
+      ];
+      const uv = geo.attributes.uv as T.BufferAttribute;
+      for (let n = 0; n < uv.count; n++) {
+        const [fu, fv] = size[Math.floor(n / 4)];
+        uv.setXY(n, uv.getX(n) * fu, uv.getY(n) * fv);
+      }
+    }
+    const m = new T.Mesh(geo, material);
     m.position.set((u0 + u1) / 2 - LW / 2, (y0 + y1) / 2, (v0 + v1) / 2 - LD / 2);
     m.castShadow = m.receiveShadow = true;
     g.add(m);
@@ -564,8 +686,8 @@ export function furniture(item: Item, y: number, mat: Mat, ceiling = 3): T.Group
       for (let n = 0; n < frames; n++) {
         const u0 = n * each + 0.06,
           u1 = (n + 1) * each - 0.06;
-        const h = 0.55 + ((n * 7) % 3) * 0.12;
-        const base = 1.45 - h / 2 + ((n * 5) % 2) * 0.1;
+        const h = item.posterText ? 1.1 : 0.55 + ((n * 7) % 3) * 0.12;
+        const base = item.posterText ? 1.05 : 1.45 - h / 2 + ((n * 5) % 2) * 0.1;
         b(u0, u1, base, base + h, 0, D, c);
         b(
           u0 + 0.05,
@@ -574,7 +696,12 @@ export function furniture(item: Item, y: number, mat: Mat, ceiling = 3): T.Group
           base + h - 0.05,
           D - 0.01,
           D + 0.005,
-          ['#c6cdd6', '#d8c9b4', '#b9c9bd'][n % 3],
+          item.posterText
+            ? new T.MeshStandardMaterial({
+                map: posterTexture(item.posterText, c),
+                roughness: 0.85,
+              })
+            : ['#c6cdd6', '#d8c9b4', '#b9c9bd'][n % 3],
         );
       }
       break;
@@ -931,6 +1058,204 @@ export function furniture(item: Item, y: number, mat: Mat, ceiling = 3): T.Group
       ball(W / 2, 0.85, D / 2, Math.min(W, D) * 0.45, c);
       ball(W / 2 + 0.1, 1.15, D / 2 - 0.05, Math.min(W, D) * 0.32, tone(c, 15));
       break;
+    case 'crt': {
+      // A boxy tube television on a wooden stand, rabbit ears and all.
+      b(0, W, 0.08, 0.6, 0, D, c);
+      b(0.03, W - 0.03, 0, 0.08, 0.03, D - 0.03, tone(c, -30));
+      b(0.05, W / 2 - 0.02, 0.14, 0.54, D - 0.01, D + 0.005, tone(c, 14));
+      b(W / 2 + 0.02, W - 0.05, 0.14, 0.54, D - 0.01, D + 0.005, tone(c, 14));
+      const tv = '#45484b';
+      b(W * 0.1, W * 0.9, 0.6, 1.16, 0.05, D - 0.03, tv);
+      b(
+        W * 0.14,
+        W * 0.7,
+        0.66,
+        1.1,
+        D - 0.03,
+        D - 0.01,
+        mat('#5e7d8c', { rough: 0.2, emissive: '#1d2a30' }),
+      );
+      b(W * 0.73, W * 0.86, 0.68, 1.08, D - 0.03, D - 0.01, '#2b2d2f');
+      for (const h of [0.95, 0.83]) cyl(W * 0.795, D - 0.005, 0.022, h, h + 0.04, '#b8b0a0');
+      for (const lean of [-1, 1]) {
+        const rod = b(
+          W / 2 - 0.006,
+          W / 2 + 0.006,
+          1.16,
+          1.62,
+          D / 2 - 0.006,
+          D / 2 + 0.006,
+          '#b8b8b8',
+        );
+        if (rod) {
+          rod.rotation.z = lean * 0.45;
+          rod.position.x += lean * 0.1;
+        }
+      }
+      break;
+    }
+    case 'computer': {
+      // A desk with a gumdrop computer and a keyboard.
+      b(0, W, 0.72, 0.76, 0, D, c);
+      b(0, 0.42, 0, 0.72, 0.02, D - 0.02, tone(c, -12));
+      for (const v of [0.18, 0.4, 0.58]) b(0.04, 0.38, v, v + 0.01, D - 0.02, D, tone(c, 18));
+      b(W - 0.05, W, 0, 0.72, 0.03, D - 0.03, tone(c, -12));
+      const shell = '#3aaeb0';
+      b(W * 0.42, W * 0.82, 0.76, 1.2, 0.08, 0.46, shell);
+      b(
+        W * 0.46,
+        W * 0.78,
+        0.84,
+        1.13,
+        0.455,
+        0.47,
+        mat('#2d3a42', { rough: 0.2, emissive: '#16262b' }),
+      );
+      b(W * 0.4, W * 0.82, 0.76, 0.8, 0.46, 0.5, tone(shell, -20));
+      b(W * 0.38, W * 0.84, 0.76, 0.785, 0.52, 0.64, '#ece8de');
+      ball(W * 0.9, 0.78, 0.55, 0.035, shell);
+      break;
+    }
+    case 'highchair': {
+      for (const [u, v] of [
+        [0.06, 0.06],
+        [W - 0.06, 0.06],
+        [0.06, D - 0.06],
+        [W - 0.06, D - 0.06],
+      ])
+        b(u - 0.025, u + 0.025, 0, 0.82, v - 0.025, v + 0.025, c);
+      b(0.04, W - 0.04, 0.3, 0.33, 0.04, D - 0.04, tone(c, -15));
+      b(0.08, W - 0.08, 0.78, 0.84, 0.08, D - 0.08, c);
+      b(0.08, W - 0.08, 0.84, 1.3, 0.05, 0.1, c);
+      for (const u of [0.1, W - 0.1]) b(u - 0.02, u + 0.02, 0.84, 1.02, 0.1, D - 0.12, c);
+      b(0.02, W - 0.02, 1.0, 1.03, D - 0.2, D + 0.12, tone(c, 22));
+      break;
+    }
+    case 'changing': {
+      b(0, W, 0.08, 0.86, 0, D, c);
+      for (const h of [0.3, 0.58])
+        b(0.04, W - 0.04, h, h + 0.01, D - 0.01, D + 0.005, tone(c, -20));
+      b(0.04, W - 0.04, 0.86, 0.95, 0.04, D - 0.04, '#dfe9f0');
+      b(0, W, 0.86, 1.02, 0, 0.04, c);
+      for (const u of [0.02, W - 0.02]) b(u - 0.02, u + 0.02, 0.86, 1.0, 0, D, c);
+      for (const u of [0.05, W - 0.05])
+        b(u - 0.03, u + 0.03, 0, 0.08, 0.05, D - 0.05, tone(c, -25));
+      break;
+    }
+    case 'radiator': {
+      // Cast-iron columns under a wooden shelf.
+      const cols = Math.max(4, Math.round((W - 0.1) / 0.065));
+      const step = (W - 0.1) / cols;
+      for (let n = 0; n < cols; n++) {
+        const u = 0.05 + step * (n + 0.5);
+        b(u - step * 0.36, u + step * 0.36, 0.1, 0.72, 0.03, D - 0.04, c);
+      }
+      b(0.04, W - 0.04, 0.14, 0.2, 0.05, D - 0.06, tone(c, -12));
+      b(0.04, W - 0.04, 0.62, 0.68, 0.05, D - 0.06, tone(c, -12));
+      for (const u of [0.07, W - 0.07]) b(u - 0.02, u + 0.02, 0, 0.1, 0.06, D - 0.08, tone(c, -25));
+      b(-0.02, W + 0.02, 0.78, 0.81, -0.01, D + 0.03, '#a8845c');
+      break;
+    }
+    case 'rugRound': {
+      // A braided rug: rings of color stepping inward.
+      const r = Math.min(W, D) / 2;
+      const rings = [0, 14, -10, 18, -6, 10];
+      rings.forEach((shift, n) => {
+        const rr = r * (1 - n * 0.15);
+        if (rr > 0.05) cyl(W / 2, D / 2, rr, 0, 0.012 + n * 0.001, tone(c, shift));
+      });
+      break;
+    }
+    case 'phonetable': {
+      // A little telephone table with a shelf, a rotary phone, and a stool beside it.
+      const tw = Math.min(W * 0.62, 0.6);
+      b(0, tw, 0.66, 0.7, 0, D, c);
+      b(0.03, tw - 0.03, 0.22, 0.25, 0.03, D - 0.03, c);
+      for (const [u, v] of [
+        [0.03, 0.03],
+        [tw - 0.03, 0.03],
+        [0.03, D - 0.03],
+        [tw - 0.03, D - 0.03],
+      ])
+        b(u - 0.02, u + 0.02, 0, 0.66, v - 0.02, v + 0.02, tone(c, -20));
+      b(tw * 0.25, tw * 0.75, 0.7, 0.78, D * 0.3, D * 0.75, '#26282b');
+      b(tw * 0.22, tw * 0.78, 0.8, 0.84, D * 0.42, D * 0.58, '#26282b');
+      cyl(tw / 2, D * 0.62, 0.04, 0.78, 0.785, '#d9d4c8');
+      const su = tw + (W - tw) / 2;
+      cyl(su, D / 2, Math.min(0.16, (W - tw) / 2 - 0.02), 0.42, 0.46, c);
+      for (const a of [0.8, 2.4, 3.9, 5.5])
+        cyl(su + Math.sin(a) * 0.1, D / 2 + Math.cos(a) * 0.1, 0.014, 0, 0.42, tone(c, -20));
+      break;
+    }
+    case 'hutch': {
+      // A kitchen dresser: cupboards below, plates on open shelves above.
+      b(0, W, 0.08, 0.9, 0, D, c);
+      b(-0.02, W + 0.02, 0.9, 0.94, -0.01, D + 0.02, tone(c, 16));
+      for (const u of [W / 4, (W * 3) / 4])
+        b(u - W / 4 + 0.04, u + W / 4 - 0.04, 0.16, 0.84, D - 0.01, D + 0.005, tone(c, 12));
+      b(0.02, W - 0.02, 0.94, 2.0, 0, 0.3, c);
+      b(0.06, W - 0.06, 0.98, 1.96, 0.28, 0.3, tone(c, -28));
+      for (const h of [1.3, 1.64]) b(0.04, W - 0.04, h, h + 0.025, 0.02, 0.3, c);
+      for (const h of [0.95, 1.325, 1.665]) {
+        const plates = Math.floor((W - 0.2) / 0.24);
+        for (let n = 0; n < plates; n++) {
+          const u = 0.16 + n * 0.24;
+          const plate = b(
+            u - 0.1,
+            u + 0.1,
+            h + 0.02,
+            h + 0.22,
+            0.08,
+            0.1,
+            n % 2 ? '#f4f1e8' : '#e8f0f2',
+          );
+          if (plate) plate.rotation.x = -0.15;
+        }
+      }
+      b(-0.04, W + 0.04, 2.0, 2.08, -0.02, 0.36, tone(c, 16));
+      break;
+    }
+    case 'dollhouse': {
+      b(0, W, 0, 0.4, 0, D, '#a8845c');
+      const wall = tone(c, 30);
+      b(0.05, W - 0.05, 0.4, 0.88, 0.06, D - 0.06, wall);
+      const rise = 0.22;
+      for (const side of [-1, 1]) {
+        const slope = b(0, (W / 2) * 1.2, 0, 0.03, 0.02, D - 0.02, c);
+        if (slope) {
+          slope.position.set(side * W * 0.24, 0.88 + rise / 2, 0);
+          slope.rotation.z = -side * Math.atan2(rise, W / 2);
+        }
+      }
+      for (const u of [W * 0.25, W * 0.75])
+        for (const h of [0.5, 0.7])
+          b(u - 0.06, u + 0.06, h, h + 0.1, D - 0.065, D - 0.055, '#9fc8d8');
+      b(W / 2 - 0.05, W / 2 + 0.05, 0.4, 0.58, D - 0.065, D - 0.055, '#8a5a44');
+      break;
+    }
+    case 'curtains': {
+      // A rod, a gathered valance, and a panel tied back at each side of the window.
+      const rod = 2.34;
+      b(-0.05, W + 0.05, rod, rod + 0.03, 0.08, 0.11, '#b8a27a');
+      for (let u = 0; u < W - 0.01; u += 0.14)
+        b(
+          u,
+          Math.min(W, u + 0.12),
+          rod - 0.26,
+          rod,
+          0.03,
+          D - (Math.round(u / 0.14) % 2 ? 0.02 : 0),
+          c,
+        );
+      for (const [u0, u1] of [
+        [0, W * 0.2],
+        [W * 0.8, W],
+      ]) {
+        b(u0, u1, 0.88, rod - 0.2, 0.02, D - 0.03, c);
+        b(u0 - 0.01, u1 + 0.01, 1.42, 1.48, 0.01, D - 0.01, tone(c, -25));
+      }
+      break;
+    }
     case 'rug':
       b(0, W, 0, 0.012, 0, D, c);
       b(0.12, W - 0.12, 0.012, 0.016, 0.12, D - 0.12, tone(c, 12));

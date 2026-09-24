@@ -33,7 +33,12 @@ import {
   type Project,
   type RoofFinish,
   type Siding,
+  type Wallpaper,
+  KNEE,
+  CORNERS,
 } from './model';
+import { capeCeilingAt, crossRange, planRoof } from './roof';
+import { buildRoofs, uprightPanel } from './roof3d';
 import {
   layoutFor,
   localSize,
@@ -46,6 +51,7 @@ import {
   type Segment,
 } from './stairs';
 import { curvePieces } from './curve';
+import { arcPieces, cornerArc, cornerArcs } from './corners';
 import { buildWalkWorld, EYE, landingRails, stairGuards, stairHoles, type WalkWorld } from './walk';
 import { furniture, tone, type Mat } from './furniture3d';
 
@@ -158,7 +164,7 @@ function floorTexture(finish: FloorFinish) {
 }
 
 // Outside wall finishes, drawn once and tiled over the walls. Each covers SIDING_TILE meters.
-const SIDING_TILE = 1.2;
+const SIDING_TILE = 1.6;
 const sidingTextures = new Map<string, T.CanvasTexture>();
 /** A repeating panel of the chosen material in the chosen color; null for plain paint. */
 function sidingTexture(siding: Siding, color: string): T.CanvasTexture | null {
@@ -214,16 +220,16 @@ function sidingTexture(siding: Siding, color: string): T.CanvasTexture | null {
     // Running bond: pale mortar, bricks a little different from each other.
     g.fillStyle = '#e7e2d6';
     g.fillRect(0, 0, 256, 256);
-    for (let row = 0; row < 12; row++) {
-      const y = row * 21.3,
+    for (let row = 0; row < 16; row++) {
+      const y = row * 16,
         off = (row % 2) * 26;
       for (let n = -1; n < 6; n++) {
         g.fillStyle = color;
         g.globalAlpha = 0.78 + ((row * 5 + n * 3) % 5) * 0.055;
-        g.fillRect(off + n * 52 + 2, y + 2, 48, 17.3);
+        g.fillRect(off + n * 52 + 2, y + 2, 48, 12.4);
         g.globalAlpha = 1;
         g.fillStyle = shade(0.08 + ((row + n) % 3) * 0.03);
-        g.fillRect(off + n * 52 + 2, y + 14, 48, 5.3);
+        g.fillRect(off + n * 52 + 2, y + 10.4, 48, 4);
       }
     }
   } else if (siding === 'stone') {
@@ -323,9 +329,84 @@ function roofTexture(finish: RoofFinish, color: string): T.CanvasTexture | null 
   return t;
 }
 
+// Wallpapers and wainscot, drawn over a room's own colors on the same 1.6 m tiles as siding.
+const wallTextures = new Map<string, T.CanvasTexture>();
+function wallTexture(kind: Wallpaper | 'wainscot', color: string): T.CanvasTexture {
+  const key = kind + color;
+  const hit = wallTextures.get(key);
+  if (hit) return hit;
+  const c = document.createElement('canvas');
+  c.width = c.height = 256;
+  const g = c.getContext('2d')!;
+  g.fillStyle = color;
+  g.fillRect(0, 0, 256, 256);
+  const shade = (a: number) => `rgba(30,26,40,${a})`;
+  const light = (a: number) => `rgba(255,255,250,${a})`;
+  if (kind === 'stripes') {
+    // Wide and narrow stripes, like an old-fashioned papered dining room.
+    for (let x = 0; x < 256; x += 32) {
+      g.fillStyle = light(0.28);
+      g.fillRect(x, 0, 12, 256);
+      g.fillStyle = shade(0.12);
+      g.fillRect(x + 20, 0, 3, 256);
+    }
+  } else if (kind === 'check') {
+    for (let n = 0; n < 256; n += 32) {
+      g.fillStyle = shade(0.16);
+      g.fillRect(n, 0, 3, 256);
+      g.fillRect(0, n, 256, 3);
+      g.fillStyle = light(0.14);
+      g.fillRect(n + 16, 0, 2, 256);
+      g.fillRect(0, n + 16, 256, 2);
+    }
+  } else if (kind === 'floral') {
+    for (let row = 0; row < 8; row++)
+      for (let col = 0; col < 8; col++) {
+        const x = col * 32 + (row % 2) * 16 + 16,
+          y = row * 32 + 16;
+        g.fillStyle = light(0.4);
+        for (let p = 0; p < 5; p++) {
+          const a = (p / 5) * Math.PI * 2;
+          g.beginPath();
+          g.arc(x + Math.cos(a) * 4.5, y + Math.sin(a) * 4.5, 3.4, 0, Math.PI * 2);
+          g.fill();
+        }
+        g.fillStyle = shade(0.2);
+        g.beginPath();
+        g.arc(x, y, 2.2, 0, Math.PI * 2);
+        g.fill();
+      }
+  } else if (kind === 'wainscot') {
+    // Raised panels in the bottom 0.95 m of the tile: two to a tile, with a lit and a shaded edge.
+    const top = 256 - Math.round((0.95 / 1.6) * 256);
+    g.fillStyle = shade(0.1);
+    g.fillRect(0, top, 256, 3);
+    for (const x of [14, 142]) {
+      const y0 = top + 14,
+        y1 = 256 - 22,
+        w = 100;
+      g.fillStyle = shade(0.16);
+      g.fillRect(x, y0, w, 3);
+      g.fillRect(x, y0, 3, y1 - y0);
+      g.fillStyle = light(0.45);
+      g.fillRect(x, y1 - 3, w, 3);
+      g.fillRect(x + w - 3, y0, 3, y1 - y0);
+      g.fillStyle = light(0.12);
+      g.fillRect(x + 8, y0 + 8, w - 16, y1 - y0 - 16);
+    }
+  }
+  const t = new T.CanvasTexture(c);
+  t.wrapS = t.wrapT = T.RepeatWrapping;
+  t.colorSpace = T.SRGBColorSpace;
+  t.anisotropy = 4;
+  wallTextures.set(key, t);
+  return t;
+}
+
 /** Builds every mesh for the current project and view. */
 function buildContent(p: Project, mode: SceneMode, floor: number, evening: boolean) {
   const group = new T.Group();
+  const autoDoors: { closed: T.Mesh; open: T.Mesh; x: number; z: number }[] = [];
   const materials = new Map<string, T.Material>();
   const mat: Mat = (color, o = {}) => {
     const key = JSON.stringify([color, o]);
@@ -410,6 +491,42 @@ function buildContent(p: Project, mode: SceneMode, floor: number, evening: boole
   };
 
   const levels = p.floors.map((f) => f.level).sort((a, b) => a - b);
+  const plan = planRoof(p);
+  const capeLevels = new Set(plan.wings.filter((w) => w.cape).map((w) => w.level));
+  /** The inside face of a wall in a room: its paint, papered if it has a paper. */
+  const wallMat = (room: Item) => {
+    const color = room.wallColor || p.interior || '#f4efe6';
+    if (!room.wallpaper || room.wallpaper === 'plain') return mat(color);
+    const key = `paper:${room.wallpaper}:${color}`;
+    let m = materials.get(key);
+    if (!m) {
+      m = new T.MeshStandardMaterial({ map: wallTexture(room.wallpaper, color), roughness: 0.85 });
+      materials.set(key, m);
+    }
+    return m;
+  };
+  const wainscotMat = (color: string) => {
+    const key = `wainscot:${color}`;
+    let m = materials.get(key);
+    if (!m) {
+      m = new T.MeshStandardMaterial({ map: wallTexture('wainscot', color), roughness: 0.7 });
+      materials.set(key, m);
+    }
+    return m;
+  };
+  /** Wall textures follow the wall in world space, so patterns carry on from piece to piece. */
+  const wallUv = (mesh: T.Mesh | null, axis: 'x' | 'z') => {
+    if (!mesh) return;
+    const pos = mesh.geometry.attributes.position as T.BufferAttribute;
+    const uv = mesh.geometry.attributes.uv as T.BufferAttribute;
+    for (let n = 0; n < uv.count; n++) {
+      const wx = pos.getX(n) + mesh.position.x,
+        wy = pos.getY(n) + mesh.position.y,
+        wz = pos.getZ(n) + mesh.position.z;
+      uv.setXY(n, (axis === 'x' ? wx : wz) / SIDING_TILE, wy / SIDING_TILE);
+    }
+    uv.needsUpdate = true;
+  };
   const shown =
     mode === 'walk'
       ? levels
@@ -437,7 +554,7 @@ function buildContent(p: Project, mode: SceneMode, floor: number, evening: boole
     return Math.max(w.height, (opensUp ? FLOOR_H : 0) + roofBase(level));
   };
   const insideRoom = (level: number, x: number, z: number) =>
-    roomsOn(level).some((r) => x > r.x && x < r.x + r.w && z > r.z && z < r.z + r.d);
+    roomsOn(level).find((r) => x > r.x && x < r.x + r.w && z > r.z && z < r.z + r.d);
 
   // Ground. Basements cut through it in the walkthrough so their stairs stay open.
   const groundTop =
@@ -491,10 +608,31 @@ function buildContent(p: Project, mode: SceneMode, floor: number, evening: boole
         case 'fence': {
           const along = i.w >= i.d;
           const len = along ? i.w : i.d;
-          for (let t = 0; t < len; t += 0.18)
-            along
-              ? box(i.x + t + 0.06, 0.65, z, 0.12, 1.3, Math.max(0.06, i.d), i.color)
-              : box(x, 0.65, i.z + t + 0.06, Math.max(0.06, i.w), 1.3, 0.12, i.color);
+          if (i.fenceStyle === 'picket') {
+            for (const h of [0.34, 0.82])
+              along
+                ? box(x, h, z, len, 0.09, 0.08, i.color)
+                : box(x, h, z, 0.08, 0.09, len, i.color);
+            for (let t = 0; t <= len - 0.06; t += 0.25) {
+              const at = Math.min(len - 0.06, t + 0.04);
+              const px = along ? i.x + at : x;
+              const pz = along ? z : i.z + at;
+              box(px, 0.5, pz, along ? 0.13 : 0.09, 1, along ? 0.09 : 0.13, i.color);
+              const tip = new T.Mesh(new T.ConeGeometry(0.095, 0.18, 4), mat(i.color));
+              tip.rotation.y = Math.PI / 4;
+              tip.position.set(px, 1.08, pz);
+              add(tip);
+            }
+            for (const at of [0, len])
+              along
+                ? box(i.x + at, 0.62, z, 0.15, 1.24, 0.15, i.color)
+                : box(x, 0.62, i.z + at, 0.15, 1.24, 0.15, i.color);
+          } else {
+            for (let t = 0; t < len; t += 0.18)
+              along
+                ? box(i.x + t + 0.06, 0.65, z, 0.12, 1.3, Math.max(0.06, i.d), i.color)
+                : box(x, 0.65, i.z + t + 0.06, Math.max(0.06, i.w), 1.3, 0.12, i.color);
+          }
           break;
         }
       }
@@ -504,11 +642,52 @@ function buildContent(p: Project, mode: SceneMode, floor: number, evening: boole
   for (const level of shown) {
     const y = level * FLOOR_H,
       holes = [...stairHoles(p, level), ...openCeilings(p, level)];
-    for (const r of roomsOn(level))
-      for (const piece of subtractRects(
-        { x0: r.x, z0: r.z, x1: r.x + r.w, z1: r.z + r.d },
-        holes,
-      )) {
+    for (const r of roomsOn(level)) {
+      const arcs = CORNERS.map((c) => cornerArc(r, c)).filter(Boolean) as NonNullable<
+        ReturnType<typeof cornerArc>
+      >[];
+      const corners = arcs.map((a) => ({
+        x0: Math.min(a.cx, a.cx + Math.cos(a.a0 + Math.PI / 4) * a.r * Math.SQRT2),
+        x1: Math.max(a.cx, a.cx + Math.cos(a.a0 + Math.PI / 4) * a.r * Math.SQRT2),
+        z0: Math.min(a.cz, a.cz + Math.sin(a.a0 + Math.PI / 4) * a.r * Math.SQRT2),
+        z1: Math.max(a.cz, a.cz + Math.sin(a.a0 + Math.PI / 4) * a.r * Math.SQRT2),
+      }));
+      for (const a of arcs) {
+        // CircleGeometry sweeps counter-clockwise in its own plane, which lies flat here with
+        // its y axis along -z; so the plan angle a becomes -a.
+        const disc = new T.CircleGeometry(a.r, 12, -a.a1, a.a1 - a.a0);
+        disc.rotateX(-Math.PI / 2);
+        const pos = disc.attributes.position as T.BufferAttribute;
+        const uv = disc.attributes.uv as T.BufferAttribute;
+        for (let n = 0; n < uv.count; n++)
+          uv.setXY(n, (pos.getX(n) + a.cx) / 1.6, (pos.getZ(n) + a.cz) / 1.6);
+        const m = add(
+          new T.Mesh(
+            disc,
+            r.kind === 'room'
+              ? new T.MeshStandardMaterial({
+                  color: r.color,
+                  map: floorTexture(r.finish || 'wood'),
+                  roughness: r.finish === 'tile' ? 0.35 : r.finish === 'carpet' ? 0.95 : 0.7,
+                })
+              : mat(r.color),
+          ),
+          false,
+        );
+        m.position.set(a.cx, y, a.cz);
+        m.userData.itemId = r.id;
+        const base = add(
+          new T.Mesh(
+            new T.CylinderGeometry(a.r, a.r, 0.17, 12, 1, false, Math.PI / 2 - a.a1, a.a1 - a.a0),
+            mat(level === levels[0] || mode !== 'walk' ? tone(r.color, -20) : '#f3f0ea'),
+          ),
+        );
+        base.position.set(a.cx, y - 0.095, a.cz);
+      }
+      for (const piece of subtractRects({ x0: r.x, z0: r.z, x1: r.x + r.w, z1: r.z + r.d }, [
+        ...holes,
+        ...corners,
+      ])) {
         const base = slab(
           piece,
           y - 0.18,
@@ -541,6 +720,7 @@ function buildContent(p: Project, mode: SceneMode, floor: number, evening: boole
         m.position.set((piece.x0 + piece.x1) / 2, y, (piece.z0 + piece.z1) / 2);
         m.userData.itemId = r.id;
       }
+    }
   }
 
   // Walls: exterior finish outside, interior paint inside, trim at every opening.
@@ -558,12 +738,75 @@ function buildContent(p: Project, mode: SceneMode, floor: number, evening: boole
         ? insideRoom(wall.floor, mid, wall.line + 0.25)
         : insideRoom(wall.floor, wall.line + 0.25, mid);
     const height = wallHeight(wall, !sideA || !sideB);
-    const neg = sideA ? mat(interior) : sidingMat(),
-      pos = sideB ? mat(interior) : sidingMat(),
+    const neg = sideA ? wallMat(sideA) : sidingMat(),
+      pos = sideB ? wallMat(sideB) : sidingMat(),
       edge = mat(mode === 'dollhouse' ? '#f5f0e5' : interior);
     // BoxGeometry face order: +x, -x, +y, -y, +z, -z.
     const faces =
       wall.axis === 'x' ? [edge, edge, edge, edge, pos, neg] : [pos, neg, edge, edge, edge, edge];
+    // Paneled wainscot below a chair rail, on whichever side has it.
+    const WAIN = 0.95;
+    const wainA = sideA?.wainscot,
+      wainB = sideB?.wainscot;
+    const negLow = wainA ? wainscotMat(wainA) : neg,
+      posLow = wainB ? wainscotMat(wainB) : pos;
+    const lowFaces =
+      wall.axis === 'x'
+        ? [edge, edge, edge, edge, posLow, negLow]
+        : [posLow, negLow, edge, edge, edge, edge];
+    // In a half storey, walls stop at the sloping ceiling.
+    const sloped = capeLevels.has(wall.floor);
+    const ceilingAt = (t: number) =>
+      capeCeilingAt(
+        plan,
+        wall.floor,
+        wall.axis === 'x' ? t : wall.line,
+        wall.axis === 'x' ? wall.line : t,
+      );
+    const solid = (
+      a: number,
+      b: number,
+      bottom: number,
+      top: number,
+      material: T.Material | T.Material[] | string,
+      t: number,
+    ): T.Mesh | null => {
+      if (sloped && top > KNEE - 0.01 && b - a > 0.005) {
+        const ts: number[] = [];
+        for (let u = a; u < b - 0.02; u += 0.1) ts.push(u);
+        ts.push(b);
+        const hs = ts.map((u) => Math.min(top, ceilingAt(u) ?? top));
+        if (hs.some((h) => h < top - 0.005)) {
+          if (hs.every((h) => h <= bottom + 0.02)) return null;
+          const outline: [number, number][] = [
+            [a, y + bottom],
+            [b, y + bottom],
+            ...ts
+              .map((u, n) => [u, y + Math.max(bottom + 0.02, hs[n])] as [number, number])
+              .reverse(),
+          ];
+          const halves: [number, number, T.Material][] = Array.isArray(material)
+            ? [
+                [-t / 2, 0, material === lowFaces ? negLow : neg],
+                [0, t / 2, material === lowFaces ? posLow : pos],
+              ]
+            : [[-t / 2, t / 2, typeof material === 'string' ? mat(material) : material]];
+          let first: T.Mesh | null = null;
+          for (const [from, to, m] of halves) {
+            const mesh = uprightPanel(outline, [], wall.axis, wall.line, from, to, m, SIDING_TILE);
+            add(mesh);
+            first ||= mesh;
+          }
+          return first;
+        }
+      }
+      const mesh =
+        wall.axis === 'x'
+          ? box((a + b) / 2, y + (bottom + top) / 2, wall.line, b - a, top - bottom, t, material)
+          : box(wall.line, y + (bottom + top) / 2, (a + b) / 2, t, top - bottom, b - a, material);
+      if (Array.isArray(material)) wallUv(mesh, wall.axis);
+      return mesh;
+    };
     const piece = (
       a: number,
       b: number,
@@ -572,26 +815,61 @@ function buildContent(p: Project, mode: SceneMode, floor: number, evening: boole
       material: T.Material | T.Material[] | string = faces,
       t = thick,
     ) => {
-      const mesh =
-        wall.axis === 'x'
-          ? box((a + b) / 2, y + (bottom + top) / 2, wall.line, b - a, top - bottom, t, material)
-          : box(wall.line, y + (bottom + top) / 2, (a + b) / 2, t, top - bottom, b - a, material);
-      if (material === faces)
-        tileUv(
-          mesh,
-          (b - a) / SIDING_TILE,
-          (top - bottom) / SIDING_TILE,
-          a / SIDING_TILE,
-          (y + bottom) / SIDING_TILE,
-        );
-      return mesh;
+      if (material !== faces || !(wainA || wainB) || bottom >= WAIN - 0.01)
+        return solid(a, b, bottom, top, material, t);
+      const low = solid(a, b, bottom, Math.min(top, WAIN), lowFaces, t);
+      if (top > WAIN + 0.01) {
+        solid(a, b, WAIN, top, faces, t);
+        // The chair rail.
+        for (const [color, sign] of [
+          [wainA, -1],
+          [wainB, 1],
+        ] as const) {
+          if (!color) continue;
+          const at = wall.line + sign * (t / 2 + 0.012);
+          // Under a sloping ceiling the rail stops where the wall drops below it.
+          const spans: [number, number][] = [];
+          for (let u = a; u < b - 1e-6; u += 0.1) {
+            const v = Math.min(b, u + 0.1);
+            if (sloped && (ceilingAt((u + v) / 2) ?? top) < WAIN + 0.06) continue;
+            const last = spans.at(-1);
+            if (last && Math.abs(last[1] - u) < 1e-6) last[1] = v;
+            else spans.push([u, v]);
+          }
+          for (const [u, v] of spans)
+            if (wall.axis === 'x')
+              box((u + v) / 2, y + WAIN, at, v - u, 0.05, 0.03, tone(color, 14));
+            else box(at, y + WAIN, (u + v) / 2, 0.03, 0.05, v - u, tone(color, 14));
+        }
+      }
+      return low;
     };
+    // Dormers take the place of the knee wall where they stand.
+    const dormerSpans = plan.dormers
+      .filter((d) => {
+        const w = plan.wings[d.wing];
+        const eave = d.side === 'lo' ? crossRange(w)[0] : crossRange(w)[1];
+        return (
+          w.cape &&
+          !d.setback &&
+          w.level === wall.floor &&
+          w.axis === wall.axis &&
+          Math.abs(eave - wall.line) < 0.03
+        );
+      })
+      .map((d) => [d.a0, d.a1] as [number, number]);
     const cuts = [
-      ...new Set([wall.start, wall.end, ...wall.openings.flatMap((o) => [o.start, o.end])]),
+      ...new Set([
+        wall.start,
+        wall.end,
+        ...wall.openings.flatMap((o) => [o.start, o.end]),
+        ...dormerSpans.flat().filter((c) => c > wall.start && c < wall.end),
+      ]),
     ].sort((a, b) => a - b);
     for (let n = 0; n < cuts.length - 1; n++) {
       const a = cuts[n],
         b = cuts[n + 1];
+      if (dormerSpans.some(([d0, d1]) => a >= d0 - 0.001 && b <= d1 + 0.001)) continue;
       const openings = wall.openings.filter((o) => o.start <= a + 0.001 && o.end >= b - 0.001);
       // A removed wall wins over anything else sharing the span.
       const open =
@@ -622,10 +900,23 @@ function buildContent(p: Project, mode: SceneMode, floor: number, evening: boole
           }),
           0.03,
         );
+        const frame = p.windowFrames === 'white' ? '#f7f4ec' : '#52675f';
         for (const xx of [a, b, (a + b) / 2])
-          piece(xx - 0.03, xx + 0.03, bottom, Math.min(top, height), '#52675f', 0.06);
+          piece(xx - 0.03, xx + 0.03, bottom, Math.min(top, height), frame, 0.06);
+        if (height > (bottom + top) / 2 + 0.05)
+          piece(a, b, (bottom + top) / 2 - 0.025, (bottom + top) / 2 + 0.025, frame, 0.07);
         piece(a - 0.04, b + 0.04, bottom - 0.04, bottom, trim, thick + 0.08);
-        if (height >= top) piece(a, b, top - 0.05, top, '#52675f', 0.06);
+        if (height >= top) piece(a, b, top - 0.05, top, frame, 0.06);
+        if (p.shutterColor && (!sideA || !sideB)) {
+          for (const edgeAt of [a - 0.18, b + 0.18]) {
+            const face =
+              wall.axis === 'x'
+                ? wall.line + (sideA ? 1 : -1) * (thick / 2 + 0.035)
+                : wall.line + (sideA ? 1 : -1) * (thick / 2 + 0.035);
+            if (wall.axis === 'x') box(edgeAt, y + 1.6, face, 0.28, 1.3, 0.045, p.shutterColor);
+            else box(face, y + 1.6, edgeAt, 0.045, 1.3, 0.28, p.shutterColor);
+          }
+        }
       }
     }
     // Casings, door leaves, sliding glass, and garage panels.
@@ -664,7 +955,11 @@ function buildContent(p: Project, mode: SceneMode, floor: number, evening: boole
       }
       // Door leaves, swung open into a room (the negative side when both are rooms).
       const dir = sideA ? -1 : 1;
-      const leaf = mat(tone(interior, -14));
+      const leaf = mat(p.doorColor || tone(interior, -14));
+      const automatic = o.kind === 'door' && (!sideA || !sideB) && mode !== 'dollhouse';
+      const closed = automatic
+        ? piece(o.start + 0.02, o.end - 0.02, 0.03, 2.12, leaf, 0.065)
+        : null;
       const t = 0.04;
       const leaves: [number, number][] =
         o.kind === 'double'
@@ -676,8 +971,19 @@ function buildContent(p: Project, mode: SceneMode, floor: number, evening: boole
       for (const [hinge, leafWidth] of leaves) {
         const away = hinge > (o.start + o.end) / 2 ? -1 : 1;
         const center = wall.line + dir * (thick / 2 + leafWidth / 2);
-        if (wall.axis === 'x') box(hinge, y + 1.05, center, t, 2.1, leafWidth, leaf);
-        else box(center, y + 1.05, hinge, leafWidth, 2.1, t, leaf);
+        const openLeaf =
+          wall.axis === 'x'
+            ? box(hinge, y + 1.05, center, t, 2.1, leafWidth, leaf)
+            : box(center, y + 1.05, hinge, leafWidth, 2.1, t, leaf);
+        if (closed && openLeaf) {
+          openLeaf.visible = false;
+          autoDoors.push({
+            closed,
+            open: openLeaf,
+            x: wall.axis === 'x' ? (o.start + o.end) / 2 : wall.line,
+            z: wall.axis === 'x' ? wall.line : (o.start + o.end) / 2,
+          });
+        }
         void away;
       }
     }
@@ -745,6 +1051,47 @@ function buildContent(p: Project, mode: SceneMode, floor: number, evening: boole
     }
   }
 
+  // Rounded corners: short lengths of wall following each curve, paint in and siding out.
+  for (const arc of cornerArcs(p).filter((a) => shown.includes(a.room.floor))) {
+    const room = arc.room;
+    const y = room.floor * FLOOR_H;
+    // Just beyond the square corner the curve cuts off: is another room there?
+    const outX = arc.cx + Math.cos((arc.a0 + arc.a1) / 2) * (arc.r * Math.SQRT2 + 0.3),
+      outZ = arc.cz + Math.sin((arc.a0 + arc.a1) / 2) * (arc.r * Math.SQRT2 + 0.3);
+    const next = insideRoom(room.floor, outX, outZ);
+    const neighbour = next && next.id !== room.id ? next : undefined;
+    const height = wallHeight({ floor: room.floor, height: ceilingHeight(p, room) }, !neighbour);
+    const inside = wallMat(room),
+      outside = neighbour ? wallMat(neighbour) : sidingMat(),
+      edge = mat(mode === 'dollhouse' ? '#f5f0e5' : interior);
+    const low = room.wainscot ? wainscotMat(room.wainscot) : inside;
+    for (const piece of arcPieces(arc)) {
+      // Local +z faces out from the curve's center.
+      const faces = (inner: T.Material) => [edge, edge, edge, edge, outside, inner];
+      const put = (y0: number, y1: number, material: T.Material[] | T.Material, t = 0.16) => {
+        if (y1 - y0 < 0.01) return;
+        const m = new T.Mesh(new T.BoxGeometry(piece.len, y1 - y0, t), material);
+        m.position.set(piece.x, y + (y0 + y1) / 2, piece.z);
+        m.rotation.y = -piece.angle;
+        // BoxGeometry's +z side should face away from the center; turn it round if it doesn't.
+        const nx = Math.cos(piece.normal),
+          nz = Math.sin(piece.normal);
+        const fz = Math.cos(m.rotation.y),
+          fx = Math.sin(m.rotation.y);
+        if (fx * nx + fz * nz < 0) m.rotation.y += Math.PI;
+        m.castShadow = m.receiveShadow = true;
+        m.userData.itemId = room.id;
+        group.add(m);
+        wallUv(m, Math.abs(Math.cos(piece.angle)) > 0.7 ? 'x' : 'z');
+      };
+      if (room.wainscot && height > 0.95) {
+        put(0, 0.95, faces(low));
+        put(0.95, height, faces(inside));
+      } else put(0, height, faces(inside));
+      put(0, Math.min(0.09, height), mat('#d2caba'), 0.18);
+    }
+  }
+
   // Landings and balconies.
   for (const l of p.items.filter((i) => i.kind === 'landing' && shown.includes(i.floor))) {
     const y = l.floor * FLOOR_H;
@@ -798,7 +1145,7 @@ function buildContent(p: Project, mode: SceneMode, floor: number, evening: boole
     }
   }
 
-  // Roofs: a gable (or flat) roof over the top of each stack, flat roofs over lower parts.
+  // Roofs: one per wing, with valleys, dormers and chimneys; see roof.ts.
   if (mode !== 'dollhouse') {
     const roofMap = roofTexture(p.roofFinish || 'shingle', p.roof);
     const roofKey = `roof:${p.roofFinish}:${p.roof}`;
@@ -814,85 +1161,24 @@ function buildContent(p: Project, mode: SceneMode, floor: number, evening: boole
         : mat(p.roof, { double: true });
       materials.set(roofKey, roofMat);
     }
-    /** Tiles the covering over a roof panel at real-world size. */
-    const tileRoof = (mesh: T.Mesh | null, su: number, sv: number) => {
-      if (!mesh || !roofMap) return;
-      const uv = mesh.geometry.attributes.uv as T.BufferAttribute;
-      for (let n = 0; n < uv.count; n++) uv.setXY(n, uv.getX(n) * su, uv.getY(n) * sv);
-      uv.needsUpdate = true;
-    };
-    for (const level of levels.filter((l) => l >= 0))
-      for (const kind of ['room', 'garage'] as const) {
-        const rooms = p.items.filter((i) => i.floor === level && i.kind === kind);
-        if (!rooms.length) continue;
-        const y = level * FLOOR_H + Math.max(...rooms.map((r) => ceilingHeight(p, r)));
-        const above = p.items.filter(
-          (i) =>
-            isRoom(i) &&
-            i.floor === level + 1 &&
-            rooms.some(
-              (r) => i.x < r.x + r.w && i.x + i.w > r.x && i.z < r.z + r.d && i.z + i.d > r.z,
-            ),
-        );
-        if (above.length) {
-          const cover = above.map((r) => ({ x0: r.x, z0: r.z, x1: r.x + r.w, z1: r.z + r.d }));
-          for (const r of rooms)
-            for (const piece of subtractRects(
-              { x0: r.x - 0.12, z0: r.z - 0.12, x1: r.x + r.w + 0.12, z1: r.z + r.d + 0.12 },
-              cover,
-            ))
-              tileRoof(
-                slab(piece, y, y + 0.22, roofMat),
-                (piece.x1 - piece.x0) / ROOF_TILE,
-                (piece.z1 - piece.z0) / ROOF_TILE,
-              );
-          continue;
-        }
-        const minX = Math.min(...rooms.map((i) => i.x)) - 0.3,
-          maxX = Math.max(...rooms.map((i) => i.x + i.w)) + 0.3,
-          minZ = Math.min(...rooms.map((i) => i.z)) - 0.3,
-          maxZ = Math.max(...rooms.map((i) => i.z + i.d)) + 0.3,
-          w = maxX - minX,
-          d = maxZ - minZ,
-          x = (minX + maxX) / 2,
-          z = (minZ + maxZ) / 2;
-        if (p.roofStyle === 'flat') {
-          tileRoof(box(x, y + 0.11, z, w, 0.22, d, roofMat), w / ROOF_TILE, d / ROOF_TILE);
-          continue;
-        }
-        const rise = Math.min(2.2, w * 0.23);
-        const shape = new T.Shape();
-        shape.moveTo(-w / 2, 0);
-        shape.lineTo(w / 2, 0);
-        shape.lineTo(0, rise);
-        shape.closePath();
-        const roof = add(
-          new T.Mesh(
-            new T.ExtrudeGeometry(shape, { depth: d, bevelEnabled: false }),
-            sidingMap ? sidingMat(true) : mat(tone(p.exterior, -8), { double: true }),
-          ),
-        );
-        // The gable ends carry the same finish as the walls below them.
-        tileUv(roof, 1 / SIDING_TILE, 1 / SIDING_TILE, 0, y / SIDING_TILE);
-        roof.position.set(x, y + 0.02, minZ);
-        const length = Math.hypot(w / 2, rise),
-          angle = Math.atan2(rise, w / 2);
-        for (const side of [-1, 1]) {
-          const panel = box(
-            x + (side * w) / 4,
-            y + rise / 2 + 0.1,
-            z,
-            length + 0.1,
-            0.11,
-            d + 0.12,
-            roofMat,
-          );
-          if (panel) {
-            panel.rotation.z = -side * angle;
-            tileRoof(panel, (length + 0.1) / ROOF_TILE, (d + 0.12) / ROOF_TILE);
-          }
-        }
-      }
+    buildRoofs({
+      p,
+      plan,
+      add: (m) => {
+        if (m) add(m);
+      },
+      mat: (color, o) => mat(color, o),
+      roof: roofMat,
+      roofTile: ROOF_TILE,
+      siding: (double) => sidingMat(double),
+      sidingTile: SIDING_TILE,
+      ceiling: mat('#f3f0ea', { double: true }),
+      paintAt: (level, x, z) => {
+        const r = insideRoom(level, x, z);
+        return r ? wallMat(r) : mat(interior);
+      },
+      evening,
+    });
   }
 
   const bounds = new T.Box3();
@@ -902,6 +1188,7 @@ function buildContent(p: Project, mode: SceneMode, floor: number, evening: boole
     bounds.expandByPoint(new T.Vector3(r.x + r.w, r.floor * FLOOR_H + 3, r.z + r.d));
   }
   if (bounds.isEmpty()) bounds.set(new T.Vector3(-6, 0, -6), new T.Vector3(6, 3, 6));
+  group.userData.autoDoors = autoDoors;
   const dispose = () => {
     const cached = new Set(materials.values());
     group.traverse((o) => {
@@ -949,13 +1236,28 @@ function buildStairs(
     m.position.set((u0 + u1) / 2 - LW / 2, (y0 + y1) / 2, (v0 + v1) / 2 - LD / 2);
     return m;
   };
-  const body = mat(tone(s.color, -18)),
+  // Painted stairs: risers, stringers and spindles in the trim color, the treads left natural.
+  const painted = !!s.trimColor;
+  const body = mat(painted ? s.trimColor! : tone(s.color, -18)),
     tread = mat(s.color),
-    rail = mat('#6b5a45'),
+    rail = mat(painted ? tone(s.trimColor!, -8) : '#6b5a45'),
+    spindle = mat(painted ? s.trimColor! : '#6b5a45'),
     glass = mat('#d6e8ea', { opacity: 0.3, rough: 0.05 });
+  /** A flat outline in local (u, v), raised between two heights. */
+  const slabOf = (poly: [number, number][], y0: number, y1: number, material: T.Material) => {
+    const shape = new T.Shape(poly.map(([u, v]) => new T.Vector2(u - LW / 2, LD / 2 - v)));
+    const geo = new T.ExtrudeGeometry(shape, { depth: y1 - y0, bevelEnabled: false });
+    geo.rotateX(-Math.PI / 2);
+    const m = put(new T.Mesh(geo, material));
+    m.position.y = y0;
+    return m;
+  };
   for (const t of layout.treads) {
     const top = t.k * RISE;
-    if (t.rect) {
+    if (t.poly) {
+      slabOf(t.poly, Math.max(0, top - 0.45), top - 0.035, body);
+      slabOf(t.poly, top - 0.035, top, tread);
+    } else if (t.rect) {
       const r = t.rect;
       b(r.x0, r.x1, Math.max(0, top - 0.45), top - 0.035, r.z0, r.z1, body);
       b(r.x0 - 0.01, r.x1 + 0.01, top - 0.035, top, r.z0 - 0.015, r.z1 + 0.015, tread);
@@ -1013,7 +1315,18 @@ function buildStairs(
   if (upperShown) {
     const y = (upper - lower) * FLOOR_H;
     for (const r of guards.rails) {
-      segment(r.a, r.b, y, y + 0.92, glass, 0.02);
+      if (painted) {
+        const len = Math.hypot(r.b[0] - r.a[0], r.b[1] - r.a[1]);
+        const count = Math.max(2, Math.round(len / 0.12));
+        for (let n = 0; n <= count; n++) {
+          const f = n / count;
+          const u = r.a[0] + (r.b[0] - r.a[0]) * f,
+            v = r.a[1] + (r.b[1] - r.a[1]) * f;
+          b(u - 0.018, u + 0.018, y, y + 0.92, v - 0.018, v + 0.018, spindle);
+        }
+        for (const [u, v] of [r.a, r.b])
+          b(u - 0.05, u + 0.05, y, y + 1.02, v - 0.05, v + 0.05, spindle);
+      } else segment(r.a, r.b, y, y + 0.92, glass, 0.02);
       segment(r.a, r.b, y + 0.92, y + 0.97, rail, 0.06);
     }
   }
@@ -1033,16 +1346,47 @@ function buildStairs(
     m.rotation.y = Math.atan2(du, dv);
     m.rotation.x = -Math.atan2(drop, run);
     // Posts stand on the treads below the rail, not on the floor far underneath.
-    const posts = Math.max(2, Math.round(run / 0.42));
+    const posts = Math.max(2, Math.round(run / (painted ? 0.13 : 0.42)));
     for (let n = 0; n <= posts; n++) {
       const t = n / posts;
       const top = r.y0 + drop * t;
-      const post = put(new T.Mesh(new T.BoxGeometry(0.035, RAIL_H, 0.035), rail));
+      const post = put(new T.Mesh(new T.BoxGeometry(0.035, RAIL_H, 0.035), spindle));
       post.position.set(r.a[0] + du * t - LW / 2, top - RAIL_H / 2, r.a[1] + dv * t - LD / 2);
+    }
+    if (painted) {
+      // A turned newel post at the foot of the flight, with a ball on top.
+      const [u, v] = r.y0 < r.y1 ? r.a : r.b;
+      const foot = Math.min(r.y0, r.y1) - RAIL_H;
+      const newel = put(new T.Mesh(new T.BoxGeometry(0.11, RAIL_H + 0.22, 0.11), spindle));
+      newel.position.set(u - LW / 2, foot + (RAIL_H + 0.22) / 2, v - LD / 2);
+      const knob = put(new T.Mesh(new T.SphereGeometry(0.075, 12, 8), spindle));
+      knob.position.set(u - LW / 2, foot + RAIL_H + 0.28, v - LD / 2);
     }
   }
 }
 
+/** How far back from the front door the street is: just past the front fence, or a good
+ * look at the house if there isn't one. */
+function streetDistance(p: Project, d: { x: number; z: number; nx: number; nz: number }) {
+  let far = 9;
+  for (const f of p.items.filter((i) => i.kind === 'fence')) {
+    for (let t = 2; t < 30; t += 0.25) {
+      const x = d.x + d.nx * t,
+        z = d.z + d.nz * t;
+      // Anything within a few paces either side of the path counts, so a gate gap doesn't.
+      const side = [-2, 0, 2].some((o) => {
+        const px = x - d.nz * o,
+          pz = z + d.nx * o;
+        return px >= f.x - 0.1 && px <= f.x + f.w + 0.1 && pz >= f.z - 0.1 && pz <= f.z + f.d + 0.1;
+      });
+      if (side) {
+        far = Math.max(far, t + 2.2);
+        break;
+      }
+    }
+  }
+  return Math.min(far, 24);
+}
 /** Finds the main entrance: an outside door on the ground floor, preferring an entry room. */
 function frontDoor(p: Project) {
   const rooms = p.items.filter((i) => i.kind === 'room' && i.floor === 0);
@@ -1368,6 +1712,16 @@ export default function Scene({
           w.fall = Math.min(w.fall + dt * 14, 9);
           w.feet = Math.max(ground, w.feet - Math.max(w.fall, 3) * dt);
         }
+        for (const door of (e.content?.userData.autoDoors || []) as {
+          closed: T.Mesh;
+          open: T.Mesh;
+          x: number;
+          z: number;
+        }[]) {
+          const near = Math.hypot(w.x - door.x, w.z - door.z) < 1.5;
+          door.closed.visible = !near;
+          door.open.visible = near;
+        }
         const pose = [w.x, w.z, w.feet, w.yaw, w.pitch].map((n) => n.toFixed(4)).join();
         const force = dirty.current;
         if (pose === seen && !force) return;
@@ -1546,7 +1900,8 @@ export default function Scene({
     let x = 0,
       z = 0,
       yaw = Math.PI,
-      found = false;
+      found = false,
+      outsideDoor = false;
     const face = (dx: number, dz: number) => Math.atan2(-dx, -dz);
     if (at) {
       x = at.x;
@@ -1556,10 +1911,12 @@ export default function Scene({
     } else if (level === 0) {
       const d = frontDoor(p);
       if (d) {
-        x = d.x + d.nx * 2.2;
-        z = d.z + d.nz * 2.2;
+        const back = p.walkStart === 'street' ? streetDistance(p, d) : 2.2;
+        x = d.x + d.nx * back;
+        z = d.z + d.nz * back;
         yaw = face(-d.nx, -d.nz);
         found = true;
+        outsideDoor = p.walkStart === 'street';
       }
     }
     if (!found) {
@@ -1614,7 +1971,8 @@ export default function Scene({
       x,
       z,
       yaw,
-      pitch: -0.05,
+      // From the street, look up enough to take in the whole house.
+      pitch: outsideDoor ? 0.16 : -0.05,
       feet: world.support(x, z, feet0 + 0.1),
       level,
       fall: 0,

@@ -79,13 +79,41 @@ export type Kind =
   | 'swing'
   | 'trampoline'
   | 'hoop'
-  | 'mailbox';
-export type StairStyle = 'straight' | 'l' | 'u' | 'spiral';
+  | 'mailbox'
+  | 'dormer'
+  | 'chimney'
+  | 'crt'
+  | 'computer'
+  | 'highchair'
+  | 'changing'
+  | 'radiator'
+  | 'rugRound'
+  | 'phonetable'
+  | 'hutch'
+  | 'dollhouse'
+  | 'curtains';
+export type StairStyle = 'straight' | 'l' | 'winder' | 'u' | 'spiral';
 /** Ceiling height: the usual 10 ft, a taller 12 ft, or open all the way to the floor above. */
 export type Ceiling = 'standard' | 'tall' | 'open';
 export const WALL_H = 3;
 export const TALL_H = 3.7;
+/** A storey-and-a-half (Cape Cod) roof: the top rooms sit inside it, behind knee walls this
+ * high, under a sloping ceiling that levels off at CAPE_CEIL. */
+export const KNEE = 0.6;
+export const CAPE_CEIL = 2.4;
+/** Paper on the walls above any wainscot. */
+export type Wallpaper = 'plain' | 'stripes' | 'check' | 'floral';
+/** A woven or printed pattern on upholstery, curtains and rugs. */
+export type Fabric = 'plain' | 'stripes' | 'check' | 'floral';
 export type Side = 'north' | 'south' | 'east' | 'west';
+/** A room's corners, by compass point. */
+export type Corner = 'nw' | 'ne' | 'sw' | 'se';
+export const CORNERS: Corner[] = ['nw', 'ne', 'sw', 'se'];
+/** How far a room's corner is rounded: nothing unless it has a radius, never more than half a side. */
+export function cornerRadius(r: Item, c: Corner) {
+  if (!r.radius || (r.rounded && !r.rounded.includes(c))) return 0;
+  return Math.max(0, Math.min(r.radius, r.w / 2, r.d / 2));
+}
 /** Floor-to-floor height in meters. */
 export const FLOOR_H = 3.2;
 export interface Item {
@@ -110,8 +138,27 @@ export interface Item {
   mirror?: boolean;
   /** Rooms only: what the floor is made of (wood when unset). */
   finish?: FloorFinish;
+  /** Rooms only: overrides the project's interior wall color. */
+  wallColor?: string;
+  /** Rooms only: how far the rounded corners curve, in meters. */
+  radius?: number;
+  /** Rooms only: which corners are rounded (all four when unset). */
+  rounded?: Corner[];
+  /** Rooms only: paneled wainscot of this color along the bottom of the walls. */
+  wainscot?: string;
+  /** Rooms only: a paper pattern over the wall color. */
+  wallpaper?: Wallpaper;
+  /** Furniture: a pattern woven into the main color. */
+  fabric?: Fabric;
+  /** Stairs: painted risers, stringers and spindle rails in this color, with the treads left as
+   * they are. Without it, stairs get a modern glass guard. */
+  trimColor?: string;
+  /** Pictures only: optional text printed on a poster. */
+  posterText?: string;
   /** Landings only: a roof on posts over the platform. */
   covered?: boolean;
+  /** Fences only: the original close-board fence or spaced, pointed pickets. */
+  fenceStyle?: 'privacy' | 'picket';
   /** Rooms only: how high the ceiling goes (standard when unset). */
   ceiling?: Ceiling;
 }
@@ -183,10 +230,20 @@ export interface Project {
   /** What the outside walls are made of (painted when unset). */
   siding?: Siding;
   interior?: string;
+  /** Optional painted shutters beside outside windows. */
+  shutterColor?: string;
+  /** Window sashes: dark green-gray (the default) or painted white. */
+  windowFrames?: 'dark' | 'white';
+  /** Optional color for swinging doors. */
+  doorColor?: string;
+  /** Where the walkthrough begins: just outside the front door, or out on the street. */
+  walkStart?: 'door' | 'street';
   roof: string;
   /** What the roof is covered with (shingles when unset). */
   roofFinish?: RoofFinish;
-  roofStyle: 'gable' | 'flat';
+  roofStyle: 'gable' | 'cape' | 'flat';
+  /** Direction the gable ridge runs. Existing projects use the north-south ridge. */
+  roofAxis?: 'x' | 'z';
   units: 'ft' | 'm';
   /** Free-form notes about this version of the design. */
   notes?: string;
@@ -249,6 +306,18 @@ export const catalog: CatalogEntry[] = [
     'Build',
     'Stairs',
     'l',
+  ),
+  entry(
+    'stairs-winder',
+    'stairs',
+    'Winder',
+    'Turns on wedge steps, no landing',
+    2.5,
+    2.9,
+    '#c7b59e',
+    'Build',
+    'Stairs',
+    'winder',
   ),
   entry(
     'stairs-u',
@@ -357,6 +426,50 @@ export const catalog: CatalogEntry[] = [
   ),
   entry('wetbar', 'wetbar', 'Wet bar', 'Pour a drink', 1.6, 0.6, '#8a6a4e', 'Furnish', 'Living'),
   entry('plant', 'plant', 'House plant', 'A little life', 0.6, 0.6, '#6f9569', 'Furnish', 'Living'),
+  entry(
+    'crt',
+    'crt',
+    'Tube TV',
+    'A boxy set on its stand',
+    1,
+    0.55,
+    '#3f7a5c',
+    'Furnish',
+    'Living',
+  ),
+  entry(
+    'rugRound',
+    'rugRound',
+    'Round braided rug',
+    'Rings of color',
+    2.4,
+    2.4,
+    '#d8b04a',
+    'Furnish',
+    'Living',
+  ),
+  entry(
+    'phonetable',
+    'phonetable',
+    'Telephone table',
+    'A rotary phone and a stool',
+    0.95,
+    0.4,
+    '#a8845c',
+    'Furnish',
+    'Living',
+  ),
+  entry(
+    'radiator',
+    'radiator',
+    'Radiator',
+    'Cast iron, with a shelf on top',
+    1,
+    0.22,
+    '#e8e4da',
+    'Furnish',
+    'Living',
+  ),
   entry(
     'table',
     'table',
@@ -519,6 +632,28 @@ export const catalog: CatalogEntry[] = [
     2.8,
     2,
     '#d4c7b5',
+    'Furnish',
+    'Kitchen & dining',
+  ),
+  entry(
+    'highchair',
+    'highchair',
+    'Highchair',
+    'The baby joins in at dinner',
+    0.55,
+    0.6,
+    '#3f9a7a',
+    'Furnish',
+    'Kitchen & dining',
+  ),
+  entry(
+    'hutch',
+    'hutch',
+    'Kitchen hutch',
+    'Cupboards below, plates on show',
+    1.2,
+    0.5,
+    '#3f9a7a',
     'Furnish',
     'Kitchen & dining',
   ),
@@ -789,6 +924,17 @@ export const catalog: CatalogEntry[] = [
     'On the walls',
   ),
   entry(
+    'curtains',
+    'curtains',
+    'Curtains',
+    'Hang them at a window',
+    1.5,
+    0.12,
+    '#f2d24a',
+    'Furnish',
+    'On the walls',
+  ),
+  entry(
     'sconce',
     'sconce',
     'Wall light',
@@ -873,6 +1019,39 @@ export const catalog: CatalogEntry[] = [
     1.35,
     0.75,
     '#c9b49a',
+    'Furnish',
+    'Bedroom & office',
+  ),
+  entry(
+    'changing',
+    'changing',
+    'Changing table',
+    'Everything to hand',
+    0.9,
+    0.5,
+    '#f0e6d2',
+    'Furnish',
+    'Bedroom & office',
+  ),
+  entry(
+    'dollhouse',
+    'dollhouse',
+    'Dollhouse',
+    'A little house of her own',
+    0.9,
+    0.45,
+    '#c0503c',
+    'Furnish',
+    'Bedroom & office',
+  ),
+  entry(
+    'computer',
+    'computer',
+    'Computer desk',
+    'A gumdrop computer and keyboard',
+    1.2,
+    0.65,
+    '#a8845c',
     'Furnish',
     'Bedroom & office',
   ),
@@ -1003,6 +1182,38 @@ export const catalog: CatalogEntry[] = [
   entry('pool', 'pool', 'Pool', 'Your own blue escape', 3, 6, '#80c9cc', 'Landscape'),
   entry('tree', 'tree', 'Tree', 'Room to grow', 1.8, 1.8, '#6f9569', 'Landscape'),
   entry('fence', 'fence', 'Fence', 'Frame your garden', 5, 0.15, '#b4a58b', 'Landscape'),
+  entry(
+    'picket-fence',
+    'fence',
+    'Picket fence',
+    'Spaced pointed pickets and rails',
+    5,
+    0.15,
+    '#f5f4e9',
+    'Landscape',
+  ),
+  entry(
+    'dormer',
+    'dormer',
+    'Gable dormer',
+    'A window projecting from the roof',
+    1.8,
+    1.4,
+    '#f1d66d',
+    'Build',
+    'Roof details',
+  ),
+  entry(
+    'chimney',
+    'chimney',
+    'Chimney',
+    'Masonry above the roof',
+    0.75,
+    0.8,
+    '#e7d6b9',
+    'Build',
+    'Roof details',
+  ),
 ];
 export const catalogEntry = (id: string) =>
   catalog.find((e) => e.id === id) || catalog.find((e) => e.kind === id);
@@ -1011,6 +1222,7 @@ export const stairEntry = (style: StairStyle = 'straight') =>
 export const stairNames: Record<StairStyle, string> = {
   straight: 'Straight stairs',
   l: 'L-shaped stairs',
+  winder: 'Winder stairs',
   u: 'Switchback stairs',
   spiral: 'Spiral stairs',
 };
@@ -1033,6 +1245,7 @@ export function createItem(id: string, floor: number, x: number, z: number): Ite
     item.style = c.style || 'straight';
     item.dir = 'up';
   }
+  if (id === 'picket-fence') item.fenceStyle = 'picket';
   return item;
 }
 /** The two levels a staircase joins. */
@@ -1057,8 +1270,28 @@ export const roomsAbove = (p: Project, r: Item) =>
       i.z < r.z + r.d - 0.01 &&
       i.z + i.d > r.z + 0.01,
   );
+/** Rooms directly under this one. */
+export const roomsBelow = (p: Project, r: Item) =>
+  p.items.filter(
+    (i) =>
+      isRoom(i) &&
+      i.floor === r.floor - 1 &&
+      i.x < r.x + r.w - 0.01 &&
+      i.x + i.w > r.x + 0.01 &&
+      i.z < r.z + r.d - 0.01 &&
+      i.z + i.d > r.z + 0.01,
+  );
+/** Under a Cape Cod roof, a room built on top of another storey, with nothing above it, lives
+ * inside the roof: knee walls at the eaves and a sloping ceiling. */
+export const halfStorey = (p: Project, r: Item) =>
+  p.roofStyle === 'cape' &&
+  isRoom(r) &&
+  r.floor >= 1 &&
+  !roomsAbove(p, r).length &&
+  roomsBelow(p, r).length > 0;
 /** How tall this room's walls stand. Open rooms reach through the floor above. */
 export function ceilingHeight(p: Project, r: Item) {
+  if (halfStorey(p, r)) return CAPE_CEIL;
   if (r.ceiling === 'open' && hasFloor(p, r.floor + 1)) return FLOOR_H + WALL_H;
   // A taller ceiling only fits where nothing is built on top.
   if (r.ceiling === 'tall' && !roomsAbove(p, r).length) return TALL_H;
@@ -1264,10 +1497,15 @@ export function validateProject(raw: unknown): Project {
     p.openings.length > 2000 ||
     !color(p.exterior) ||
     (p.interior !== undefined && !color(p.interior)) ||
+    (p.shutterColor !== undefined && !color(p.shutterColor)) ||
+    (p.doorColor !== undefined && !color(p.doorColor)) ||
+    (p.walkStart !== undefined && !['door', 'street'].includes(p.walkStart)) ||
+    (p.windowFrames !== undefined && !['dark', 'white'].includes(p.windowFrames)) ||
     (p.siding !== undefined && !sidings.some((s) => s.id === p.siding)) ||
     (p.roofFinish !== undefined && !roofFinishes.some((r) => r.id === p.roofFinish)) ||
     !color(p.roof) ||
-    !['gable', 'flat'].includes(p.roofStyle) ||
+    !['gable', 'cape', 'flat'].includes(p.roofStyle) ||
+    (p.roofAxis !== undefined && !['x', 'z'].includes(p.roofAxis)) ||
     !['ft', 'm'].includes(p.units) ||
     (p.notes !== undefined && (typeof p.notes !== 'string' || p.notes.length > 4000)) ||
     (p.costPerSqFt !== undefined && !num(p.costPerSqFt, 0, 5000))
@@ -1293,11 +1531,23 @@ export function validateProject(raw: unknown): Project {
       !num(i.d, 0.1, 100) ||
       !num(i.rotation, 0, 360) ||
       !color(i.color) ||
-      (i.style !== undefined && !['straight', 'l', 'u', 'spiral'].includes(i.style)) ||
+      (i.style !== undefined && !['straight', 'l', 'winder', 'u', 'spiral'].includes(i.style)) ||
       (i.dir !== undefined && !['up', 'down'].includes(i.dir)) ||
       (i.mirror !== undefined && typeof i.mirror !== 'boolean') ||
       (i.finish !== undefined && !['wood', 'tile', 'carpet', 'stone'].includes(i.finish)) ||
+      (i.wallColor !== undefined && !color(i.wallColor)) ||
+      (i.wainscot !== undefined && !color(i.wainscot)) ||
+      (i.radius !== undefined && !num(i.radius, 0, 50)) ||
+      (i.rounded !== undefined &&
+        (!Array.isArray(i.rounded) || !i.rounded.every((c) => CORNERS.includes(c)))) ||
+      (i.trimColor !== undefined && !color(i.trimColor)) ||
+      (i.wallpaper !== undefined &&
+        !['plain', 'stripes', 'check', 'floral'].includes(i.wallpaper)) ||
+      (i.fabric !== undefined && !['plain', 'stripes', 'check', 'floral'].includes(i.fabric)) ||
+      (i.posterText !== undefined &&
+        (typeof i.posterText !== 'string' || i.posterText.length > 40)) ||
       (i.covered !== undefined && typeof i.covered !== 'boolean') ||
+      (i.fenceStyle !== undefined && !['privacy', 'picket'].includes(i.fenceStyle)) ||
       (i.ceiling !== undefined && !['standard', 'tall', 'open'].includes(i.ceiling))
     )
       throw new Error('Invalid shape in project.');
@@ -1349,23 +1599,39 @@ export function buildWalls(p: Project): Wall[] {
   for (const r of p.items.filter(isRoom))
     for (const side of ['north', 'south', 'west', 'east'] as Side[]) {
       const horizontal = side === 'north' || side === 'south',
-        start = horizontal ? r.x : r.z,
+        from = horizontal ? r.x : r.z,
         len = horizontal ? r.w : r.d;
+      // A rounded corner takes the end off each wall that meets it.
+      const [c0, c1]: Corner[] =
+        side === 'north'
+          ? ['nw', 'ne']
+          : side === 'south'
+            ? ['sw', 'se']
+            : side === 'west'
+              ? ['nw', 'sw']
+              : ['ne', 'se'];
+      const start = from + cornerRadius(r, c0),
+        end = from + len - cornerRadius(r, c1);
+      if (end - start < 0.01) continue;
       const openings = p.openings
         .filter((o) => o.roomId === r.id && o.side === side)
         .map((o) => {
           // Taking a wall out opens the whole side; everything else is centered on its offset.
-          if (spansWall(o.kind)) return { start, end: start + len, kind: o.kind };
-          const width = Math.min(o.width, len - 0.2);
-          const c = Math.max(width / 2 + 0.1, Math.min(len - width / 2 - 0.1, len * o.offset));
-          return { start: start + c - width / 2, end: start + c + width / 2, kind: o.kind };
-        });
+          if (spansWall(o.kind)) return { start, end, kind: o.kind };
+          const width = Math.min(o.width, end - start - 0.2);
+          const c = Math.max(
+            start - from + width / 2 + 0.1,
+            Math.min(end - from - width / 2 - 0.1, len * o.offset),
+          );
+          return { start: from + c - width / 2, end: from + c + width / 2, kind: o.kind };
+        })
+        .filter((o) => o.end > o.start + 0.05);
       segments.push({
         axis: horizontal ? 'x' : 'z',
         line:
           side === 'north' ? r.z : side === 'south' ? r.z + r.d : side === 'west' ? r.x : r.x + r.w,
         start,
-        end: start + len,
+        end,
         floor: r.floor,
         height: ceilingHeight(p, r),
         openings,

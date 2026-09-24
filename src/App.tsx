@@ -42,6 +42,9 @@ import {
   Footprints,
   Grid2X2,
   Hand,
+  Heater,
+  House,
+  Phone,
   HelpCircle,
   Home,
   Image,
@@ -95,6 +98,8 @@ import {
 } from 'lucide-react';
 import Plan, { type Tool } from './Plan';
 import Scene, { type SceneMode } from './Scene';
+import { ARTHUR_ID, arthurProject } from './arthur';
+const ARTHUR_FLAG = 'hearth-arthur-added-v2';
 import { addLevel, defaultFloorName, landingFor, nextLevel } from './floors';
 import { stairEnds } from './stairs';
 import {
@@ -124,6 +129,8 @@ import {
   flipItem,
   sidings,
   roofFinishes,
+  CORNERS,
+  type Fabric,
   type Siding,
   sampleProject,
   stairEntry,
@@ -231,6 +238,18 @@ const icons: Record<Kind, typeof Home> = {
   pool: Waves,
   tree: TreePine,
   fence: Fence,
+  dormer: House,
+  chimney: Columns3,
+  crt: Tv,
+  computer: Monitor,
+  highchair: Baby,
+  changing: Baby,
+  radiator: Heater,
+  rugRound: Circle,
+  phonetable: Phone,
+  hutch: Archive,
+  dollhouse: House,
+  curtains: Blinds,
 };
 // Colors that suit each outside finish, and a little CSS picture of the material itself.
 const SIDING_COLORS: Record<Siding, string[]> = {
@@ -305,19 +324,33 @@ function initial() {
       const arr = JSON.parse(raw);
       if (!Array.isArray(arr)) throw new Error();
       const list = arr.map(validateProject);
-      if (list.length)
+      if (list.length) {
+        // Arthur's House arrives once in every library, and opens the first time.
+        if (!localStorage.getItem(ARTHUR_FLAG)) {
+          localStorage.setItem(ARTHUR_FLAG, '1');
+          if (!list.some((p) => p.id === ARTHUR_ID)) {
+            const arthur = arthurProject();
+            return { list: [arthur, ...list], project: arthur, error: false, fresh: false };
+          }
+        }
         return {
           list,
           project: list.find((p) => p.id === localStorage.getItem(ACTIVE)) || list[0],
           error: false,
           fresh: false,
         };
+      }
     }
   } catch {
     return { list: [], project: sampleProject(), error: true, fresh: false };
   }
   const project = sampleProject();
-  return { list: [project], project, error: false, fresh: true };
+  try {
+    localStorage.setItem(ARTHUR_FLAG, '1');
+  } catch {
+    /* file storage may be blocked */
+  }
+  return { list: [project, arthurProject()], project, error: false, fresh: true };
 }
 function download(name: string, data: string, type = 'application/json') {
   const url = URL.createObjectURL(new Blob([data], { type }));
@@ -413,6 +446,19 @@ export function StairIcon({ style, size = 34 }: { style: StairStyle; size?: numb
           <path d="M9 29V9h19m-3-3 3 3-3 3" {...s} />
         </>
       )}
+      {style === 'winder' && (
+        <>
+          <path d="M4 31V4h27v10H14v17z" {...s} />
+          {[20, 25].map((y) => (
+            <path key={y} d={`M4 ${y}h10`} {...s} strokeWidth={1} />
+          ))}
+          <path d="M14 14 4 11M14 14 7 4M14 14 11 4" {...s} strokeWidth={1} />
+          {[20, 25].map((x) => (
+            <path key={x} d={`M${x} 4v10`} {...s} strokeWidth={1} />
+          ))}
+          <path d="M9 29V11q0-2 2-2h17m-3-3 3 3-3 3" {...s} />
+        </>
+      )}
       {style === 'u' && (
         <>
           <rect x="4" y="3" width="26" height="28" rx="1.5" {...s} />
@@ -487,6 +533,29 @@ const ROOM_NAMES: [string, string, FloorFinish][] = [
   ['Hallway', '#eae0d1', 'wood'],
   ['Playroom', '#e3e6d7', 'carpet'],
 ];
+const PATTERNS: [Fabric, string][] = [
+  ['plain', 'Plain'],
+  ['stripes', 'Stripes'],
+  ['check', 'Check'],
+  ['floral', 'Floral'],
+];
+/** Pieces made of cloth, which can take a pattern. */
+const FABRIC_KINDS = new Set<Kind>([
+  'sofa',
+  'armchair',
+  'sectional',
+  'ottoman',
+  'daybed',
+  'bed',
+  'canopy',
+  'platform',
+  'bunk',
+  'rug',
+  'rugRound',
+  'curtains',
+  'table',
+  'roundTable',
+]);
 const FINISHES: [FloorFinish, string][] = [
   ['wood', 'Wood'],
   ['tile', 'Tile'],
@@ -1108,7 +1177,7 @@ export default function App() {
           <>
             <div className="field-label">Stair type</div>
             <div className="stair-styles">
-              {(['straight', 'l', 'u', 'spiral'] as StairStyle[]).map((style) => (
+              {(['straight', 'l', 'winder', 'u', 'spiral'] as StairStyle[]).map((style) => (
                 <button
                   key={style}
                   className={s.style === style ? 'selected' : ''}
@@ -1205,6 +1274,27 @@ export default function App() {
                 </span>
               </div>
             )}
+            <label className="checkbox-label tight">
+              <input
+                type="checkbox"
+                checked={!!s.trimColor}
+                onChange={(e) => patchItem({ trimColor: e.target.checked ? '#f7f4ec' : undefined })}
+              />
+              Painted, with spindle rails
+            </label>
+            {s.trimColor && (
+              <div className="swatches tight">
+                {['#f7f4ec', '#e8e2d6', '#3f4446', '#6b4f3a'].map((c) => (
+                  <button
+                    key={c}
+                    aria-label={`Stair paint ${c}`}
+                    style={{ background: c }}
+                    className={s.trimColor === c ? 'selected' : ''}
+                    onClick={() => patchItem({ trimColor: c })}
+                  />
+                ))}
+              </div>
+            )}
             <div className="button-row">
               <button className="outline-button" onClick={rotate}>
                 <RotateCw size={15} />
@@ -1260,8 +1350,95 @@ export default function App() {
             Covered — a porch roof on posts
           </label>
         )}
+        {s.kind === 'fence' && (
+          <label className="field">
+            Fence style
+            <select
+              value={s.fenceStyle || 'privacy'}
+              onChange={(e) => patchItem({ fenceStyle: e.target.value as 'privacy' | 'picket' })}
+            >
+              <option value="privacy">Close-board</option>
+              <option value="picket">Picket</option>
+            </select>
+          </label>
+        )}
+        {s.kind === 'picture' && (
+          <label className="field">
+            Poster text
+            <input
+              type="text"
+              maxLength={40}
+              value={s.posterText || ''}
+              placeholder="Optional words for the picture"
+              onChange={(e) => patchItem({ posterText: e.target.value || undefined })}
+            />
+          </label>
+        )}
         {isRoom(s) && (
           <>
+            <div className="field-label">Corners</div>
+            <div className="segmented wide" role="group" aria-label="Corners">
+              {(
+                [
+                  ['square', 'Square'],
+                  ['rounded', 'Rounded'],
+                ] as const
+              ).map(([k, label]) => (
+                <button
+                  key={k}
+                  className={(s.radius ? 'rounded' : 'square') === k ? 'active' : ''}
+                  aria-pressed={(s.radius ? 'rounded' : 'square') === k}
+                  onClick={() =>
+                    patchItem(
+                      k === 'square'
+                        ? { radius: undefined, rounded: undefined }
+                        : { radius: Math.min(1.2, s.w / 2, s.d / 2) },
+                    )
+                  }
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            {!!s.radius && (
+              <>
+                <Numeric
+                  label={`Curve radius (${u})`}
+                  value={s.radius * factor}
+                  min={0.3 * factor}
+                  max={(Math.min(s.w, s.d) / 2) * factor}
+                  feet={u === 'ft'}
+                  onChange={(n) => patchItem({ radius: n / factor })}
+                />
+                <div className="corner-picker" role="group" aria-label="Which corners">
+                  {CORNERS.map((c) => {
+                    const on = !s.rounded || s.rounded.includes(c);
+                    return (
+                      <button
+                        key={c}
+                        className={`corner-${c} ${on ? 'active' : ''}`}
+                        aria-pressed={on}
+                        aria-label={`Round the ${c.toUpperCase()} corner`}
+                        title={`${c.toUpperCase()} corner`}
+                        onClick={() => {
+                          const now = s.rounded || CORNERS;
+                          const next = on ? now.filter((x) => x !== c) : [...now, c];
+                          patchItem(
+                            next.length
+                              ? { rounded: next.length === 4 ? undefined : next }
+                              : { radius: undefined, rounded: undefined },
+                          );
+                        }}
+                      />
+                    );
+                  })}
+                </div>
+                <p className="hint-text">
+                  Pick the corners to round. Walls, floor and the walkthrough follow the curve;
+                  windows and doors stay on the straight part of each wall.
+                </p>
+              </>
+            )}
             <div className="field-label">Ceiling</div>
             <div className="segmented wide" role="group" aria-label="Ceiling">
               {(
@@ -1324,6 +1501,87 @@ export default function App() {
                   className={(s.finish || 'wood') === f ? 'active' : ''}
                   aria-pressed={(s.finish || 'wood') === f}
                   onClick={() => patchItem({ finish: f })}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <label className="field">
+              Wall paint
+              <div className="swatches">
+                {['#f4efe6', '#7fb58e', '#8cc0d6', '#f0a9bd', '#f3d27a', '#e59a5c', '#b9a6d6'].map(
+                  (c) => (
+                    <button
+                      key={c}
+                      aria-label={`Wall paint ${c}`}
+                      style={{ background: c }}
+                      className={
+                        (s.wallColor || project.interior || '#f4efe6') === c ? 'selected' : ''
+                      }
+                      onClick={() => patchItem({ wallColor: c })}
+                    />
+                  ),
+                )}
+                <input
+                  type="color"
+                  aria-label="Room wall color"
+                  value={s.wallColor || project.interior || '#f4efe6'}
+                  onChange={(e) => patchItem({ wallColor: e.target.value })}
+                />
+              </div>
+            </label>
+            <div className="field-label">Wallpaper</div>
+            <div className="segmented wide" role="group" aria-label="Wallpaper">
+              {PATTERNS.map(([k, label]) => (
+                <button
+                  key={k}
+                  className={(s.wallpaper || 'plain') === k ? 'active' : ''}
+                  aria-pressed={(s.wallpaper || 'plain') === k}
+                  onClick={() => patchItem({ wallpaper: k === 'plain' ? undefined : k })}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <label className="field">
+              Wainscot
+              <div className="swatches">
+                <button
+                  className={!s.wainscot ? 'selected text-swatch' : 'text-swatch'}
+                  aria-label="No wainscot"
+                  onClick={() => patchItem({ wainscot: undefined })}
+                >
+                  None
+                </button>
+                {['#f7f4ec', '#d8d4e6', '#a88fc4', '#cfd8d3', '#a8845c'].map((c) => (
+                  <button
+                    key={c}
+                    aria-label={`Wainscot ${c}`}
+                    style={{ background: c }}
+                    className={s.wainscot === c ? 'selected' : ''}
+                    onClick={() => patchItem({ wainscot: c })}
+                  />
+                ))}
+                <input
+                  type="color"
+                  aria-label="Custom wainscot color"
+                  value={s.wainscot || '#f7f4ec'}
+                  onChange={(e) => patchItem({ wainscot: e.target.value })}
+                />
+              </div>
+            </label>
+          </>
+        )}
+        {FABRIC_KINDS.has(s.kind) && (
+          <>
+            <div className="field-label">Pattern</div>
+            <div className="segmented wide" role="group" aria-label="Pattern">
+              {PATTERNS.map(([k, label]) => (
+                <button
+                  key={k}
+                  className={(s.fabric || 'plain') === k ? 'active' : ''}
+                  aria-pressed={(s.fabric || 'plain') === k}
+                  onClick={() => patchItem({ fabric: k === 'plain' ? undefined : k })}
                 >
                   {label}
                 </button>
@@ -1695,15 +1953,82 @@ export default function App() {
           </div>
         </label>
         <label className="field">
+          Window shutters
+          <div className="swatches">
+            <button
+              className={!project.shutterColor ? 'selected' : ''}
+              aria-label="No shutters"
+              title="No shutters"
+              onClick={() => commit({ ...project, shutterColor: undefined })}
+            >
+              None
+            </button>
+            <input
+              type="color"
+              aria-label="Shutter color"
+              value={project.shutterColor || '#39716b'}
+              onChange={(e) => commit({ ...project, shutterColor: e.target.value })}
+            />
+          </div>
+        </label>
+        <label className="field">
+          Door color
+          <input
+            type="color"
+            aria-label="Door color"
+            value={project.doorColor || '#dcd5cb'}
+            onChange={(e) => commit({ ...project, doorColor: e.target.value })}
+          />
+        </label>
+        <div className="field-label">Window frames</div>
+        <div className="segmented wide" role="group" aria-label="Window frames">
+          {(
+            [
+              ['dark', 'Dark'],
+              ['white', 'White'],
+            ] as const
+          ).map(([k, label]) => (
+            <button
+              key={k}
+              className={(project.windowFrames || 'dark') === k ? 'active' : ''}
+              aria-pressed={(project.windowFrames || 'dark') === k}
+              onClick={() => commit({ ...project, windowFrames: k === 'dark' ? undefined : k })}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <label className="field">
           Roof style
           <select
             value={project.roofStyle}
-            onChange={(e) => commit({ ...project, roofStyle: e.target.value as 'gable' | 'flat' })}
+            onChange={(e) =>
+              commit({ ...project, roofStyle: e.target.value as Project['roofStyle'] })
+            }
           >
             <option value="gable">Classic gable</option>
+            <option value="cape">Cape Cod — top floor in the roof</option>
             <option value="flat">Modern flat</option>
           </select>
         </label>
+        {project.roofStyle === 'cape' && (
+          <p className="hint-text">
+            Rooms on the top floor sit under the roof, with knee walls and sloping ceilings. Add
+            dormers from Build → Roof details to stand at a window.
+          </p>
+        )}
+        {project.roofStyle !== 'flat' && (
+          <label className="field">
+            Roof ridge
+            <select
+              value={project.roofAxis || 'z'}
+              onChange={(e) => commit({ ...project, roofAxis: e.target.value as 'x' | 'z' })}
+            >
+              <option value="z">Front to back</option>
+              <option value="x">Side to side</option>
+            </select>
+          </label>
+        )}
         <div className="field-label">Roof covering</div>
         <div className="material-grid roof-grid" role="group" aria-label="Roof covering">
           {roofFinishes.map((r) => (
@@ -1751,6 +2076,24 @@ export default function App() {
           <Home size={15} />
           See the exterior
         </button>
+        <div className="field-label">Walkthrough starts</div>
+        <div className="segmented wide" role="group" aria-label="Walkthrough starts">
+          {(
+            [
+              ['door', 'At the front door'],
+              ['street', 'Out on the street'],
+            ] as const
+          ).map(([k, label]) => (
+            <button
+              key={k}
+              className={(project.walkStart || 'door') === k ? 'active' : ''}
+              aria-pressed={(project.walkStart || 'door') === k}
+              onClick={() => commit({ ...project, walkStart: k === 'door' ? undefined : k })}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
         <div className="inspector-tip">
           <MousePointer2 size={18} />
           <p>Click any room or piece on the plan to size, turn, recolor, or name it.</p>
@@ -2001,6 +2344,13 @@ export default function App() {
                   <p className="hint-text">
                     A landing sits at this floor's level: a porch by the front door, or a balcony
                     upstairs. Above the ground it gets a rail, and it can take a porch roof.
+                  </p>
+                </div>
+                <div className="catalog-block">
+                  <div className="section-heading">ROOF DETAILS</div>
+                  {catalogTiles(catalog.filter((c) => c.section === 'Roof details'))}
+                  <p className="hint-text">
+                    Place dormers on the top floor and a chimney near the roof ridge.
                   </p>
                 </div>
               </>
@@ -2295,6 +2645,16 @@ export default function App() {
                     <Sparkles size={16} />
                     Try the Sunday House
                   </button>
+                  <button
+                    className="outline-button"
+                    onClick={() => {
+                      const saved = [project, ...library].find((p) => p.id === ARTHUR_ID);
+                      switchProject(saved || arthurProject());
+                    }}
+                  >
+                    <Home size={16} />
+                    Tour Arthur’s House
+                  </button>
                   <button className="text-button" onClick={open}>
                     <FolderOpen size={16} />
                     Open project file
@@ -2417,7 +2777,7 @@ export default function App() {
                 </label>
                 <div className="field-label">Connect it with stairs</div>
                 <div className="stair-styles in-modal">
-                  {(['straight', 'l', 'u', 'spiral'] as StairStyle[]).map((style) => (
+                  {(['straight', 'l', 'winder', 'u', 'spiral'] as StairStyle[]).map((style) => (
                     <button
                       key={style}
                       className={floorStairs === style ? 'selected' : ''}

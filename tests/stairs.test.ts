@@ -24,7 +24,7 @@ import {
 import { buildWalkWorld, floorRects, stairGuards } from '../src/walk';
 import { addLevel } from '../src/floors';
 
-const styles: StairStyle[] = ['straight', 'l', 'u', 'spiral'];
+const styles: StairStyle[] = ['straight', 'l', 'winder', 'u', 'spiral'];
 
 describe('stair geometry', () => {
   it('climbs one full floor with 15 treads in every style', () => {

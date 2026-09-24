@@ -32,6 +32,8 @@ import {
 } from './model';
 import { layoutFor, localSize, toWorld } from './stairs';
 import { stairGuards } from './walk';
+import { roomPath } from './corners';
+import { dormerRect, lowHeadroom, planRoof, wingPoint } from './roof';
 import { curvePieces, nearestOnCurve, type CurvePiece } from './curve';
 /** 'select', 'pan', 'window', 'door', or a catalog id such as 'sofa' or 'stairs-spiral'. */
 export type Tool = string;
@@ -689,6 +691,15 @@ export default function Plan({
             <path d="M0 0L10 5L0 10z" fill="#5a4d3c" />
           </marker>
         </defs>
+        <pattern
+          id="eaves"
+          width="0.16"
+          height="0.16"
+          patternUnits="userSpaceOnUse"
+          patternTransform="rotate(-45)"
+        >
+          <path d="M0 0V.16" stroke="#6f7d69" strokeOpacity=".28" strokeWidth=".025" />
+        </pattern>
         <rect x="-250" y="-250" width="500" height="500" fill="url(#grid)" />
         {faded.map((i) => (
           <rect
@@ -760,6 +771,21 @@ export default function Plan({
             <Shape item={i} floor={floor} openings={p.openings} project={p} />
           </g>
         ))}
+        {lowHeadroom(planRoof(p))
+          .filter((h) => h.level === floor)
+          .map(({ rect: r }, n) => (
+            <rect
+              key={`eaves-${n}`}
+              x={r.x0}
+              y={r.z0}
+              width={r.x1 - r.x0}
+              height={r.z1 - r.z0}
+              fill="url(#eaves)"
+              pointerEvents="none"
+            >
+              <title>Low ceiling under the eaves</title>
+            </rect>
+          ))}
         {preview && (
           <g opacity=".55" pointerEvents="none" className="no-export">
             <Shape item={preview} floor={floor} openings={p.openings} project={p} />
@@ -1129,6 +1155,15 @@ function Shape({
         />
       </>
     );
+  if (isRoom(i) && i.radius)
+    return (
+      <>
+        <path d={roomPath(i)} fill={i.color} stroke="#56645d" strokeWidth={0.16} />
+        {(i.finish === 'tile' || i.finish === 'stone') && (
+          <path d={roomPath(i)} fill={`url(#${i.finish})`} />
+        )}
+      </>
+    );
   if (isRoom(i) || isOutside(i) || i.kind === 'landing')
     return (
       <>
@@ -1165,6 +1200,65 @@ function Shape({
       </>
     );
   if (i.kind === 'stairs') return <StairsShape item={i} floor={floor} project={project} />;
+  if (i.kind === 'dormer') {
+    const plan = planRoof(project);
+    const d = plan.dormers.find((x) => x.item.id === i.id);
+    if (!d)
+      return (
+        <rect
+          x={i.x}
+          y={i.z}
+          width={i.w}
+          height={i.d}
+          fill="none"
+          stroke="#c47a4a"
+          strokeWidth=".05"
+          strokeDasharray=".15 .1"
+        >
+          <title>
+            Place a dormer against an outside wall of the top floor, under a pitched roof
+          </title>
+        </rect>
+      );
+    const r = dormerRect(plan, d);
+    const w = plan.wings[d.wing];
+    const eave = wingPoint(w, d.side, d.a0, d.setback)[w.axis === 'x' ? 1 : 0];
+    const glass =
+      w.axis === 'x'
+        ? { x1: (d.a0 + d.a1) / 2 - 0.45, x2: (d.a0 + d.a1) / 2 + 0.45, y1: eave, y2: eave }
+        : { x1: eave, x2: eave, y1: (d.a0 + d.a1) / 2 - 0.45, y2: (d.a0 + d.a1) / 2 + 0.45 };
+    return (
+      <>
+        <rect
+          x={r.x0}
+          y={r.z0}
+          width={r.x1 - r.x0}
+          height={r.z1 - r.z0}
+          fill="#fbf6e8"
+          fillOpacity=".7"
+          stroke="#8a7a62"
+          strokeWidth=".04"
+          strokeDasharray=".14 .08"
+        />
+        <line {...glass} stroke="#7fb4c2" strokeWidth=".12" />
+      </>
+    );
+  }
+  if (i.kind === 'chimney')
+    return (
+      <>
+        <rect
+          x={i.x}
+          y={i.z}
+          width={i.w}
+          height={i.d}
+          fill="#b56d55"
+          stroke="#6f4a3a"
+          strokeWidth=".04"
+        />
+        <rect x={i.x} y={i.z} width={i.w} height={i.d} fill="url(#stone)" />
+      </>
+    );
   if (i.kind === 'curve') return <CurveShape item={i} openings={openings} />;
   const { LW: W, LD: D } = localSize(i);
   const s = '#6f6656',
@@ -1894,6 +1988,86 @@ function Shape({
         </>
       );
       break;
+    case 'crt':
+      body = (
+        <>
+          {r(0, 0, W, D, c, 0.03)}
+          {r(W * 0.1, 0.05, W * 0.8, D - 0.08, '#45484b', 0.03)}
+          {line(W * 0.14, D - 0.04, W * 0.7, D - 0.04)}
+        </>
+      );
+      break;
+    case 'computer':
+      body = (
+        <>
+          {r(0, 0, W, D, c, 0.03)}
+          {r(W * 0.42, 0.08, W * 0.4, 0.38, '#3aaeb0', 0.08)}
+          {r(W * 0.38, 0.52, W * 0.46, 0.12, '#ece8de', 0.02)}
+        </>
+      );
+      break;
+    case 'highchair':
+    case 'changing':
+    case 'hutch':
+    case 'dollhouse':
+      body = (
+        <>
+          {r(0, 0, W, D, c, 0.04)}
+          {r(0.06, 0.06, W - 0.12, D - 0.12, '#ffffff44', 0.03)}
+        </>
+      );
+      break;
+    case 'radiator':
+      body = (
+        <>
+          {r(0, 0, W, D, c, 0.02)}
+          {Array.from({ length: Math.max(3, Math.round(W / 0.12)) }, (_, n) => (
+            <g key={n}>
+              {line(
+                (W / Math.max(3, Math.round(W / 0.12))) * (n + 0.5),
+                0.03,
+                (W / Math.max(3, Math.round(W / 0.12))) * (n + 0.5),
+                D - 0.03,
+              )}
+            </g>
+          ))}
+        </>
+      );
+      break;
+    case 'rugRound':
+      body = (
+        <>
+          {[1, 0.8, 0.6, 0.4, 0.2].map((f, n) => (
+            <g key={n}>{circle(W / 2, D / 2, (Math.min(W, D) / 2) * f, n % 2 ? c : `${c}bb`)}</g>
+          ))}
+        </>
+      );
+      break;
+    case 'phonetable':
+      body = (
+        <>
+          {r(0, 0, Math.min(W * 0.62, 0.6), D, c, 0.03)}
+          {r(
+            Math.min(W * 0.62, 0.6) * 0.25,
+            D * 0.3,
+            Math.min(W * 0.62, 0.6) * 0.5,
+            D * 0.45,
+            '#26282b',
+            0.04,
+          )}
+          {circle(Math.min(W * 0.62, 0.6) + (W - Math.min(W * 0.62, 0.6)) / 2, D / 2, 0.15, c)}
+        </>
+      );
+      break;
+    case 'curtains':
+      body = (
+        <>
+          {r(0, 0, W, D, c, 0.02)}
+          {r(0, 0, W * 0.2, D, c, 0.02)}
+          {r(W * 0.8, 0, W * 0.2, D, c, 0.02)}
+        </>
+      );
+      break;
     case 'rug':
       body = (
         <>
@@ -1988,6 +2162,16 @@ function StairsShape({ item: i, floor, project }: { item: Item; floor: number; p
               />
             );
           }
+          if (t.poly)
+            return (
+              <path
+                key={t.k}
+                d={'M' + t.poly.map(([pu, pv]) => `${pu - W / 2} ${pv - D / 2}`).join('L') + 'Z'}
+                fill={i.color}
+                stroke="#857a67"
+                strokeWidth=".025"
+              />
+            );
           const w = t.wedge!;
           const pt = (a: number, rad: number) =>
             `${w.cu - W / 2 + rad * Math.sin(a)} ${w.cv - D / 2 + rad * Math.cos(a)}`;
