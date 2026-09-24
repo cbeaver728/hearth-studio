@@ -34,6 +34,7 @@ import {
   bayDepth,
 } from './model';
 import { layoutFor, localSize, toWorld } from './stairs';
+import { absorbLandings } from './floors';
 import { stairGuards } from './walk';
 import { roomPath } from './corners';
 import { dormerRect, lowHeadroom, planRoof, wingPoint } from './roof';
@@ -523,15 +524,18 @@ export default function Plan({
       if (g.kind === 'draw') {
         const d = draft[0];
         if (d.w >= 0.75 && d.d >= 0.75) {
-          onChange({ ...p, items: [...p.items, d] });
+          const merged = absorbLandings({ ...p, items: [...p.items, d] }, d.id);
+          onChange(merged.project);
           onSelect(d.id);
           onTool('select');
           // The full how-to the first couple of times; after that, just say what happened.
           const what = d.kind === 'garage' ? 'Garage' : 'Room';
           onNotice(
-            p.items.filter((i) => isRoom(i)).length < 2
-              ? `${what} added. Name it on the right, then add doors and windows.`
-              : `${what} added.`,
+            merged.absorbed.length
+              ? `${what} added, taking in the ${merged.absorbed[0].toLowerCase()} round the stairs.`
+              : p.items.filter((i) => isRoom(i)).length < 2
+                ? `${what} added. Name it on the right, then add doors and windows.`
+                : `${what} added.`,
           );
         } else onNotice('Drag across the grid to draw a room.');
       } else {
@@ -540,8 +544,17 @@ export default function Plan({
           draft.some(
             (d) => JSON.stringify(d) !== JSON.stringify(p.items.find((i) => i.id === d.id)),
           )
-        )
-          onChange({ ...p, items: p.items.map((i) => byId.get(i.id) || i) });
+        ) {
+          const next = { ...p, items: p.items.map((i) => byId.get(i.id) || i) };
+          // Stretching a room over the landing takes it in, just as drawing over it does.
+          const merged =
+            g.kind === 'resize' && g.item
+              ? absorbLandings(next, g.item.id)
+              : { project: next, absorbed: [] };
+          onChange(merged.project);
+          if (merged.absorbed.length)
+            onNotice(`The ${merged.absorbed[0].toLowerCase()} is now part of this room.`);
+        }
       }
     }
     setDraft(null);
@@ -567,7 +580,12 @@ export default function Plan({
   }, []);
   const fit = () => {
     // Frame the house on this floor; fall back to the yard or the whole project.
-    const indoor = p.items.filter((i) => onLevel(i, floor) && !isOutside(i));
+    // Frame the outline of the floor above or below too: on a new floor, that's what you draw
+    // around.
+    const guide = floor > 0 ? floor - 1 : floor < 0 ? floor + 1 : null;
+    const indoor = p.items.filter(
+      (i) => (onLevel(i, floor) || (isRoom(i) && i.floor === guide)) && !isOutside(i),
+    );
     const items = indoor.length ? indoor : p.items.filter((i) => floor === 0 || !isOutside(i));
     const el = wrap.current?.getBoundingClientRect();
     const ratio = el && el.width ? el.height / el.width : 0.9;
@@ -661,7 +679,8 @@ export default function Plan({
     .map((i) => overrides.get(i.id) || i)
     .sort((a, b) => layer(a) - layer(b));
   if (draft && gesture.current?.kind === 'draw') items.push(draft[0]);
-  const faded = floor !== 0 ? p.items.filter((i) => isOutside(i)) : [];
+  // The yard, faintly, from upstairs (handy for balconies); not from down in the basement.
+  const faded = floor > 0 ? p.items.filter((i) => isOutside(i)) : [];
   const ghostLevel = floor > 0 ? floor - 1 : floor < 0 ? floor + 1 : null;
   const ghosts =
     ghostLevel === null ? [] : p.items.filter((i) => isRoom(i) && i.floor === ghostLevel);
@@ -963,12 +982,13 @@ export default function Plan({
             const perMeter = pixels / view.w;
             const size = `${formatLength(i.w, u)} × ${formatLength(i.d, u)}`;
             const letters = Math.max(i.name.length, 1);
+            // ...and no bigger than 20px however far you zoom in.
             const name = Math.min(
-              Math.max(Math.min(0.5, (i.w / letters) * 1.5), 11 / perMeter),
+              Math.max(Math.min(0.5, (i.w / letters) * 1.5, 20 / perMeter), 11 / perMeter),
               (i.w * 0.9) / (letters * 0.56),
               i.d * 0.6,
             );
-            const small = Math.max(0.3, 9.5 / perMeter);
+            const small = Math.min(Math.max(0.3, 9.5 / perMeter), 13 / perMeter);
             // The size line only shows when it fits and is big enough to read.
             const sized =
               small * size.length * 0.52 < i.w * 0.94 &&
@@ -978,12 +998,18 @@ export default function Plan({
               cz = i.z + i.d / 2;
             return (
               <g key={`label-${i.id}`} pointerEvents="none">
+                {/* The name picks the room itself, even when furniture covers its floor. */}
                 <text
                   x={cx}
                   y={sized ? cz - small * 0.15 : cz + name * 0.35}
                   textAnchor="middle"
                   className="room-name"
                   fontSize={name}
+                  pointerEvents={tool === 'select' ? 'auto' : 'none'}
+                  onPointerDown={(e) => {
+                    e.stopPropagation();
+                    begin(e, i.id);
+                  }}
                 >
                   {i.name}
                 </text>
@@ -1174,7 +1200,7 @@ export default function Plan({
               : tool === 'pan'
                 ? 'Drag the canvas to look around.'
                 : tool === 'select'
-                  ? 'Drag to move · Corners resize · Alt-drag moves a room without its furniture'
+                  ? "Drag to move · Corners resize · Click a room's name to pick the room itself"
                   : `Click to place ${catalogEntry(tool)?.name.toLowerCase()} · Shift-click to place several`}
       </div>
     </div>

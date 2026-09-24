@@ -1,3 +1,4 @@
+import { besideSpot } from './placement';
 import {
   useCallback,
   useEffect,
@@ -763,6 +764,12 @@ export default function App() {
   const [floor, setFloor] = useState(0);
   const [selected, setSelected] = useState<string | null>(null);
   const [tool, setTool] = useState<Tool>('select');
+  // Once a tool is put down, its tile shouldn't keep a focus ring that looks like it's still on.
+  useEffect(() => {
+    if (tool !== 'select') return;
+    const el = document.activeElement as HTMLElement | null;
+    if (el?.closest('.tile, .window-styles')) el.blur();
+  }, [tool]);
   const [tab, setTab] = useState<'Build' | 'Furnish' | 'Landscape'>('Build');
   const [search, setSearch] = useState('');
   const [windowStyle, setWindowStyle] = useState<WindowStyle>('classic');
@@ -985,6 +992,8 @@ export default function App() {
   const duplicate = () => {
     if (!selectedItem) return;
     const id = uid();
+    // Right beside the original, so it's easy to see and to line up.
+    const spot = besideSpot(project.items, selectedItem);
     commit({
       ...project,
       items: [
@@ -992,9 +1001,9 @@ export default function App() {
         {
           ...selectedItem,
           id,
-          x: selectedItem.x + 0.5,
-          z: selectedItem.z + 0.5,
-          name: `${selectedItem.name} copy`,
+          ...spot,
+          // A second chair is still a chair; a copied room needs telling apart.
+          name: isRoom(selectedItem) ? `${selectedItem.name} copy` : selectedItem.name,
         },
       ],
       openings: [
@@ -1046,8 +1055,8 @@ export default function App() {
     setSceneMode((m) => (m === 'walk' ? 'dollhouse' : m));
     notify(
       opts.stairId || floorStairs
-        ? `${floorName(result.project, result.level)} is ready, joined by stairs. Draw rooms around the landing.`
-        : `${floorName(result.project, result.level)} is ready. The floor below shows as a dashed guide.`,
+        ? `${floorName(result.project, result.level)} is ready, joined by stairs. Draw rooms around the ${result.level < 0 ? 'stair hall' : 'landing'} — the dashed outline is the floor ${result.level < 0 ? 'above' : 'below'}.`
+        : `${floorName(result.project, result.level)} is ready. The floor ${result.level < 0 ? 'above' : 'below'} shows as a dashed guide.`,
     );
   };
   const removeFloor = (level: number) => {
@@ -1055,7 +1064,9 @@ export default function App() {
     const count = project.items.filter((i) => i.floor === level).length;
     if (
       count &&
-      !window.confirm(`Delete ${name} and the ${count} things on it? You can undo this.`)
+      !window.confirm(
+        `Delete ${name} and the ${count === 1 ? 'one thing' : `${count} things`} on it? You can undo this.`,
+      )
     )
       return;
     commit(deleteFloor(project, level));

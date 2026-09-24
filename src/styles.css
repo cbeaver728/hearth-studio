@@ -621,6 +621,13 @@ kbd {
   stroke: #f8f6ee;
   stroke-width: 0.06;
 }
+.tool-select .room-name {
+  cursor: pointer;
+}
+.tool-select .room-name:hover {
+  fill: var(--green);
+  text-decoration: underline;
+}
 .room-area {
   fill: #5f6c58;
   font-family: 'Segoe UI', sans-serif;

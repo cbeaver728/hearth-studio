@@ -1,5 +1,7 @@
 import {
+  buildWalls,
   createItem,
+  isPassable,
   isOutside,
   isRoom,
   stairEntry,
@@ -36,8 +38,26 @@ export function findStairSpot(p: Project, level: number, style: StairStyle) {
         ? stairLevels(i).lower === level || stairLevels(i).upper === level
         : i.floor === level),
   );
+  // Keep a meter clear in front of every door and opening on this floor, both sides of the wall.
+  const doorways = buildWalls(p)
+    .filter((w) => w.floor === level)
+    .flatMap((w) =>
+      w.openings
+        .filter((o) => isPassable(o.kind))
+        .map((o) =>
+          w.axis === 'x'
+            ? { x: o.start - 0.4, z: w.line - 1, w: o.end - o.start + 0.8, d: 2 }
+            : { x: w.line - 1, z: o.start - 0.4, w: 2, d: o.end - o.start + 0.8 },
+        ),
+    );
   // First look for an empty spot; failing that, allow furniture underfoot (but never other stairs).
-  for (const strict of [true, false])
+  // Clear of furniture and doorways first; then over furniture; then, in a tight spot, across a
+  // doorway rather than out in the garden.
+  for (const [strict, clearDoors] of [
+    [true, true],
+    [false, true],
+    [false, false],
+  ])
     for (const r of rooms)
       for (const rotation of [0, 90, 180, 270]) {
         const w = rotation % 180 ? e.d : e.w,
@@ -59,6 +79,7 @@ export function findStairSpot(p: Project, level: number, style: StairStyle) {
         for (const s of spots) {
           const box = { x: s.x, z: s.z, w, d };
           if (blockers.some((b) => (strict || b.kind === 'stairs') && overlaps(b, box))) continue;
+          if (clearDoors && doorways.some((d) => overlaps({ ...box, id: '' } as Item, d))) continue;
           const probe = { ...createItem(e.id, level, s.x, s.z), w, d, rotation };
           const [bx, bz] = stairEnds(probe).bottom;
           if (bx < r.x + 0.3 || bx > r.x + r.w - 0.3 || bz < r.z + 0.3 || bz > r.z + r.d - 0.3)
@@ -192,5 +213,33 @@ export function addLevel(p: Project, o: AddLevelOptions) {
       items,
       openings,
     } as Project,
+  };
+}
+
+/**
+ * Drawing a room right over the landing (or stair hall) Hearth made for a new floor takes it in:
+ * the two become one room, so no walls are left standing round the stairs with no way out.
+ * Only a landing that is still as it was made, with no doors of its own, goes.
+ */
+export function absorbLandings(p: Project, roomId: string) {
+  const room = p.items.find((i) => i.id === roomId);
+  if (!room || !isRoom(room)) return { project: p, absorbed: [] as string[] };
+  const swallowed = p.items.filter(
+    (i) =>
+      i.id !== room.id &&
+      i.kind === 'room' &&
+      i.floor === room.floor &&
+      /^(landing|stair hall)$/i.test(i.name.trim()) &&
+      !p.openings.some((o) => o.roomId === i.id) &&
+      i.x >= room.x - 0.01 &&
+      i.z >= room.z - 0.01 &&
+      i.x + i.w <= room.x + room.w + 0.01 &&
+      i.z + i.d <= room.z + room.d + 0.01,
+  );
+  if (!swallowed.length) return { project: p, absorbed: [] as string[] };
+  const gone = new Set(swallowed.map((i) => i.id));
+  return {
+    project: { ...p, items: p.items.filter((i) => !gone.has(i.id)) },
+    absorbed: swallowed.map((i) => i.name),
   };
 }

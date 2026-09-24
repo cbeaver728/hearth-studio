@@ -1435,7 +1435,7 @@ export function sampleProject(): Project {
   add('vanity', 'Vanity', 4.08, -2.9, 0.5, 1, undefined, 270);
   add('bed', 'King bed', -5.2, 1.1, 2, 2.2);
   add('wardrobe', 'Wardrobe', -2.8, 4.35, 1.6, 0.6, undefined, 180);
-  add('desk', 'Writing desk', -0.3, 1.2, 2, 0.8);
+  add('desk', 'Writing desk', -0.9, 1.2, 1.7, 0.8);
   add('shelf', 'Bookshelf', -0.9, 4.63, 0.9, 0.32);
   add('upright', 'Upright piano', 1.35, 1.12, 1.5, 0.68);
   add('clock', 'Grandfather clock', 3.14, 1.12, 0.52, 0.36);
@@ -1521,7 +1521,21 @@ export function area(p: Project, level?: number) {
   const rooms = p.items.filter(
     (i) => i.kind === 'room' && (level === undefined || i.floor === level),
   );
-  return rooms.reduce((s, i) => s + i.w * i.d, 0) * (p.units === 'ft' ? 10.7639 : 1);
+  // Floor area counts once where rooms overlap (a closet drawn inside a bedroom, say).
+  let total = 0;
+  for (const f of new Set(rooms.map((r) => r.floor))) {
+    const here = rooms.filter((r) => r.floor === f);
+    const xs = [...new Set(here.flatMap((r) => [r.x, r.x + r.w]))].sort((a, b) => a - b),
+      zs = [...new Set(here.flatMap((r) => [r.z, r.z + r.d]))].sort((a, b) => a - b);
+    for (let a = 0; a < xs.length - 1; a++)
+      for (let b = 0; b < zs.length - 1; b++) {
+        const cx = (xs[a] + xs[a + 1]) / 2,
+          cz = (zs[b] + zs[b + 1]) / 2;
+        if (here.some((r) => cx > r.x && cx < r.x + r.w && cz > r.z && cz < r.z + r.d))
+          total += (xs[a + 1] - xs[a]) * (zs[b + 1] - zs[b]);
+      }
+  }
+  return total * (p.units === 'ft' ? 10.7639 : 1);
 }
 export function validateProject(raw: unknown): Project {
   if (!raw || typeof raw !== 'object') throw new Error('This is not a Hearth project.');

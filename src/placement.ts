@@ -109,3 +109,50 @@ export function moveFurniture(rooms: Item[], i: Item): Item {
   const room = roomAt(rooms, i.x + i.w / 2, i.z + i.d / 2);
   return room ? settleInRoom(i, room) : i;
 }
+
+const overlapping = (a: Item, b: Item) =>
+  a.x < b.x + b.w - 0.01 &&
+  a.x + a.w > b.x + 0.01 &&
+  a.z < b.z + b.d - 0.01 &&
+  a.z + a.d > b.z + 0.01;
+
+/**
+ * Where a copy of a piece goes: right beside the original, in the same room, clear of other
+ * furniture, trying the four sides in turn. A room's copy goes next door, wall to wall.
+ */
+export function besideSpot(items: Item[], i: Item): { x: number; z: number } {
+  const gap = isRoom(i) ? 0 : 0.1;
+  const sides = [
+    { x: i.x + i.w + gap, z: i.z },
+    { x: i.x - i.w - gap, z: i.z },
+    { x: i.x, z: i.z + i.d + gap },
+    { x: i.x, z: i.z - i.d - gap },
+  ];
+  const floorRooms = items.filter((r) => isRoom(r) && r.floor === i.floor);
+  if (isRoom(i)) {
+    const free = sides.find((s) => !floorRooms.some((r) => overlapping({ ...i, ...s }, r)));
+    return free ?? { x: i.x + 1, z: i.z + 1 };
+  }
+  const home = roomAt(floorRooms, i.x + i.w / 2, i.z + i.d / 2);
+  const others = items.filter(
+    (o) => o.floor === i.floor && !isRoom(o) && !isOutside(o) && o.kind !== 'rug' && o.id !== i.id,
+  );
+  for (const s of sides) {
+    const c = { ...i, ...s };
+    if (
+      home &&
+      !(
+        c.x >= home.x &&
+        c.z >= home.z &&
+        c.x + c.w <= home.x + home.w &&
+        c.z + c.d <= home.z + home.d
+      )
+    )
+      continue;
+    if (others.some((o) => overlapping(c, o))) continue;
+    return s;
+  }
+  const fallback = { ...i, x: i.x + 0.5, z: i.z + 0.5 };
+  const settled = home ? settleInRoom(fallback, home) : fallback;
+  return { x: settled.x, z: settled.z };
+}

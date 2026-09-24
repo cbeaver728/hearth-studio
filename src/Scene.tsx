@@ -2618,11 +2618,21 @@ export default function Scene({
     const feet0 = level * FLOOR_H;
     const rooms = p.items.filter((i) => isRoom(i) && i.floor === level);
     const indoors = !at && !(level === 0 && found && frontDoor(p)) && rooms.length > 0;
+    // Double-clicked into a room: stay in that room, even if what you clicked (a wardrobe, say)
+    // is in the way, rather than popping out through the wall.
+    const clicked = at
+      ? rooms.find((r) => at.x > r.x && at.x < r.x + r.w && at.z > r.z && at.z < r.z + r.d)
+      : undefined;
     const inRoom = (tx: number, tz: number) =>
-      !indoors ||
-      rooms.some(
-        (r) => tx > r.x + 0.3 && tx < r.x + r.w - 0.3 && tz > r.z + 0.3 && tz < r.z + r.d - 0.3,
-      );
+      clicked
+        ? tx > clicked.x + 0.3 &&
+          tx < clicked.x + clicked.w - 0.3 &&
+          tz > clicked.z + 0.3 &&
+          tz < clicked.z + clicked.d - 0.3
+        : !indoors ||
+          rooms.some(
+            (r) => tx > r.x + 0.3 && tx < r.x + r.w - 0.3 && tz > r.z + 0.3 && tz < r.z + r.d - 0.3,
+          );
     search: for (let r = 0; r < 6; r += 0.25)
       for (let a = 0; a < Math.PI * 2; a += Math.PI / 12) {
         const tx = x + Math.cos(a) * r,
@@ -2637,7 +2647,7 @@ export default function Scene({
       }
     // Indoors, don't arrive nose to a wall: if the way ahead is blocked within a couple of
     // steps, turn to face the most open direction instead.
-    if (!at && indoors && !facingStairs) {
+    if ((clicked || (!at && indoors)) && !facingStairs) {
       const f = world.support(x, z, feet0 + 0.1);
       const clear = (heading: number) => {
         const dx = -Math.sin(heading),

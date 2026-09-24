@@ -55,7 +55,8 @@ test('draw, move, resize, undo, redo, and reload preserve geometry', async ({ pa
   await expect(page.getByText('All changes saved on this device')).toBeVisible();
   await page.reload();
   await expect(page.getByTestId('shape-room')).toHaveCount(1);
-  await page.getByTestId('shape-room').click();
+  // Near a corner: the room's name in the middle picks the room too, but sits on top of it.
+  await page.getByTestId('shape-room').click({ position: { x: 12, y: 12 } });
   await expect(page.getByLabel('Width (ft)', { exact: true })).toHaveValue('20′');
 });
 test('floor copies preserve doors and basement edits stay separate', async ({ page }) => {

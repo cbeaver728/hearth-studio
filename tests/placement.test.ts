@@ -72,3 +72,70 @@ describe('a new floor', () => {
     expect(landing.x + landing.w).toBeLessThanOrEqual(4.25);
   });
 });
+
+describe('more building fixes', () => {
+  it('counts floor area once where rooms overlap', async () => {
+    const { area } = await import('../src/model');
+    const p = blankProject();
+    p.units = 'm';
+    p.items = [room(0, 0, 10, 8), room(0, 0, 2, 3, 'Closet')];
+    expect(area(p)).toBeCloseTo(80, 5);
+  });
+  it('takes in the landing when a room is drawn right over it', async () => {
+    const { absorbLandings } = await import('../src/floors');
+    const p = blankProject();
+    const landing = room(0, 0, 2, 6, 'Stair hall');
+    const big = room(0, 0, 16, 9, 'Family room');
+    p.items = [landing, big];
+    const r = absorbLandings(p, big.id);
+    expect(r.absorbed).toEqual(['Stair hall']);
+    expect(r.project.items.map((i) => i.name)).toEqual(['Family room']);
+    // A landing someone has made their own, with a door, stays.
+    p.openings = [
+      { id: 'o', roomId: landing.id, side: 'east', offset: 0.5, width: 0.9, kind: 'door' },
+    ];
+    expect(absorbLandings(p, big.id).absorbed).toEqual([]);
+  });
+  it('puts a copy beside the original, clear of other furniture and in the same room', async () => {
+    const { besideSpot } = await import('../src/placement');
+    const r = room(0, 0, 5, 4);
+    const chair = { ...createItem('armchair', 0, 3, 1), w: 0.9, d: 0.9 };
+    const lamp = { ...createItem('table', 0, 4, 1), w: 0.9, d: 0.9 };
+    const spot = besideSpot([r, chair, lamp], chair);
+    const copy = { ...chair, ...spot };
+    expect(inside(copy, r)).toBe(true);
+    const clash = (a: Item, b: Item) =>
+      a.x < b.x + b.w && a.x + a.w > b.x && a.z < b.z + b.d && a.z + a.d > b.z;
+    expect(clash(copy, chair)).toBe(false);
+    expect(clash(copy, lamp)).toBe(false);
+  });
+  it('keeps new stairs out of doorways', async () => {
+    const { findStairSpot } = await import('../src/floors');
+    const p = blankProject();
+    const hall = room(0, 0, 8, 6, 'Hall');
+    p.items = [hall];
+    // A wide door in the middle of every wall.
+    p.openings = (['north', 'south', 'east', 'west'] as const).map((side, n) => ({
+      id: 'd' + n,
+      roomId: hall.id,
+      side,
+      offset: 0.5,
+      width: 1.2,
+      kind: 'door' as const,
+    }));
+    const spot = findStairSpot(p, 0, 'straight');
+    const s = { ...createItem('stairs', 0, spot.x, spot.z), rotation: spot.rotation };
+    if (spot.rotation % 180) [s.w, s.d] = [s.d, s.w];
+    const doorways = [
+      { x: 3.4, z: -1, w: 1.2, d: 2 },
+      { x: 3.4, z: 5, w: 1.2, d: 2 },
+      { x: -1, z: 2.4, w: 2, d: 1.2 },
+      { x: 7, z: 2.4, w: 2, d: 1.2 },
+    ];
+    for (const d of doorways)
+      expect(
+        s.x < d.x + d.w && s.x + s.w > d.x && s.z < d.z + d.d && s.z + s.d > d.z,
+        JSON.stringify({ s, d }),
+      ).toBe(false);
+  });
+});
