@@ -109,8 +109,8 @@ kbd {
 }
 .app {
   height: 100dvh;
-  min-height: 600px;
-  min-width: 1000px;
+  min-height: 480px;
+  min-width: 320px;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -1034,6 +1034,9 @@ kbd {
   padding: 2px;
 }
 .swatches button {
+  display: grid;
+  place-items: center;
+  color: var(--faint);
   width: 24px;
   height: 24px;
   border-radius: 50%;
@@ -1331,6 +1334,9 @@ kbd {
   overflow: auto;
   box-shadow: 0 20px 100px #203b3a40;
 }
+.modal:focus {
+  outline: none;
+}
 .modal-close {
   position: absolute;
   right: 14px;
@@ -1585,6 +1591,9 @@ kbd {
   gap: 14px;
 }
 .tour-steps > div > span {
+  width: 30px;
+  flex-shrink: 0;
+  font-variant-numeric: lining-nums tabular-nums;
   font:
     22px Georgia,
     serif;
@@ -1691,6 +1700,7 @@ kbd {
   box-shadow: 0 4px 18px #0002;
 }
 .walk-levels button {
+  white-space: nowrap;
   padding: 7px 14px;
   border-radius: 8px;
   font-size: 13.5px;
@@ -1762,6 +1772,7 @@ kbd {
   pointer-events: none;
 }
 .walk-hint strong {
+  white-space: nowrap;
   font:
     18px Georgia,
     serif;
@@ -1885,6 +1896,13 @@ kbd {
   .inspector {
     width: 240px;
   }
+}
+@media (max-width: 1320px) {
+  .app .window-styles:not(.compact) {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+@media (max-width: 1180px) {
   .header-actions .subtle-button span {
     display: none;
   }
@@ -1900,6 +1918,279 @@ kbd {
     gap: 5px;
   }
 }
+/* Buttons that bring the side panels in on smaller screens. */
+.panel-toggle,
+.drawer-close,
+.drawer-scrim {
+  display: none;
+}
+.panel-toggle {
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 11px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--green);
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.panel-toggle[aria-expanded='true'] {
+  background: var(--green-soft);
+  border-color: #c9d8c4;
+}
+
+/* Tablets: the details panel slides in from the right, over the canvas. */
+@media (max-width: 1100px) {
+  .workspace {
+    position: relative;
+  }
+  .inspector {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 30;
+    width: min(320px, 88vw);
+    box-shadow: -18px 0 40px #1d352c26;
+    transform: translateX(100%);
+    visibility: hidden;
+    transition:
+      transform 0.24s ease,
+      visibility 0s 0.24s;
+  }
+  .app.drawer-inspector .inspector {
+    transform: none;
+    visibility: visible;
+    transition: transform 0.24s ease;
+  }
+  .inspector-toggle,
+  .drawer-close {
+    display: flex;
+  }
+  .drawer-scrim {
+    display: block;
+    position: absolute;
+    inset: 0;
+    z-index: 25;
+    background: #1d352c38;
+    animation: fade-in 0.2s ease-out;
+  }
+  .view-tabs {
+    margin-left: 0;
+  }
+  .canvas-options {
+    margin-left: auto;
+  }
+}
+
+/* Portrait screens: split view stacks the plan over the 3D view. */
+@media (max-width: 1100px) and (orientation: portrait) {
+  .canvases.view-split {
+    flex-direction: column;
+  }
+  .view-split .plan-wrap {
+    border-right: 0;
+    border-bottom: 1px solid #d5ddcf;
+  }
+  .plan-wrap,
+  .scene-wrap {
+    min-height: 0;
+  }
+}
+
+/* Phones: both panels become drawers and the chrome gets out of the way. */
+@media (max-width: 720px) {
+  .library-panel {
+    position: absolute;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    z-index: 30;
+    width: min(300px, 86vw);
+    box-shadow: 18px 0 40px #1d352c26;
+    transform: translateX(-100%);
+    visibility: hidden;
+    transition:
+      transform 0.24s ease,
+      visibility 0s 0.24s;
+  }
+  .app.drawer-library .library-panel {
+    transform: none;
+    visibility: visible;
+    transition: transform 0.24s ease;
+  }
+  .library-toggle {
+    display: flex;
+  }
+  .inspector {
+    top: auto;
+    left: 0;
+    width: auto;
+    max-height: 62%;
+    border-left: 0;
+    border-top: 1px solid var(--line);
+    border-radius: 16px 16px 0 0;
+    box-shadow: 0 -18px 40px #1d352c26;
+    transform: translateY(100%);
+  }
+  .app-header {
+    height: 52px;
+    padding: 0 10px;
+    gap: 8px;
+  }
+  .brand > span:last-child,
+  .header-divider,
+  .save-state,
+  .header-actions .icon-button[aria-label='Help and shortcuts'],
+  .header-actions .subtle-button,
+  .header-actions .outline-button span {
+    display: none;
+  }
+  .project-title {
+    min-width: 0;
+    flex: 1;
+  }
+  .project-title button {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .header-actions {
+    gap: 4px;
+  }
+  .header-actions .outline-button {
+    padding: 0;
+    width: 36px;
+    height: 36px;
+    justify-content: center;
+  }
+  .undo-group {
+    padding-right: 2px;
+  }
+  .walk-button {
+    padding: 0 12px;
+  }
+  .workspace-toolbar {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    gap: 6px;
+    padding: 6px 8px;
+    scrollbar-width: none;
+  }
+  .workspace-toolbar > * {
+    flex-shrink: 0;
+  }
+  .floor-picker select {
+    max-width: 120px;
+  }
+  .drawing-tools button svg:not(:only-child) {
+    display: block;
+  }
+  /* Tool names stay readable to screen readers while the buttons shrink to icons. */
+  .drawing-tools button span,
+  .canvas-options .snap span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .canvases {
+    margin: 6px 6px 0;
+  }
+  .workspace-footer {
+    padding: 6px 10px 8px;
+  }
+  .workspace-footer > button {
+    display: none;
+  }
+  .project-stats {
+    gap: 12px;
+    overflow: hidden;
+    white-space: nowrap;
+  }
+  .modal-backdrop {
+    padding: 12px;
+  }
+  .modal {
+    padding: 24px 20px;
+    max-height: 94dvh;
+  }
+  .modal h2 {
+    font-size: 26px;
+  }
+  .tour-steps {
+    grid-template-columns: 1fr;
+    gap: 14px;
+    margin: 16px 0;
+  }
+  .shortcut-grid {
+    display: none;
+  }
+  .walk-map canvas {
+    width: 104px;
+    height: 104px;
+  }
+  /* The floor switcher drops to its own row under the exit and the tools. */
+  .walk-top {
+    top: 10px;
+    left: 10px;
+    right: 10px;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .walk-exit {
+    padding: 10px 12px;
+  }
+  .walk-exit span,
+  .walk-tour span {
+    display: none;
+  }
+  .walk-tools {
+    margin-left: auto;
+  }
+  .walk-levels {
+    order: 3;
+    margin: 0 auto;
+  }
+  .walk-room {
+    top: 108px;
+    font-size: 17px;
+  }
+  .app .walk-hint .keys {
+    display: none;
+  }
+  .app .walk-hint .touch {
+    display: inline;
+  }
+  .walk-hint {
+    bottom: auto;
+    top: 156px;
+    white-space: normal;
+    max-width: calc(100% - 28px);
+    font-size: 12.5px;
+    padding: 8px 12px;
+  }
+}
+
+/* Touch screens have no keys to press, so leave keyboard hints out. */
+.walk-hint .touch {
+  display: none;
+}
+@media (pointer: coarse) {
+  .walk-hint .keys {
+    display: none;
+  }
+  .walk-hint .touch {
+    display: inline;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   * {
     transition: none !important;
@@ -2082,7 +2373,7 @@ kbd {
 
 .window-styles {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 5px;
 }
 .window-styles button {
@@ -2099,6 +2390,9 @@ kbd {
 }
 .window-styles button span {
   color: #4a5944;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .window-styles button:hover {
   border-color: #aebca8;

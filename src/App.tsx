@@ -20,6 +20,7 @@ import {
   ChevronDown,
   ChevronRight,
   Baby,
+  Ban,
   Beef,
   Blinds,
   Circle,
@@ -62,6 +63,7 @@ import {
   MousePointer2,
   Package,
   PanelLeftClose,
+  PanelRight,
   Pencil,
   Piano,
   Plus,
@@ -796,6 +798,18 @@ export default function App() {
     setNoticeUndo(offerUndo);
   }, []);
   const walking = sceneMode === 'walk';
+  // On narrower screens the side panels slide in over the canvas instead of sitting beside it.
+  const compact = useMedia('(max-width: 1100px)');
+  const phone = useMedia('(max-width: 720px)');
+  const [drawer, setDrawer] = useState<'library' | 'inspector' | null>(null);
+  useEffect(() => {
+    if (!compact) setDrawer(null);
+  }, [compact]);
+  // Picking something on a small screen brings up its details; letting go puts them away.
+  useEffect(() => {
+    if (!compact) return;
+    setDrawer((d) => (selected ? 'inspector' : d === 'inspector' ? null : d));
+  }, [selected, compact]);
   useEffect(() => {
     if (!modal) return;
     const previous = document.activeElement as HTMLElement | null;
@@ -804,13 +818,17 @@ export default function App() {
       Array.from(dialog.querySelectorAll<HTMLElement>('button,input,select,[tabindex="0"]')).filter(
         (el) => !el.hasAttribute('disabled'),
       );
-    focusable()[0]?.focus();
+    dialog.tabIndex = -1;
+    dialog.focus();
     const trap = (e: KeyboardEvent) => {
       if (e.key !== 'Tab') return;
       const elements = focusable(),
         first = elements[0],
         last = elements[elements.length - 1];
-      if (e.shiftKey && document.activeElement === first) {
+      if (document.activeElement === dialog) {
+        e.preventDefault();
+        (e.shiftKey ? last : first)?.focus();
+      } else if (e.shiftKey && document.activeElement === first) {
         e.preventDefault();
         last?.focus();
       } else if (!e.shiftKey && document.activeElement === last) {
@@ -2084,7 +2102,7 @@ export default function App() {
               title="No shutters"
               onClick={() => commit({ ...project, shutterColor: undefined })}
             >
-              None
+              <Ban size={15} />
             </button>
             <input
               type="color"
@@ -2224,7 +2242,7 @@ export default function App() {
       </div>
     );
   return (
-    <div className={`app ${walking ? 'is-walking' : ''}`}>
+    <div className={`app ${walking ? 'is-walking' : ''} ${drawer ? `drawer-${drawer}` : ''}`}>
       <header className="app-header">
         <button
           className="brand"
@@ -2294,13 +2312,17 @@ export default function App() {
               <Redo2 size={18} />
             </button>
           </div>
-          <button className="subtle-button" onClick={() => setModal('projects')}>
+          <button
+            className="subtle-button"
+            aria-label="My projects"
+            onClick={() => setModal('projects')}
+          >
             <FolderOpen size={16} />
-            My projects
+            <span>My projects</span>
           </button>
-          <button className="outline-button" onClick={save}>
+          <button className="outline-button" aria-label="Export project" onClick={save}>
             <Download size={15} />
-            Export project
+            <span>Export project</span>
           </button>
           <button
             className="icon-button"
@@ -2315,12 +2337,21 @@ export default function App() {
             onClick={() => changeSceneMode(walking ? 'dollhouse' : 'walk')}
           >
             <Footprints size={17} />
-            {walking ? 'Back to editing' : 'Walk through'}
+            {walking ? 'Back to editing' : phone ? 'Walk' : 'Walk through'}
           </button>
         </div>
       </header>
       <div className="workspace">
-        <aside className="library-panel">
+        {drawer && (
+          <div className="drawer-scrim" aria-hidden="true" onClick={() => setDrawer(null)} />
+        )}
+        <aside
+          className="library-panel"
+          onClickCapture={(e) => {
+            // On a phone, choosing a piece puts the catalog away so you can place it.
+            if (phone && (e.target as HTMLElement).closest('.tile')) setDrawer(null);
+          }}
+        >
           <div className="library-tabs" role="tablist">
             {(['Build', 'Furnish', 'Landscape'] as const).map((t, index) => {
               const Icon = [Home, Armchair, TreePine][index];
@@ -2523,6 +2554,14 @@ export default function App() {
         </aside>
         <main className="main">
           <div className="workspace-toolbar">
+            <button
+              className="panel-toggle library-toggle"
+              aria-expanded={drawer === 'library'}
+              onClick={() => setDrawer((d) => (d === 'library' ? null : 'library'))}
+            >
+              <Plus size={16} />
+              <span>Add</span>
+            </button>
             <div className="floor-picker">
               <Layers size={17} />
               <select
@@ -2620,6 +2659,14 @@ export default function App() {
                 <Grid2X2 size={14} />
                 <span>Snap {snapping ? 'on' : 'off'}</span>
               </button>
+              <button
+                className="panel-toggle inspector-toggle"
+                aria-expanded={drawer === 'inspector'}
+                onClick={() => setDrawer((d) => (d === 'inspector' ? null : 'inspector'))}
+              >
+                <PanelRight size={16} />
+                <span>{selectedItem ? 'Details' : 'Home'}</span>
+              </button>
               <select
                 aria-label="Measurement units"
                 value={project.units}
@@ -2695,12 +2742,20 @@ export default function App() {
         <aside className="inspector">
           <div className="inspector-title">
             <strong>{selectedItem ? selectedItem.name : 'Your home'}</strong>
-            {selectedItem && (
+            {selectedItem ? (
               <button
                 className="icon-button small"
                 aria-label="Deselect shape"
                 title="Done (Esc)"
                 onClick={() => setSelected(null)}
+              >
+                <X size={15} />
+              </button>
+            ) : (
+              <button
+                className="icon-button small drawer-close"
+                aria-label="Close panel"
+                onClick={() => setDrawer(null)}
               >
                 <X size={15} />
               </button>
@@ -3057,8 +3112,8 @@ export default function App() {
                   </span>
                 </div>
                 <p className="small-note">
-                  A concept studio for dreaming, not construction drawings. Rooms are rectangles and
-                  roofs are simplified.
+                  A concept studio for dreaming, not construction drawings. Sizes, costs, and roofs
+                  are close, not exact.
                 </p>
                 <button className="primary-button" onClick={() => setModal(null)}>
                   Let's make room <ChevronRight size={15} />
@@ -3073,4 +3128,19 @@ export default function App() {
 }
 function e_name(style: StairStyle) {
   return stairEntry(style).name;
+}
+
+/** Whether a CSS media query matches, kept up to date as the window changes. */
+function useMedia(query: string) {
+  const [matches, setMatches] = useState(
+    () => typeof matchMedia !== 'undefined' && matchMedia(query).matches,
+  );
+  useEffect(() => {
+    const list = matchMedia(query);
+    const update = () => setMatches(list.matches);
+    update();
+    list.addEventListener('change', update);
+    return () => list.removeEventListener('change', update);
+  }, [query]);
+  return matches;
 }

@@ -8,7 +8,7 @@ Design your dream home, then walk through it. Draw rooms, add doors, windows, fu
 
 ## Open Hearth Studio
 
-**Open https://cbeaver728.github.io/hearth-studio/** in Edge or Chrome. Choose **Install app** in the address bar to get a desktop icon that opens in its own window and works offline. It works on phones and tablets too.
+**Open https://cbeaver728.github.io/hearth-studio/** in Edge or Chrome. Choose **Install app** in the address bar to get a desktop icon that opens in its own window and works offline. It works on phones and tablets too: on a tablet the details panel slides in from the right (**Home** / **Details** in the toolbar), and on a phone the catalog opens with **Add** and details rise from the bottom when you tap something. Split view stacks the plan over the 3D view on tall screens.
 
 Or, without the internet: **Double-click `Hearth-Studio.html`.** That's the whole app in one file. Download it from this repository's Releases page, save it anywhere (the Desktop is fine), and it opens in Edge or Chrome. There is nothing to install, no command window, and no `.exe` for Windows security to block. It works offline.
 
@@ -100,4 +100,4 @@ This is a concept-design studio, not construction or permit software.
 - Rooms are rectangles; walls are axis-aligned with a fixed thickness. Floor-to-floor height is 3.2 m.
 - Pieces turn in quarter turns. Stairs have 16 risers and stretch to fit their footprint.
 - Roofs are simplified: a gable or flat roof over the top of each stack, flat roofs over lower parts with nothing above.
-- Up to 1,000 shapes, eight upper floors, and three basements. The editor is designed for windows at least 1000 × 600.
+- Up to 1,000 shapes, eight upper floors, and three basements. The editor fits screens from a phone (about 360 px wide) up; the full three-panel layout appears on windows wider than 1100 px.

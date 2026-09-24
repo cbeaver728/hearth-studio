@@ -2394,7 +2394,7 @@ export default function Scene({
     } else if (level === 0) {
       const d = frontDoor(p);
       if (d) {
-        const back = p.walkStart === 'street' ? streetDistance(p, d) : 2.2;
+        const back = p.walkStart === 'street' ? streetDistance(p, d) : 3.6;
         x = d.x + d.nx * back;
         z = d.z + d.nz * back;
         yaw = face(-d.nx, -d.nz);
@@ -2643,9 +2643,15 @@ export default function Scene({
       ) : (
         <>
           <div className="walk-top">
-            <button className="walk-exit" onClick={() => onMode('dollhouse')}>
+            <button
+              className="walk-exit"
+              aria-label="Back to editing"
+              onClick={() => onMode('dollhouse')}
+            >
               <X size={16} />
-              Back to editing <kbd>Esc</kbd>
+              <span>
+                Back to editing <kbd>Esc</kbd>
+              </span>
             </button>
             <div className="walk-levels" role="group" aria-label="Go to floor">
               {levels.map((f) => (
@@ -2672,7 +2678,7 @@ export default function Scene({
                 }
               >
                 {touring ? <Pause size={15} /> : <Play size={15} />}
-                {touring ? 'Stop tour' : 'Tour'}
+                <span>{touring ? 'Stop tour' : 'Tour'}</span>
               </button>
               <button
                 className="icon-button glass"
@@ -2704,12 +2710,15 @@ export default function Scene({
             <div className="walk-hint" role="status">
               <Footprints size={16} />
               <strong>You're home.</strong>
-              <span>
+              <span className="keys">
                 <kbd>W</kbd>
                 <kbd>A</kbd>
                 <kbd>S</kbd>
                 <kbd>D</kbd> walk · drag to look · <kbd>Shift</kbd> hurry · walk onto stairs to
                 change floors
+              </span>
+              <span className="touch">
+                Arrows to walk · drag to look · walk onto stairs to change floors
               </span>
             </div>
           )}

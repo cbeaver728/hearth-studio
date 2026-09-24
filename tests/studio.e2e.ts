@@ -142,6 +142,9 @@ test('wall openings, drag resize, and keyboard shape movement work together', as
 test('dialogs keep keyboard focus inside and restore it on escape', async ({ page }) => {
   await open(page);
   await page.getByRole('button', { name: 'Help and shortcuts' }).click();
+  // The dialog itself takes focus, so no button is highlighted before a key is pressed.
+  await expect(page.getByRole('dialog')).toBeFocused();
+  await page.keyboard.press('Tab');
   await expect(page.getByRole('button', { name: 'Close dialog' })).toBeFocused();
   await page.keyboard.press('Shift+Tab');
   await expect(page.getByRole('button', { name: "Let's make room" })).toBeFocused();
@@ -236,4 +239,15 @@ test("Arthur's House opens, shows its outside, and can be walked from the street
   await page.getByRole('button', { name: 'Upstairs', exact: true }).click();
   await page.keyboard.press('Escape');
   expect(errors).toEqual([]);
+});
+
+test('fits a phone screen, with the panels tucked into drawers', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await open(page);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+  await expect(page.locator('.library-panel')).toBeHidden();
+  await page.getByRole('button', { name: 'Add', exact: true }).click();
+  await expect(page.locator('.library-panel')).toBeVisible();
+  await page.locator('.drawer-scrim').click({ position: { x: 370, y: 300 } });
+  await expect(page.locator('.library-panel')).toBeHidden();
 });

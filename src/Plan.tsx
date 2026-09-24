@@ -93,6 +93,8 @@ export default function Plan({
   const svg = useRef<SVGSVGElement>(null);
   const wrap = useRef<HTMLDivElement>(null);
   const [view, setView] = useState({ x: -14, z: -12, w: 29, h: 27 });
+  // How wide the panel is on screen, so labels can stay a readable size at any zoom.
+  const [pixels, setPixels] = useState(600);
   const [draft, setDraft] = useState<Item[] | null>(null);
   const [slide, setSlide] = useState<{ id: string; offset: number } | null>(null);
   const [hover, setHover] = useState<{ x: number; z: number } | null>(null);
@@ -114,6 +116,7 @@ export default function Plan({
     const ro = new ResizeObserver(() => {
       const r = el.getBoundingClientRect();
       if (!r.width || !r.height) return;
+      setPixels(r.width);
       setView((v) => {
         const h = (v.w * r.height) / r.width;
         return { ...v, z: v.z + (v.h - h) / 2, h };
@@ -913,28 +916,48 @@ export default function Plan({
         })}
         {items
           .filter((i) => isRoom(i) && i.w > 1 && i.d > 1)
-          .map((i) => (
-            <g key={`label-${i.id}`} pointerEvents="none">
-              <text
-                x={i.x + i.w / 2}
-                y={i.z + i.d / 2 - 0.08}
-                textAnchor="middle"
-                className="room-name"
-                fontSize={Math.min(0.5, (i.w / Math.max(i.name.length, 1)) * 1.5)}
-              >
-                {i.name}
-              </text>
-              <text
-                x={i.x + i.w / 2}
-                y={i.z + i.d / 2 + 0.34}
-                textAnchor="middle"
-                className="room-area"
-                fontSize=".3"
-              >
-                {formatLength(i.w, u)} × {formatLength(i.d, u)}
-              </text>
-            </g>
-          ))}
+          .map((i) => {
+            // Names stay at least 11px on screen, but never wider than the room.
+            const perMeter = pixels / view.w;
+            const size = `${formatLength(i.w, u)} × ${formatLength(i.d, u)}`;
+            const letters = Math.max(i.name.length, 1);
+            const name = Math.min(
+              Math.max(Math.min(0.5, (i.w / letters) * 1.5), 11 / perMeter),
+              (i.w * 0.9) / (letters * 0.56),
+            );
+            const small = Math.max(0.3, 9.5 / perMeter);
+            // The size line only shows when it fits and is big enough to read.
+            const sized =
+              small * size.length * 0.52 < i.w * 0.94 &&
+              name + small * 1.4 < i.d * 0.8 &&
+              small * perMeter >= 9;
+            const cx = i.x + i.w / 2,
+              cz = i.z + i.d / 2;
+            return (
+              <g key={`label-${i.id}`} pointerEvents="none">
+                <text
+                  x={cx}
+                  y={sized ? cz - small * 0.15 : cz + name * 0.35}
+                  textAnchor="middle"
+                  className="room-name"
+                  fontSize={name}
+                >
+                  {i.name}
+                </text>
+                {sized && (
+                  <text
+                    x={cx}
+                    y={cz + small * 1.15}
+                    textAnchor="middle"
+                    className="room-area"
+                    fontSize={small}
+                  >
+                    {size}
+                  </text>
+                )}
+              </g>
+            );
+          })}
         {tape && (
           <g className="no-export" pointerEvents="none">
             <line
@@ -1108,7 +1131,7 @@ export default function Plan({
               : tool === 'pan'
                 ? 'Drag the canvas to look around.'
                 : tool === 'select'
-                  ? 'Drag to move · Corners resize · Rooms carry their furniture (hold Alt to move alone) · Scroll to zoom'
+                  ? 'Drag to move · Corners resize · Alt-drag moves a room without its furniture'
                   : `Click to place ${catalogEntry(tool)?.name.toLowerCase()} · Shift-click to place several`}
       </div>
     </div>
