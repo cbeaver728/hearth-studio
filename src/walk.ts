@@ -27,6 +27,7 @@ import {
   type Segment,
 } from './stairs';
 import { curvePieces } from './curve';
+import { openForStairs } from './stairwalls';
 import { curveFloor } from './curveroof';
 import { arcPieces, cornerArcs } from './corners';
 import { lowHeadroom, planRoof, wingPoint } from './roof';
@@ -301,7 +302,7 @@ const segBox = (a: [number, number], b: [number, number], t: number, y0: number,
 /** Solid wall pieces (doors are gaps; windows are solid). */
 export function wallBoxes(p: Project): Box[] {
   const boxes: Box[] = [];
-  for (const w of buildWalls(p)) {
+  for (const w of openForStairs(p, buildWalls(p))) {
     const y = w.floor * FLOOR_H;
     const doors = w.openings.filter((o) => isPassable(o.kind)).sort((a, b) => a.start - b.start);
     let at = w.start;

@@ -1708,6 +1708,8 @@ export interface Wall {
     curtains?: string;
     outside?: WindowDress[];
     elevation?: WindowElevation;
+    /** Opened by stairs passing through, not placed by hand. */
+    auto?: boolean;
   }[];
 }
 export function buildWalls(p: Project): Wall[] {

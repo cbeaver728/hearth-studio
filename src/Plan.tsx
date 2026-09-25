@@ -12,6 +12,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import {
+  buildWalls,
   catalogEntry,
   openingKinds,
   openingName,
@@ -35,6 +36,7 @@ import {
 } from './model';
 import { layoutFor, localSize, toWorld } from './stairs';
 import { absorbLandings } from './floors';
+import { stairOpenings } from './stairwalls';
 import { stairGuards } from './walk';
 import { roomPath } from './corners';
 import { dormerRect, lowHeadroom, planRoof, wingPoint } from './roof';
@@ -923,6 +925,38 @@ export default function Plan({
             />
           </g>
         )}
+        {/* Walls the stairs pass through are open there; under the stairs themselves it's hidden. */}
+        {stairOpenings(p, buildWalls(p), floor)
+          .filter(
+            (g) =>
+              !p.items.some(
+                (s) =>
+                  s.kind === 'stairs' &&
+                  (g.axis === 'x'
+                    ? g.line > s.z + 0.12 && g.line < s.z + s.d - 0.12
+                    : g.line > s.x + 0.12 && g.line < s.x + s.w - 0.12),
+              ),
+          )
+          .map((g, n) => {
+            const mid = (g.start + g.end) / 2;
+            const [x, z] = g.axis === 'x' ? [mid, g.line + 0.2] : [g.line + 0.2, mid];
+            const room = roomsHere.find(
+              (r) => x > r.x && x < r.x + r.w && z > r.z && z < r.z + r.d,
+            );
+            const d =
+              g.axis === 'x' ? `M${g.start} ${g.line}H${g.end}` : `M${g.line} ${g.start}V${g.end}`;
+            const ticks =
+              g.axis === 'x'
+                ? `M${g.start} ${g.line - 0.14}V${g.line + 0.14}M${g.end} ${g.line - 0.14}V${g.line + 0.14}`
+                : `M${g.line - 0.14} ${g.start}H${g.line + 0.14}M${g.line - 0.14} ${g.end}H${g.line + 0.14}`;
+            return (
+              <g key={`stair-gap-${n}`} pointerEvents="none">
+                <title>Open for the stairs</title>
+                <path d={d} stroke={room?.color || '#f4f6ed'} strokeWidth=".24" />
+                <path d={ticks} stroke="#9b8970" strokeWidth=".04" />
+              </g>
+            );
+          })}
         {p.openings.map((op) => {
           const o = slide?.id === op.id ? { ...op, offset: slide.offset } : op;
           const r = items.find((i) => i.id === o.roomId);

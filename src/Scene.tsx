@@ -55,6 +55,7 @@ import {
   type Segment,
 } from './stairs';
 import { curvePieces } from './curve';
+import { openForStairs } from './stairwalls';
 import { arcPieces, cornerArc, cornerArcs } from './corners';
 import {
   buildWalkWorld,
@@ -757,7 +758,7 @@ function buildContent(p: Project, mode: SceneMode, floor: number, evening: boole
 
   // Walls: exterior finish outside, interior paint inside, trim at every opening.
   const trim = '#fbf8f1';
-  for (const wall of buildWalls(p).filter((w) => shown.includes(w.floor))) {
+  for (const wall of openForStairs(p, buildWalls(p)).filter((w) => shown.includes(w.floor))) {
     const y = wall.floor * FLOOR_H,
       thick = 0.16;
     const mid = (wall.start + wall.end) / 2;

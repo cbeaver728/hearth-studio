@@ -3,6 +3,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   blankProject,
+  buildWalls,
   createItem,
   FLOOR_H,
   rotateItem,
@@ -15,6 +16,7 @@ import { arthurProject } from '../src/arthur';
 import { addLevel } from '../src/floors';
 import { layoutFor, stairEnds, stairHeightAt, toWorld } from '../src/stairs';
 import { buildWalkWorld, stairGuide, stepWalker, type WalkWorld } from '../src/walk';
+import { openForStairs } from '../src/stairwalls';
 
 type P = [number, number];
 
@@ -188,5 +190,64 @@ describe('holding W up and down stairs', () => {
       const world = buildWalkWorld(project);
       expect(world.free(x, z, 0), style).toBe(true);
     }
+  });
+});
+
+describe('walls in the way of stairs open up for them', () => {
+  const room = (floor: number, x: number, z: number, w: number, d: number, name = 'Room') =>
+    Object.assign(createItem('room', floor, x, z), { w, d, name });
+  /** Stairs climbing north through the wall between two rooms, into a room split by walls above. */
+  const house = () => {
+    const p = blankProject();
+    p.floors.push({ level: 1, name: 'Upstairs' });
+    const s = Object.assign(createItem('stairs', 0, 1, -2), { w: 1.1, d: 4.1 });
+    p.items = [
+      room(0, 0, 0, 5, 5, 'Living room'),
+      room(0, 0, -4, 5, 4, 'Hall'),
+      room(1, 0, -4, 5, 2, 'Bedroom'), // the top step lands against the wall at z = -2
+      room(1, 0, -2, 5, 3, 'Landing'),
+      room(1, 0, 1, 5, 4, 'Bathroom'), // this wall at z = 1 crosses the stairwell
+      s,
+    ];
+    return { p, s };
+  };
+  it('opens the wall a flight runs through, the wall across the stairwell, and the one at the top', () => {
+    const { p } = house();
+    const gaps = openForStairs(p, buildWalls(p)).flatMap((w) =>
+      w.openings.filter((o) => o.auto).map((o) => ({ floor: w.floor, line: w.line, ...o })),
+    );
+    const at = (floor: number, line: number) =>
+      gaps.find((g) => g.floor === floor && Math.abs(g.line - line) < 0.01);
+    for (const [floor, line] of [
+      [0, 0],
+      [1, 1],
+      [1, -2],
+    ]) {
+      const g = at(floor, line);
+      expect(g, `floor ${floor} z ${line}`).toBeTruthy();
+      expect(g!.start).toBeLessThanOrEqual(1.05);
+      expect(g!.end).toBeGreaterThanOrEqual(2.05);
+    }
+  });
+  it('can be walked up and down holding W', () => {
+    const { runs, fails } = walkAll(house().p);
+    expect(runs).toBeGreaterThan(0);
+    expect(fails).toEqual([]);
+  });
+  it('leaves walls beside a flight, and outside walls, alone', () => {
+    const p = blankProject();
+    p.floors.push({ level: 1, name: 'Upstairs' });
+    // Against the west wall between two rooms, and poking out through the south outside wall.
+    const s = Object.assign(createItem('stairs', 0, 3, 2), { w: 1.1, d: 4.1 });
+    p.items = [
+      room(0, 0, 0, 3, 5, 'Den'),
+      room(0, 3, 0, 4, 5, 'Hall'),
+      room(1, 0, -1, 7, 6, 'Landing'),
+      s,
+    ];
+    const walls = openForStairs(p, buildWalls(p));
+    const auto = walls.filter((w) => w.openings.some((o) => o.auto));
+    expect(auto.filter((w) => w.axis === 'z' && Math.abs(w.line - 3) < 0.01)).toEqual([]);
+    expect(auto.filter((w) => w.floor === 0 && Math.abs(w.line - 5) < 0.01)).toEqual([]);
   });
 });
