@@ -397,6 +397,45 @@ export function furniture(item: Item, y: number, mat: Mat, ceiling = 3): T.Group
       }
       break;
     }
+    case 'carport': {
+      // Posts down both long sides, beams along the top, and a flat roof with a deep fascia.
+      const h = 2.45;
+      const posts = Math.max(2, Math.round(D / 2.6) + 1);
+      for (const u of [0.1, W - 0.1])
+        for (let n = 0; n < posts; n++) {
+          const v = 0.15 + ((D - 0.3) * n) / (posts - 1);
+          b(u - 0.07, u + 0.07, 0, h, v - 0.07, v + 0.07, c);
+          b(u - 0.1, u + 0.1, 0, 0.12, v - 0.1, v + 0.1, tone(c, -18));
+        }
+      for (const u of [0.1, W - 0.1]) b(u - 0.08, u + 0.08, h, h + 0.22, 0, D, c);
+      for (let n = 0; n <= Math.round(D / 0.9); n++) {
+        const v = Math.min(D - 0.04, Math.max(0.04, (D / Math.round(D / 0.9)) * n));
+        b(0.02, W - 0.02, h + 0.22, h + 0.3, v - 0.04, v + 0.04, tone(c, -8));
+      }
+      b(-0.25, W + 0.25, h + 0.3, h + 0.38, -0.25, D + 0.25, '#5d6769');
+      b(-0.27, W + 0.27, h + 0.22, h + 0.4, -0.27, -0.23, c);
+      b(-0.27, W + 0.27, h + 0.22, h + 0.4, D + 0.23, D + 0.27, c);
+      b(-0.27, -0.23, h + 0.22, h + 0.4, -0.25, D + 0.25, c);
+      b(W + 0.23, W + 0.27, h + 0.22, h + 0.4, -0.25, D + 0.25, c);
+      break;
+    }
+    case 'car': {
+      // A plain family car, nose to the north: body, cabin with glass all round, and wheels.
+      const glassMat = mat('#2c3a42', { rough: 0.15, metal: 0.3 });
+      b(0.02, W - 0.02, 0.28, 0.78, 0.05, D - 0.05, c);
+      b(0.05, W - 0.05, 0.22, 0.3, 0.12, D - 0.12, tone(c, -30));
+      b(W * 0.09, W * 0.91, 0.78, 1.3, D * 0.3, D * 0.74, c);
+      b(W * 0.11, W * 0.89, 0.8, 1.25, D * 0.29, D * 0.31, glassMat);
+      b(W * 0.11, W * 0.89, 0.8, 1.22, D * 0.73, D * 0.75, glassMat);
+      for (const u of [W * 0.08, W * 0.9])
+        b(u, u + W * 0.02, 0.86, 1.22, D * 0.32, D * 0.72, glassMat);
+      for (const u of [0.04, W - 0.26])
+        for (const v of [D * 0.18, D * 0.78])
+          b(u, u + 0.22, 0, 0.62, v - 0.32, v + 0.32, '#23272a');
+      for (const u of [0.18, W - 0.38]) b(u, u + 0.2, 0.55, 0.66, 0.03, 0.06, '#f4f1e2');
+      for (const u of [0.18, W - 0.38]) b(u, u + 0.2, 0.58, 0.66, D - 0.06, D - 0.03, '#b43b33');
+      break;
+    }
     case 'grill': {
       b(W * 0.06, W * 0.72, 0.5, 0.92, 0.08, D - 0.08, c);
       b(W * 0.04, W * 0.74, 0.92, 0.98, 0.04, D - 0.04, tone(c, 20));

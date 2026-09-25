@@ -16,6 +16,7 @@ import {
 import {
   RAIL_H,
   layoutFor,
+  localSize,
   rectToWorld,
   stairEnds,
   stairHeightAt,
@@ -387,6 +388,7 @@ const SOLID = new Set([
   'armchair',
   'pool',
   'fence',
+  'car',
 ]);
 
 /**
@@ -446,6 +448,24 @@ export function buildWalkWorld(p: Project): WalkWorld {
     const y = i.floor * FLOOR_H;
     if (SOLID.has(i.kind))
       boxes.push({ x0: i.x, z0: i.z, x1: i.x + i.w, z1: i.z + i.d, y0: y, y1: y + 1 });
+    if (i.kind === 'carport' || i.kind === 'pergola') {
+      const { LW, LD } = localSize(i);
+      const count = i.kind === 'carport' ? Math.max(2, Math.round(LD / 2.6) + 1) : 2;
+      const inset = i.kind === 'carport' ? [0.1, 0.15] : [0.11, 0.11];
+      for (const u of [inset[0], LW - inset[0]])
+        for (let n = 0; n < count; n++) {
+          const v = inset[1] + ((LD - inset[1] * 2) * n) / (count - 1);
+          const [px, pz] = toWorld(i, u, v);
+          boxes.push({
+            x0: px - 0.09,
+            z0: pz - 0.09,
+            x1: px + 0.09,
+            z1: pz + 0.09,
+            y0: y,
+            y1: y + 2.4,
+          });
+        }
+    }
     if (i.kind === 'tree') {
       const cx = i.x + i.w / 2,
         cz = i.z + i.d / 2;

@@ -251,14 +251,23 @@ function computeRoof(p: Project): RoofPlan {
     for (const level of levelsHere) {
       const here = members.filter((r) => r.floor === level);
       const above = members.filter((r) => r.floor === level + 1).map(rectOf);
-      const exposed = decompose(here.flatMap((r) => subtractRects(rectOf(r), above)));
       const isTop = level === top;
       const cape = isTop && here.some((r) => halfStorey(p, r));
-      const base = (rs: Item[]) =>
-        level * FLOOR_H + (cape ? KNEE : Math.max(...rs.map((r) => ceilingHeight(p, r)), 0));
+      const height = (r: Item) => (cape ? KNEE : Math.round(ceilingHeight(p, r) * 100) / 100);
+      const base = (rs: Item[]) => level * FLOOR_H + Math.max(...rs.map(height), 0);
+      // Rooms with different ceiling heights get roofs of their own, tallest first, so a lower
+      // room's roof sits on its own walls and butts against the taller part, rather than the
+      // whole floor riding at the tallest room's height.
+      const heights = [...new Set(here.map(height))].sort((a, b) => b - a);
+      const exposed = heights.flatMap((h) =>
+        decompose(
+          here.filter((r) => height(r) === h).flatMap((r) => subtractRects(rectOf(r), above)),
+        ).map((rect) => ({ rect, h })),
+      );
       const firstOfLevel = wings.length;
-      exposed.forEach((rect, n) => {
-        const covering = here.filter(
+      exposed.forEach(({ rect, h }, n) => {
+        const group = here.filter((r) => height(r) === h);
+        const covering = group.filter(
           (r) => touches(rectOf(r), rect) && area(r2(rectOf(r), rect)) > 0.01,
         );
         // A leftover strip beside rooms that do have something above gets a flat roof.
@@ -271,9 +280,10 @@ function computeRoof(p: Project): RoofPlan {
           axis = bi === 0 ? p.roofAxis || 'z' : longer(rect);
         } else {
           // Join the earlier wing (or the taller part) it butts against, gable facing out.
+          const taller = wings.slice(firstOfLevel).map((w) => w.rect);
           const neighbours = isTop
-            ? wings.slice(firstOfLevel).map((w) => w.rect)
-            : [...above, ...members.filter((r) => r.floor > level).map(rectOf)];
+            ? taller
+            : [...above, ...members.filter((r) => r.floor > level).map(rectOf), ...taller];
           joined = neighbours.map((nb) => sharedEdge(rect, nb)).find(Boolean);
           axis = joined ? axisAcross(joined) : longer(rect);
         }
@@ -283,7 +293,7 @@ function computeRoof(p: Project): RoofPlan {
           axis,
           cape,
           flat,
-          base: base(covering.length ? covering : here),
+          base: base(covering.length ? covering : group),
           tan: 0,
           joined,
           reach: 0,
@@ -305,8 +315,9 @@ function computeRoof(p: Project): RoofPlan {
         for (const w of mine.slice(1)) {
           if (!w.joined) continue;
           const host = mine.find((o) => o !== w && sharedEdge(w.rect, o.rect) === w.joined);
-          // Only a wing that meets the host along its eave runs on into it.
-          if (host && host.axis !== w.axis) w.reach = Math.min(halfSpan(w), halfSpan(host));
+          // Only a wing that meets the host along its eave, at the same height, runs on into it.
+          if (host && host.axis !== w.axis && Math.abs(host.base - w.base) < 0.05)
+            w.reach = Math.min(halfSpan(w), halfSpan(host));
         }
       } else for (const w of mine) w.tan = gableTan(halfSpan(w), p.roofPitch);
     }

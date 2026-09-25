@@ -974,7 +974,12 @@ export default function Plan({
                   );
                 })()}
               {o.kind === 'window' && (
-                <path d={`M0 -.075H${width}M0 .075H${width}`} stroke="#49868d" strokeWidth=".025" />
+                <path
+                  d={`M0 -.075H${width}M0 .075H${width}${o.elevation === 'stacked' ? `M0 0H${width}` : ''}`}
+                  stroke="#49868d"
+                  strokeWidth=".025"
+                  strokeDasharray={o.elevation === 'high' ? '.14 .09' : undefined}
+                />
               )}
               {(o.kind === 'arch' || o.kind === 'open') && (
                 <path d={`M0 -.14V.14M${width} -.14V.14`} stroke="#9b8970" strokeWidth=".04" />
@@ -1645,6 +1650,32 @@ function Shape({
           ].map(([u, v], n) => (
             <g key={n}>{r(u - 0.08, v - 0.08, 0.16, 0.16, c, 0.02)}</g>
           ))}
+        </>
+      );
+      break;
+    case 'carport': {
+      const posts = Math.max(2, Math.round(D / 2.6) + 1);
+      body = (
+        <>
+          {r(-0.2, -0.2, W + 0.4, D + 0.4, c, 0.04, { fillOpacity: 0.3 })}
+          {line(-0.2, -0.2, W + 0.2, D + 0.2)}
+          {line(W + 0.2, -0.2, -0.2, D + 0.2)}
+          {[0.1, W - 0.1].flatMap((u) =>
+            Array.from({ length: posts }, (_, n) => {
+              const v = 0.15 + ((D - 0.3) * n) / (posts - 1);
+              return <g key={`${u}-${n}`}>{r(u - 0.08, v - 0.08, 0.16, 0.16, '#8c8b86', 0.02)}</g>;
+            }),
+          )}
+        </>
+      );
+      break;
+    }
+    case 'car':
+      body = (
+        <>
+          {r(0, 0, W, D, c, Math.min(W, D) * 0.18)}
+          {r(W * 0.1, D * 0.3, W * 0.8, D * 0.44, '#2c3a42', 0.12, { fillOpacity: 0.55 })}
+          {line(W * 0.12, D * 0.08, W * 0.88, D * 0.08)}
         </>
       );
       break;

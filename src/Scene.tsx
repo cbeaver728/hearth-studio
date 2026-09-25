@@ -22,6 +22,7 @@ import {
   floorName,
   hasFloor,
   WALL_H,
+  windowBands,
   isPassable,
   openCeilings,
   FLOOR_H,
@@ -578,7 +579,8 @@ function buildContent(p: Project, mode: SceneMode, floor: number, evening: boole
   const wallHeight = (w: { floor: number; height: number }, outside: boolean) => {
     if (mode === 'dollhouse' && w.floor === floor) return 1.15;
     if (!outside) return w.height;
-    const opensUp = w.height > WALL_H + 0.1 && hasFloor(p, w.floor + 1);
+    // Open to the floor above: two storeys tall. (A Tall ceiling is only a little taller.)
+    const opensUp = w.height > FLOOR_H + WALL_H - 0.1 && hasFloor(p, w.floor + 1);
     const level = w.floor + (opensUp ? 1 : 0);
     if (level !== topLevel) return w.height;
     return Math.max(w.height, (opensUp ? FLOOR_H : 0) + roofBase(level));
@@ -774,6 +776,25 @@ function buildContent(p: Project, mode: SceneMode, floor: number, evening: boole
     // BoxGeometry face order: +x, -x, +y, -y, +z, -z.
     const faces =
       wall.axis === 'x' ? [edge, edge, edge, edge, pos, neg] : [pos, neg, edge, edge, edge, edge];
+    // Between a tall room and a lower one, the wall carries on up past the lower room's ceiling.
+    // Up there its face on the lower side is outdoors (siding), or in the room built above.
+    const lowSide =
+      sideA && sideB && Math.abs(ceilingHeight(p, sideA) - ceilingHeight(p, sideB)) > 0.2
+        ? ceilingHeight(p, sideA) < ceilingHeight(p, sideB)
+          ? -1
+          : 1
+        : 0;
+    const split = lowSide ? Math.min(ceilingHeight(p, sideA!), ceilingHeight(p, sideB!)) : 0;
+    const overLow = lowSide
+      ? wall.axis === 'x'
+        ? insideRoom(wall.floor + 1, mid, wall.line + lowSide * 0.25)
+        : insideRoom(wall.floor + 1, wall.line + lowSide * 0.25, mid)
+      : undefined;
+    const upperLook = overLow ? wallMat(overLow) : sidingMat();
+    const upperFaces =
+      wall.axis === 'x'
+        ? [edge, edge, edge, edge, lowSide > 0 ? upperLook : pos, lowSide < 0 ? upperLook : neg]
+        : [lowSide > 0 ? upperLook : pos, lowSide < 0 ? upperLook : neg, edge, edge, edge, edge];
     // Paneled wainscot below a chair rail, on whichever side has it.
     const WAIN = 0.95;
     const wainA = sideA?.wainscot,
@@ -844,7 +865,12 @@ function buildContent(p: Project, mode: SceneMode, floor: number, evening: boole
       top: number,
       material: T.Material | T.Material[] | string = faces,
       t = thick,
-    ) => {
+    ): T.Mesh | null => {
+      if (material === faces && lowSide && mode !== 'dollhouse' && top > split + 0.01) {
+        if (bottom >= split - 0.01) return solid(a, b, bottom, top, upperFaces, t);
+        solid(a, b, split, top, upperFaces, t);
+        return piece(a, b, bottom, split, material, t);
+      }
       if (material !== faces || !(wainA || wainB) || bottom >= WAIN - 0.01)
         return solid(a, b, bottom, top, material, t);
       const low = solid(a, b, bottom, Math.min(top, WAIN), lowFaces, t);
@@ -920,6 +946,8 @@ function buildContent(p: Project, mode: SceneMode, floor: number, evening: boole
       b: number,
       bottom: number,
       top: number,
+      // A window up high: glass and frame only, no curtains or shutters out of reach.
+      high = false,
     ) => {
       const style = open.style || 'classic';
       const glass = mat(evening ? '#f3d19a' : '#a9d0d6', {
@@ -1038,7 +1066,7 @@ function buildContent(p: Project, mode: SceneMode, floor: number, evening: boole
         across(a - 0.04, b + 0.04, bottom - 0.04, bottom, 0, thick + 0.08, trim);
 
       // Curtains, on whichever sides have a room.
-      if (open.curtains) {
+      if (open.curtains && !high) {
         const cloth = mat(open.curtains, { rough: 0.95 });
         const head = style === 'round' ? cy + r : top;
         const low = style === 'round' ? cy - r : bottom;
@@ -1068,7 +1096,7 @@ function buildContent(p: Project, mode: SceneMode, floor: number, evening: boole
 
       // Dressing on the outside.
       const outSign = !sideB ? 1 : !sideA ? -1 : 0;
-      if (!outSign) return;
+      if (!outSign || high) return;
       const dress = open.outside ?? (p.shutterColor ? ['shutters'] : []);
       const face = outSign * (thick / 2);
       if (dress.includes('shutters') && style !== 'round') {
@@ -1370,10 +1398,22 @@ function buildContent(p: Project, mode: SceneMode, floor: number, evening: boole
               : open.kind === 'slider'
                 ? 2.15
                 : 2.2;
+      if (open.kind === 'window') {
+        // One band of glass, or two stacked; wall above, below and between.
+        const bands = windowBands(open, height).filter(([s, h]) => h - s > 0.2 && s < height);
+        let from = 0;
+        for (const [s, h] of bands) {
+          if (s > from) piece(a, b, from, s);
+          from = h;
+        }
+        if (height > from) piece(a, b, from, height);
+        bands.forEach(([s, h], n) =>
+          drawWindow(open, a, b, s, Math.min(h, height), n > 0 || open.elevation === 'high'),
+        );
+        continue;
+      }
       if (bottom > 0) piece(a, b, 0, Math.min(bottom, height));
       if (height > top) piece(a, b, top, height);
-      if (open.kind === 'window' && height > bottom)
-        drawWindow(open, a, b, bottom, Math.min(top, height));
       if (open.kind === 'bay' && height > top) drawBay(open, a, b, bottom, top);
     }
     // Casings, door leaves, sliding glass, and garage panels.

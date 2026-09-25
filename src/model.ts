@@ -75,6 +75,8 @@ export type Kind =
   | 'stools'
   | 'toybox'
   | 'pergola'
+  | 'carport'
+  | 'car'
   | 'grill'
   | 'swing'
   | 'trampoline'
@@ -234,6 +236,40 @@ export interface Opening {
   curtains?: string;
   /** Windows: what dresses the outside. Unset follows the house's shutters setting. */
   outside?: WindowDress[];
+  /**
+   * Windows: where they sit on the wall. Unset is the usual height; 'high' puts the window up
+   * under the ceiling (a clerestory); 'stacked' adds a second window above the usual one, for
+   * a tall or open-to-above room.
+   */
+  elevation?: WindowElevation;
+}
+export type WindowElevation = 'high' | 'stacked';
+export const windowElevations: { id: WindowElevation | 'standard'; name: string; hint: string }[] =
+  [
+    { id: 'standard', name: 'Usual', hint: 'At the usual height' },
+    { id: 'high', name: 'High up', hint: 'Up under the ceiling, a clerestory' },
+    { id: 'stacked', name: 'Stacked', hint: 'The usual window and a second one above it' },
+  ];
+/** The usual window: sill and head above the floor. */
+export const SILL = 0.95;
+export const HEAD = 2.25;
+/**
+ * Where a window's glass sits on a wall of a given height, as [sill, head] pairs from the floor.
+ * Up high, a window fills the space under the ceiling: a slim strip on an everyday wall, a full
+ * window on a tall wall, right up in the open space of a room open to the floor above.
+ */
+export function windowBands(o: Pick<Opening, 'elevation'>, wallTop: number): [number, number][] {
+  const usual: [number, number] = [SILL, Math.min(HEAD, wallTop - 0.1)];
+  if (!o.elevation) return [usual];
+  const head = wallTop - 0.3;
+  if (o.elevation === 'high') {
+    const tall = Math.min(1.4, Math.max(0.45, head - 2.3));
+    return [[head - tall, head]];
+  }
+  // Stacked: the second window needs a clear band of wall between the two.
+  const sill = Math.max(HEAD + 0.45, head - 1.4);
+  if (head - sill < 0.45) return [usual];
+  return [usual, [sill, head]];
 }
 export const openingKinds: {
   kind: OpeningKind;
@@ -1196,6 +1232,8 @@ export const catalog: CatalogEntry[] = [
   entry('planter', 'planter', 'Planter box', 'Herbs and flowers', 1.6, 0.6, '#a8845c', 'Landscape'),
   entry('bench', 'bench', 'Garden bench', 'Somewhere to sit', 1.5, 0.6, '#a8845c', 'Landscape'),
   entry('pergola', 'pergola', 'Pergola', 'Dappled shade', 3.6, 3, '#c2a781', 'Landscape'),
+  entry('carport', 'carport', 'Carport', 'A roof for the car', 3.4, 6, '#ece8de', 'Landscape'),
+  entry('car', 'car', 'Car', 'Parked and ready', 1.85, 4.6, '#4d6f8a', 'Landscape'),
   entry('grill', 'grill', 'Barbecue', 'Cook outside', 1.3, 0.7, '#5d6163', 'Landscape'),
   entry('swing', 'swing', 'Swing set', 'Push me higher', 3, 1.8, '#8d9aa2', 'Landscape'),
   entry('trampoline', 'trampoline', 'Trampoline', 'Bounce', 3.4, 3.4, '#5b6a72', 'Landscape'),
@@ -1631,6 +1669,7 @@ export function validateProject(raw: unknown): Project {
       !num(o.width, 0.3, 12) ||
       (o.style !== undefined && !windowStyles.some((w) => w.id === o.style)) ||
       (o.curtains !== undefined && !color(o.curtains)) ||
+      (o.elevation !== undefined && !['high', 'stacked'].includes(o.elevation)) ||
       (o.outside !== undefined &&
         (!Array.isArray(o.outside) ||
           !o.outside.every((d) => windowDresses.some((w) => w.id === d))))
@@ -1668,6 +1707,7 @@ export interface Wall {
     style?: WindowStyle;
     curtains?: string;
     outside?: WindowDress[];
+    elevation?: WindowElevation;
   }[];
 }
 export function buildWalls(p: Project): Wall[] {
@@ -1693,7 +1733,12 @@ export function buildWalls(p: Project): Wall[] {
         .filter((o) => o.roomId === r.id && o.side === side)
         .map((o) => {
           // Taking a wall out opens the whole side; everything else is centered on its offset.
-          const looks = { style: o.style, curtains: o.curtains, outside: o.outside };
+          const looks = {
+            style: o.style,
+            curtains: o.curtains,
+            outside: o.outside,
+            elevation: o.elevation,
+          };
           if (spansWall(o.kind)) return { start, end, kind: o.kind };
           const width = Math.min(o.width, end - start - 0.2);
           const c = Math.max(

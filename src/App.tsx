@@ -19,6 +19,7 @@ import {
   BedDouble,
   BedSingle,
   Car,
+  CarFront,
   Check,
   ChevronDown,
   ChevronRight,
@@ -137,6 +138,9 @@ import {
   sidings,
   roofFinishes,
   roofStyles,
+  WALL_H,
+  windowElevations,
+  windowBands,
   curveRoofs,
   windowStyles,
   windowDresses,
@@ -233,6 +237,8 @@ const icons: Record<Kind, typeof Home> = {
   stools: Wine,
   toybox: Package,
   pergola: Tent,
+  carport: CarFront,
+  car: Car,
   grill: Beef,
   swing: Baby,
   trampoline: CircleDashed,
@@ -359,12 +365,16 @@ function WindowIcon({ style }: { style: WindowStyle }) {
 function WindowOptions({
   o,
   shuttersByDefault,
+  wallTop,
   onChange,
 }: {
   o: Opening;
   shuttersByDefault: boolean;
+  /** How tall the wall is here: the room's ceiling height. */
+  wallTop: number;
   onChange: (patch: Partial<Opening>) => void;
 }) {
+  const bands = windowBands(o, wallTop);
   const dress = o.outside ?? (shuttersByDefault ? ['shutters'] : []);
   return (
     <div className="window-options">
@@ -384,25 +394,55 @@ function WindowOptions({
           ))}
         </div>
       )}
-      <div className="swatches tight" role="group" aria-label="Curtains">
-        <span className="swatch-label">Curtains</span>
-        <button
-          className={!o.curtains ? 'selected text-swatch' : 'text-swatch'}
-          onClick={() => onChange({ curtains: undefined })}
-        >
-          None
-        </button>
-        {['#f4d33d', '#8fd07a', '#f0a3b8', '#6aaee0', '#f7f4ec', '#b8453c'].map((c) => (
-          <button
-            key={c}
-            aria-label={`Curtains ${c}`}
-            style={{ background: c }}
-            className={o.curtains === c ? 'selected' : ''}
-            onClick={() => onChange({ curtains: c })}
-          />
-        ))}
-      </div>
       {o.kind === 'window' && (
+        <>
+          <div className="segmented wide" role="group" aria-label="Window height">
+            {windowElevations.map((h) => (
+              <button
+                key={h.id}
+                className={(o.elevation || 'standard') === h.id ? 'active' : ''}
+                aria-pressed={(o.elevation || 'standard') === h.id}
+                title={h.hint}
+                onClick={() => onChange({ elevation: h.id === 'standard' ? undefined : h.id })}
+              >
+                {h.name}
+              </button>
+            ))}
+          </div>
+          {o.elevation === 'stacked' && bands.length < 2 && (
+            <p className="hint-text">
+              A second window needs more wall: set this room's Ceiling to Tall, or Open above.
+            </p>
+          )}
+          {o.elevation === 'high' && wallTop < 3.5 && (
+            <p className="hint-text">
+              On an everyday wall this is a slim strip under the ceiling. A Tall or Open-above
+              ceiling gives it room to be a full window.
+            </p>
+          )}
+        </>
+      )}
+      {o.elevation !== 'high' && (
+        <div className="swatches tight" role="group" aria-label="Curtains">
+          <span className="swatch-label">Curtains</span>
+          <button
+            className={!o.curtains ? 'selected text-swatch' : 'text-swatch'}
+            onClick={() => onChange({ curtains: undefined })}
+          >
+            None
+          </button>
+          {['#f4d33d', '#8fd07a', '#f0a3b8', '#6aaee0', '#f7f4ec', '#b8453c'].map((c) => (
+            <button
+              key={c}
+              aria-label={`Curtains ${c}`}
+              style={{ background: c }}
+              className={o.curtains === c ? 'selected' : ''}
+              onClick={() => onChange({ curtains: c })}
+            />
+          ))}
+        </div>
+      )}
+      {o.kind === 'window' && o.elevation !== 'high' && (
         <div className="dress-row" role="group" aria-label="Outside">
           {windowDresses.map((d) => {
             const on = dress.includes(d.id);
@@ -1944,6 +1984,7 @@ export default function App() {
                     <WindowOptions
                       o={o}
                       shuttersByDefault={!!project.shutterColor}
+                      wallTop={isRoom(s) ? ceilingHeight(project, s) : WALL_H}
                       onChange={(patch) =>
                         commit({
                           ...project,
