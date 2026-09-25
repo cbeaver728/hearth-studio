@@ -633,3 +633,114 @@ export function buildWalkWorld(p: Project): WalkWorld {
   };
   return { slabs, stairs, boxes, support, free, levelOf };
 }
+
+/** The line up a flight, in plan: from where you stand at the foot, along the treads, to the head. */
+function stairLine(s: Item): [number, number][] {
+  const ends = stairEnds(s);
+  return [ends.bottom, ...layoutFor(s).path.map(([u, v]) => toWorld(s, u, v)), ends.top];
+}
+
+/** How far ahead along the stairs the guide aims: far enough to round a corner smoothly. */
+const LOOK_AHEAD = 0.7;
+
+/**
+ * Stairs carry you along them. On a flight (or stepping onto either end of one) and heading up
+ * or down it, the move aims at a point a little further along the flight's own line, so W alone
+ * climbs a spiral, rounds the corner of an L or the landing of a U, and eases you back to the
+ * middle; nobody has to steer a 60 cm radius with the arrow keys. Sideways across a step, the
+ * move is left as it is. Returns the move to make and, when guided, the heading for the view to
+ * settle toward.
+ */
+export function stairGuide(
+  world: WalkWorld,
+  x: number,
+  z: number,
+  feet: number,
+  dx: number,
+  dz: number,
+): { dx: number; dz: number; heading?: number } {
+  const speed = Math.hypot(dx, dz);
+  if (speed < 1e-6) return { dx, dz };
+  const ux = dx / speed,
+    uz = dz / speed;
+  let best: { d: number; tx: number; tz: number } | null = null;
+  for (const s of world.stairs) {
+    const { lower, upper } = stairLevels(s);
+    const line = stairLine(s);
+    const h = stairHeightAt(s, x, z);
+    const on = h !== undefined && Math.abs(h - feet) < 0.45;
+    const last = line[line.length - 1];
+    const atFoot =
+      !on &&
+      Math.abs(feet - lower * FLOOR_H) < 0.25 &&
+      Math.hypot(x - line[0][0], z - line[0][1]) < 0.9;
+    const atHead =
+      !on && Math.abs(feet - upper * FLOOR_H) < 0.25 && Math.hypot(x - last[0], z - last[1]) < 0.9;
+    if (!on && !atFoot && !atHead) continue;
+    // Lengths along the line, and the nearest point on it.
+    const cum = [0];
+    for (let k = 1; k < line.length; k++)
+      cum.push(cum[k - 1] + Math.hypot(line[k][0] - line[k - 1][0], line[k][1] - line[k - 1][1]));
+    const total = cum[cum.length - 1];
+    let near = { d: Infinity, at: 0, tx: 0, tz: 0 };
+    for (let k = 0; k < line.length - 1; k++) {
+      const [a, b] = [line[k], line[k + 1]];
+      const lx = b[0] - a[0],
+        lz = b[1] - a[1],
+        L2 = lx * lx + lz * lz || 1;
+      const f = Math.max(0, Math.min(1, ((x - a[0]) * lx + (z - a[1]) * lz) / L2));
+      const d = Math.hypot(a[0] + lx * f - x, a[1] + lz * f - z);
+      if (d < near.d - 1e-9) {
+        const L = Math.sqrt(L2);
+        near = { d, at: cum[k] + f * L, tx: lx / L, tz: lz / L };
+      }
+    }
+    // Which way along the line: up if you're heading the way it climbs here, down if against.
+    const pointAt = (t: number): [number, number] => {
+      if (t <= 0) {
+        const [a, b] = [line[0], line[1]];
+        const L = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
+        return [a[0] + ((b[0] - a[0]) / L) * t, a[1] + ((b[1] - a[1]) / L) * t];
+      }
+      for (let k = 1; k < line.length; k++)
+        if (t <= cum[k] || k === line.length - 1) {
+          const [a, b] = [line[k - 1], line[k]];
+          const L = cum[k] - cum[k - 1] || 1;
+          const f = (t - cum[k - 1]) / L;
+          return [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f];
+        }
+      return line[line.length - 1];
+    };
+    const aim = (sign: number) => {
+      const t = near.at + sign * LOOK_AHEAD;
+      // Past either end, keep going the way the line leaves it.
+      let [px, pz] = pointAt(Math.max(0, Math.min(total, t)));
+      if (t > total) {
+        const [a, b] = [line[line.length - 2], line[line.length - 1]];
+        const L = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
+        px += ((b[0] - a[0]) / L) * (t - total);
+        pz += ((b[1] - a[1]) / L) * (t - total);
+      } else if (t < 0) [px, pz] = pointAt(t);
+      const ax = px - x,
+        az = pz - z,
+        L = Math.hypot(ax, az) || 1;
+      return { tx: ax / L, tz: az / L };
+    };
+    const upward = aim(1),
+      downward = aim(-1);
+    const alongUp = ux * upward.tx + uz * upward.tz,
+      alongDown = ux * downward.tx + uz * downward.tz;
+    let pick: { tx: number; tz: number } | null = null;
+    if (atFoot) pick = alongUp > 0.45 ? upward : null;
+    else if (atHead) pick = alongDown > 0.45 ? downward : null;
+    else if (Math.max(alongUp, alongDown) > 0.35) pick = alongUp >= alongDown ? upward : downward;
+    if (!pick) continue;
+    if (!best || near.d < best.d) best = { d: near.d, ...pick };
+  }
+  if (!best) return { dx, dz };
+  return {
+    dx: best.tx * speed,
+    dz: best.tz * speed,
+    heading: Math.atan2(-best.tx, -best.tz),
+  };
+}

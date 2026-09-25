@@ -21,7 +21,12 @@ const overlaps = (a: Item, b: { x: number; z: number; w: number; d: number }) =>
 
 /** Finds a clear spot and facing on a level for new stairs, preferring halls and entries.
  * The bottom step must open into the room, not against a wall. */
-export function findStairSpot(p: Project, level: number, style: StairStyle) {
+export function findStairSpot(
+  p: Project,
+  level: number,
+  style: StairStyle,
+  dir: 'up' | 'down' = 'up',
+) {
   const e = stairEntry(style);
   const rooms = p.items
     .filter((i) => i.kind === 'room' && i.floor === level)
@@ -81,8 +86,11 @@ export function findStairSpot(p: Project, level: number, style: StairStyle) {
           if (blockers.some((b) => (strict || b.kind === 'stairs') && overlaps(b, box))) continue;
           if (clearDoors && doorways.some((d) => overlaps({ ...box, id: '' } as Item, d))) continue;
           const probe = { ...createItem(e.id, level, s.x, s.z), w, d, rotation };
-          const [bx, bz] = stairEnds(probe).bottom;
-          if (bx < r.x + 0.3 || bx > r.x + r.w - 0.3 || bz < r.z + 0.3 || bz > r.z + r.d - 0.3)
+          // The end of the flight on this floor has to open into the room: the foot of stairs
+          // going up, the head of stairs going down to a basement.
+          const ends = stairEnds(probe);
+          const [bx, bz] = dir === 'up' ? ends.bottom : ends.top;
+          if (bx < r.x + 0.5 || bx > r.x + r.w - 0.5 || bz < r.z + 0.5 || bz > r.z + r.d - 0.5)
             continue;
           return { x: Math.round(s.x * 100) / 100, z: Math.round(s.z * 100) / 100, rotation };
         }
@@ -193,7 +201,7 @@ export function addLevel(p: Project, o: AddLevelOptions) {
   let stair: Item | undefined = o.stairId ? items.find((i) => i.id === o.stairId) : undefined;
   if (!stair && o.stairs) {
     const e = stairEntry(o.stairs);
-    const spot = findStairSpot({ ...p, items }, from, o.stairs);
+    const spot = findStairSpot({ ...p, items }, from, o.stairs, o.type === 'upper' ? 'up' : 'down');
     stair = createItem(e.id, from, spot.x, spot.z);
     if (spot.rotation % 180) [stair.w, stair.d] = [stair.d, stair.w];
     stair.rotation = spot.rotation;

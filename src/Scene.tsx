@@ -61,6 +61,7 @@ import {
   landingReach,
   landingRails,
   stairGuards,
+  stairGuide,
   stairHoles,
   stepWalker,
   type WalkWorld,
@@ -2347,8 +2348,21 @@ export default function Scene({
         const speed = k.has('shift') ? 4.2 : 2.4;
         // Accelerate toward the pace you asked for; let go and you slow to a stop.
         const ease = Math.min(1, dt * (len > 0 ? 8 : 11));
-        m.vx += ((len > 0 ? (dx / len) * speed : 0) - m.vx) * ease;
-        m.vz += ((len > 0 ? (dz / len) * speed : 0) - m.vz) * ease;
+        // On the stairs, the stairs carry you along their own line (see stairGuide).
+        const guided =
+          len > 0
+            ? stairGuide(e.world, w.x, w.z, w.feet, (dx / len) * speed, (dz / len) * speed)
+            : null;
+        m.vx += ((guided ? guided.dx : 0) - m.vx) * ease;
+        m.vz += ((guided ? guided.dz : 0) - m.vz) * ease;
+        // Walking forward up or down a flight, the view turns with it, unless you're turning or
+        // looking around yourself.
+        if (guided?.heading !== undefined && forward > 0 && !turn && !dragging) {
+          let dYaw = guided.heading - w.yaw;
+          while (dYaw > Math.PI) dYaw -= Math.PI * 2;
+          while (dYaw < -Math.PI) dYaw += Math.PI * 2;
+          w.yaw += Math.max(-3 * dt, Math.min(3 * dt, dYaw));
+        }
         if (Math.hypot(m.vx, m.vz) < 0.02) m.vx = m.vz = 0;
         if (m.vx || m.vz) {
           const vx = m.vx * dt,
